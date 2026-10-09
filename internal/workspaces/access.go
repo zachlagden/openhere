@@ -103,3 +103,7 @@ func collectGrants(rows *sql.Rows) ([]Grant, error) {
 	}
 	return grants, nil
 }
+
+func (s *Service) Personal(ctx context.Context, userID string) (Access, error) {
+	return loadAccess(ctx, s.db, userID, "w.kind = 'personal' AND w.created_by = $1", userID)
+}
