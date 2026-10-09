@@ -8,6 +8,8 @@ import (
 	"fmt"
 )
 
+const TokenLength = encodedToken
+
 const (
 	tokenBytes   = 32
 	idBytes      = 16
