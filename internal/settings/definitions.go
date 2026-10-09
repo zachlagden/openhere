@@ -23,10 +23,14 @@ const (
 	KeyWildcardStatus   = "hosting.wildcardStatus"
 	KeyWildcardChecked  = "hosting.wildcardCheckedAt"
 	KeyWildcardDetail   = "hosting.wildcardDetail"
+	KeyDefaultAccess    = "sites.defaultAccessMode"
 
 	WildcardUnchecked = "unchecked"
 	WildcardOK        = "ok"
 	WildcardFailed    = "failed"
+
+	AccessPublic     = "public"
+	AccessRestricted = "restricted"
 
 	minimumInt          = 1
 	maxBaseDomainLength = 253
@@ -49,6 +53,8 @@ type Settings struct {
 	WildcardStatus    string
 	WildcardCheckedAt string
 	WildcardDetail    string
+
+	DefaultAccessMode string
 }
 
 type definition struct {
@@ -91,6 +97,9 @@ var definitions = []definition{
 	readOnlyString(KeyWildcardDetail, "", false,
 		func(s *Settings, v string) { s.WildcardDetail = v },
 		func(s Settings) string { return s.WildcardDetail }),
+	stringDefinition(KeyDefaultAccess, AccessPublic, normaliseDefaultAccess,
+		func(s *Settings, v string) { s.DefaultAccessMode = v },
+		func(s Settings) string { return s.DefaultAccessMode }),
 }
 
 func findDefinition(key string) (definition, bool) {
@@ -223,4 +232,12 @@ func normaliseBaseDomain(raw string) (string, error) {
 		}
 	}
 	return domain, nil
+}
+
+func normaliseDefaultAccess(raw string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	if mode != AccessPublic && mode != AccessRestricted {
+		return "", errors.New("use public or restricted")
+	}
+	return mode, nil
 }

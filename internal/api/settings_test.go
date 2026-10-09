@@ -43,6 +43,7 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"hosting.wildcardStatus":    "unchecked",
 			"hosting.wildcardCheckedAt": nil,
 			"hosting.wildcardDetail":    "",
+			"sites.defaultAccessMode":   "public",
 		}
 		assertSettings(t, defaults, want)
 
