@@ -6,7 +6,7 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain or by path, and gates them with per-site access modes (public, password or restricted). There is no dashboard yet, and the server cannot send email yet, so the email-code sign-in for allowlisted viewers stays unavailable until an email sender exists.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain or by path, and gates them with per-site access modes (public, password or restricted). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. There is no dashboard yet.
 
 **A new site is public.** Anyone who can reach the server and knows or guesses its slug can read its files, until you set another access mode with `PATCH /api/v1/publish/{slug}/access` or change the default with the `sites.defaultAccessMode` setting. See [Access control](#access-control).
 
@@ -30,7 +30,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 ## API
 
-`docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). The server does not serve it yet. Only `GET /api/v1/setup/status`, `POST /api/v1/setup` and `POST /api/v1/auth/login` work without credentials, plus `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. Every other path returns a JSON 401, or a JSON 404 once signed in.
+`docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). The server does not serve it yet. Only `GET /api/v1/setup/status`, `POST /api/v1/setup`, `POST /api/v1/auth/login`, `GET /api/v1/invites/{token}`, `POST /api/v1/invites/{token}/accept`, `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm`, `POST /api/v1/auth/agent/request-code` and `POST /api/v1/auth/agent/verify-code` work without credentials, plus `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. Every other path returns a JSON 401, or a JSON 404 once signed in.
 
 - Browsers sign in with a session cookie (HttpOnly, SameSite=Lax, 30 days, renewed on use). Over HTTPS it is named `__Host-session`, is Secure, has Path=/ and no Domain attribute, so a sibling subdomain cannot overwrite it. Over plain HTTP (local use) it is named `session`. The server reads only the form that matches the request. State-changing requests that use the cookie must send an `X-Requested-With` header and an `Origin` header that matches the host.
 - Scripts and agents use `Authorization: Bearer <key>` with a key from `POST /api/v1/me/keys`. The response shows the full key once. The server stores only its SHA-256 hash. Each user can hold 50 active keys.
@@ -38,7 +38,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 ### Rate limits
 
-Login and setup are limited per IP address and per email: login allows 30 attempts per IP and 10 per email in 15 minutes, setup allows 10 per IP and 5 per email. The account sign-in handoff allows 30 calls per user per minute. The counters live in process memory, so a restart resets them and each server process counts separately. A successful login resets that email's counter. The viewer gate has its own limits, listed under [Access control](#access-control).
+Login and setup are limited per IP address and per email: login allows 30 attempts per IP and 10 per email in 15 minutes, setup allows 10 per IP and 5 per email. The account sign-in handoff allows 30 calls per user per minute. The counters live in process memory, so a restart resets them and each server process counts separately. A successful login resets that email's counter. The routes that work without credentials and can send email or issue credentials have their own limits per IP address and, where an email is involved, per email address: invite lookup 60 per minute and invite accept 10 per 15 minutes per IP, reset requests 5 per 15 minutes per IP and 3 per hour per email, reset confirmation 10 per 15 minutes per IP, agent code requests 10 per 15 minutes per IP, 3 per hour per email and 100 per hour for the whole instance, agent code verification 20 per 15 minutes per IP and 10 per 15 minutes per email. Creating or resending invites allows 30 per hour per user. The viewer gate has its own limits, listed under [Access control](#access-control).
 
 ### Running behind a reverse proxy
 
@@ -192,6 +192,91 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `hosting.wildcardCheckedAt` | null | Read-only. When the last check finished. |
 | `hosting.wildcardDetail` | empty | Read-only. Why the last check failed. |
 | `sites.defaultAccessMode` | `public` | Access mode of sites created from now on: `public` or `restricted`. Existing sites keep theirs. `password` is not allowed, because a password is set per site. |
+| `invites.whoCanInvite` | `root` | Who may create invites: `root` or `workspaceAdmins`. With `workspaceAdmins`, a workspace admin may invite only into a workspace they administer. |
+| `workspaces.whoCanCreate` | `any` | Who may create shared workspaces: `any` user or only `root`. |
+| `email.provider` | `none` | `none`, `smtp` or `resend`. |
+| `email.fromAddress` | empty | Sender address, such as `noreply@example.com`. Both providers need it. |
+| `email.fromName` | empty | Optional sender name. |
+| `email.smtp.host` | empty | SMTP server host name or IP address. |
+| `email.smtp.port` | 587 | SMTP server port. |
+| `email.smtp.security` | `starttls` | `tls` (implicit TLS, usually port 465), `starttls` (usually port 587) or `none`. |
+| `email.smtp.username` | empty | SMTP user name. Leave empty for a server without authentication. |
+| `email.smtp.password` | write-only | SMTP password. Reads return `email.smtp.passwordSet` (true or false) instead. An empty string clears it. |
+| `email.resend.apiKey` | write-only | Resend API key. Reads return `email.resend.apiKeySet` instead. An empty string clears it. |
+
+Changes take effect on the next request. Email settings need no restart.
+
+## Email
+
+Email is optional. Without it, the server still works, and each feature that needs email says so: the invite response sets `emailAvailable` to false and still returns the invite link, password reset requests send nothing, the viewer email code stays off and agent email sign-in returns `email_not_configured`.
+
+The root user sets it up with `PATCH /api/v1/admin/settings`.
+
+For SMTP:
+
+```sh
+curl -X PATCH http://localhost:8080/api/v1/admin/settings \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"settings":{"email.provider":"smtp","email.fromAddress":"noreply@example.com","email.fromName":"Acme Ltd",
+       "email.smtp.host":"smtp.example.com","email.smtp.port":587,"email.smtp.security":"starttls",
+       "email.smtp.username":"alex","email.smtp.password":"change-me"}}'
+```
+
+For Resend:
+
+```sh
+curl -X PATCH http://localhost:8080/api/v1/admin/settings \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"settings":{"email.provider":"resend","email.fromAddress":"noreply@example.com","email.resend.apiKey":"re_example"}}'
+```
+
+Email counts as configured only when the provider is set and its required fields are present: SMTP needs a host, a valid port, a security mode and the from address (and a password when it has a user name), Resend needs an API key and the from address. `POST /api/v1/admin/email/test` (root only, at most 5 per minute) sends a test message to the root user's address and returns either `{"sent":true}` or a short reason such as "the server rejected the username or password". The reason never contains a secret or the server's raw reply.
+
+Messages are plain text. Links in them start with `PUBLIC_URL`.
+
+### Secrets at rest
+
+The SMTP password and the Resend API key are write-only. The settings API never returns them, only whether one is set. The server encrypts them with AES-256-GCM before it stores them. The key comes from `SECRET_KEY` (32 random bytes, base64 encoded) when set. Otherwise the server creates `secret.key` in `DATA_DIR` with mode 0600 on first start and reuses it. Generate a key with `openssl rand -base64 32`. Back up the key with the database: without it, stored secrets cannot be read, and email stays off until the root user enters them again. The server derives the agent sign-in code hashes from the same key, so a changed key also invalidates codes that are in flight.
+
+## Invites
+
+An invite creates an instance account. Nobody can sign up on their own. By default only the root user can invite. Set `invites.whoCanInvite` to `workspaceAdmins` to let a workspace admin invite into a workspace they administer. Creating shared workspaces has its own setting, `workspaces.whoCanCreate`.
+
+`POST /api/v1/invites` takes an email, an optional `workspace` (slug or id of a shared workspace) with a workspace-wide `role` (`admin`, `write` or `read`, default `read`), and `sendEmail`. The response always carries the link `PUBLIC_URL/invite/<token>`. The server stores only a hash of the token, so this response is the one time the link is shown. If email is configured and `sendEmail` is true, the server also emails the link. `emailAvailable` and `emailSent` tell the caller what happened, so a client can hide its email option when `emailAvailable` is false. An email address that already has an account returns 409, and the message suggests adding the user to the workspace instead.
+
+An invite expires after 7 days and works once. `GET /api/v1/invites` lists invites (all of them for the root user, the ones you sent for anyone else). `DELETE /api/v1/invites/{id}` revokes one. `POST /api/v1/invites/{id}/resend` revokes the old link and issues a new one.
+
+The invitee opens the link. `GET /api/v1/invites/{token}` returns only the invited email and the workspace name, and `POST /api/v1/invites/{token}/accept` with a password and an optional display name creates the user, their personal workspace and the membership in one step, then signs them in. Unknown, expired, revoked and used tokens all return the same 404. These two routes need no sign-in and are rate limited. The page at `/invite/<token>` belongs to the dashboard, which does not exist yet.
+
+## Users and password resets
+
+The root user lists accounts with `GET /api/v1/admin/users` and disables or enables one with `PATCH /api/v1/admin/users/{id}` and `{"disabled":true}`. A disabled user cannot sign in, and their sessions and API keys stop working at once. The root user cannot disable themselves, and the last root user cannot be disabled. There is no way to delete a user.
+
+Anyone can ask for a reset link with `POST /api/v1/auth/password-reset/request`. The response is always the same, whether or not the account exists. The server sends the link only when email is configured and the account exists and is enabled. `POST /api/v1/auth/password-reset/confirm` with the token and a new password sets the password. A link works once and expires after an hour. A reset ends all of the user's sessions and keeps their API keys. Both routes are rate limited per IP address, and the request route per email address too.
+
+Without email, the root user generates a link with `POST /api/v1/admin/users/{id}/password-reset`. The response shows the link once, and the root user passes it on.
+
+## Agent sign-in
+
+An agent that has no credentials can ask the user for access with an email code, when the instance has email:
+
+1. `POST /api/v1/auth/agent/request-code` with `{"email":"alex@example.com"}`. The response is the same for every address. The server emails an 8-digit code to an existing, enabled account only.
+2. The user reads the code from the email and gives it to the agent.
+3. `POST /api/v1/auth/agent/verify-code` with `{"email":"alex@example.com","code":"12345678","label":"my agent"}` returns a new API key once, with the full access of that user. `label` defaults to `agent`. The 50 active keys per user limit applies.
+
+A code works once, expires after 10 minutes and allows 5 attempts. Requests are limited to 3 per hour per email address, plus limits per IP address and for the whole instance.
+
+When the instance cannot send email, `request-code` returns 409 `email_not_configured`. The message tells the agent that the user must create an API key in the dashboard under Settings, API keys, and give it to the agent.
+
+### Where agents keep the key
+
+Agents store the key in `~/.selfhost/credentials` with mode 0600 (the directory with mode 0700), as JSON with the instance URL and the key:
+
+```json
+{"url": "https://sites.example.com", "key": "sk_..."}
+```
+
+An agent reads that file at the start of a session before it asks the user for anything, and sends the key as `Authorization: Bearer <key>`. The `verify-code` response repeats the path in `credentialsPath`. The directory name comes from one constant, `AgentCredentialsDir` in `internal/config/agent.go`, so renaming the project changes one line.
 
 ## Configuration
 
@@ -200,12 +285,13 @@ The server reads these environment variables.
 | Variable | Default | Description |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | Address the HTTP server listens on, as `host:port` or `:port`. |
-| `DATA_DIR` | `./data` (`/data` in the Docker image) | Directory for the SQLite database file `selfhost.db`, published site files under `sites/` and upload temporaries under `tmp/`. Keep it on a persistent volume. |
+| `DATA_DIR` | `./data` (`/data` in the Docker image) | Directory for the SQLite database file `selfhost.db`, published site files under `sites/`, upload temporaries under `tmp/` and the generated `secret.key`. Keep it on a persistent volume. |
 | `DATABASE_URL` | unset | PostgreSQL connection URL. When unset, the server uses SQLite in `DATA_DIR`. |
 | `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error`. Logs are JSON on standard output. |
 | `SENTRY_DSN` | unset | Enables error reporting through the Sentry SDK. A self-hosted GlitchTip works. |
 | `API_KEY_PREFIX` | `sk_` | Constant prefix of generated API keys, 1 to 16 letters, digits or underscores. Changing it invalidates existing keys. |
 | `PUBLIC_URL` | `http://localhost` plus the port of `LISTEN_ADDR` | Address of the dashboard and API, such as `https://sites.example.com`: scheme, host and optional port, no path. The scheme decides whether cookies are Secure and which scheme the wildcard check uses. The host is the management host and the default `hosting.baseDomain`. |
+| `SECRET_KEY` | unset | 32 random bytes, base64 encoded, used to encrypt stored secrets. When unset, the server uses `DATA_DIR/secret.key` and creates it on first start. See [Secrets at rest](#secrets-at-rest). |
 | `TRUSTED_PROXIES` | unset | Comma-separated IP addresses or CIDR ranges of reverse proxies. The server reads `X-Forwarded-For` and `X-Forwarded-Proto` only from these peers. |
 
 `.env.example` lists the same keys with fake values. The server does not load `.env` files itself, so export the variables or pass them to Docker.
