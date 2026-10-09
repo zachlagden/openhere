@@ -35,6 +35,8 @@ const (
 	codeCannotDisableSelf   = "cannot_disable_self"
 	codeLastRoot            = "last_root"
 	codeUserDisabled        = "user_disabled"
+	codeInviteAccepted      = "invite_accepted"
+	codeEmailRegistered     = "email_registered"
 	codeVersionConflict     = "version_conflict"
 	codeTooManyFiles        = "too_many_files"
 	codeVersionTooLarge     = "version_too_large"

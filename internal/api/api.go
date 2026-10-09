@@ -10,6 +10,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
@@ -25,6 +26,9 @@ type Rule = ratelimit.Rule
 
 type Limits struct {
 	EmailTest     Rule
+	InviteSend    Rule
+	InviteLookup  Rule
+	InviteAccept  Rule
 	LoginPerIP    Rule
 	LoginPerEmail Rule
 	SetupPerIP    Rule
@@ -37,6 +41,9 @@ func DefaultLimits() Limits {
 	window := 15 * time.Minute
 	return Limits{
 		EmailTest:     Rule{Max: 5, Window: time.Minute},
+		InviteSend:    Rule{Max: 30, Window: time.Hour},
+		InviteLookup:  Rule{Max: 60, Window: time.Minute},
+		InviteAccept:  Rule{Max: 10, Window: window},
 		LoginPerIP:    Rule{Max: 30, Window: window},
 		LoginPerEmail: Rule{Max: 10, Window: window},
 		SetupPerIP:    Rule{Max: 10, Window: window},
@@ -54,6 +61,9 @@ func (l Limits) withDefaults() Limits {
 		}
 	}
 	fill(&l.EmailTest, defaults.EmailTest)
+	fill(&l.InviteSend, defaults.InviteSend)
+	fill(&l.InviteLookup, defaults.InviteLookup)
+	fill(&l.InviteAccept, defaults.InviteAccept)
 	fill(&l.WildcardCheck, defaults.WildcardCheck)
 	fill(&l.Handoff, defaults.Handoff)
 	return l
@@ -67,6 +77,7 @@ type Options struct {
 	Public         config.PublicURL
 	Wildcard       WildcardChecker
 	Mailer         mail.Sender
+	Invites        *invites.Service
 }
 
 type Server struct {
@@ -82,7 +93,12 @@ type Server struct {
 	public     config.PublicURL
 	wildcard   WildcardChecker
 	mailer     mail.Sender
+	invites    *invites.Service
+	now        func() time.Time
 
+	inviteSend     *ratelimit.Limiter
+	inviteLookup   *ratelimit.Limiter
+	inviteAccept   *ratelimit.Limiter
 	emailTestLimit *ratelimit.Limiter
 	wildcardLimit  *ratelimit.Limiter
 	handoffLimit   *ratelimit.Limiter
@@ -106,6 +122,10 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 	if mailer == nil {
 		mailer = mail.Unconfigured{}
 	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
+	}
 	limiter := func(r Rule) *ratelimit.Limiter { return ratelimit.New(r.Max, r.Window, opts.Now) }
 	return &Server{
 		auth:       svc,
@@ -120,7 +140,12 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		public:     opts.Public,
 		wildcard:   opts.Wildcard,
 		mailer:     mailer,
+		invites:    opts.Invites,
+		now:        now,
 
+		inviteSend:     limiter(limits.InviteSend),
+		inviteLookup:   limiter(limits.InviteLookup),
+		inviteAccept:   limiter(limits.InviteAccept),
 		emailTestLimit: limiter(limits.EmailTest),
 		wildcardLimit:  limiter(limits.WildcardCheck),
 		handoffLimit:   limiter(limits.Handoff),
@@ -150,6 +175,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerHostingRoutes(mux)
 	s.registerAccessRoutes(mux)
 	s.registerAdminRoutes(mux)
+	s.registerInviteRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

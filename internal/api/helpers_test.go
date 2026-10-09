@@ -19,6 +19,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/publish"
@@ -145,13 +146,16 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	accessSvc := access.New(db, access.Options{
 		Mailer: mailer, Params: testParams, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() },
 	})
+	invitesSvc := invites.New(db, svc, workspaceSvc, settingsSvc, invites.Options{
+		BaseURL: "http://" + testHost, Mailer: mailer, Now: clock.Now, Logger: logger,
+	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger})
 	public := opts.public
 	if public == (config.PublicURL{}) {
 		public = config.PublicURL{Scheme: "http", Host: testHost}
 	}
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer,
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc})
 	return &harness{

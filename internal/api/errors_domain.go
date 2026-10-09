@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
@@ -31,6 +32,11 @@ var domainFailures = []domainFailure{
 	{workspaces.ErrMemberExists, http.StatusConflict, codeMemberExists, "That user already has this access."},
 	{settings.ErrWildcardNotVerified, http.StatusConflict, codeWildcardNotVerified, "Subdomain mode needs a successful wildcard check. Run POST /admin/hosting/check first."},
 	{policy.ErrSharedCreationRestricted, http.StatusForbidden, codeForbidden, "Only the root user can create workspaces on this instance."},
+	{invites.ErrInviteInvalid, http.StatusNotFound, codeNotFound, "Not found."},
+	{invites.ErrInviteNotFound, http.StatusNotFound, codeNotFound, "Not found."},
+	{invites.ErrNotPermitted, http.StatusForbidden, codeForbidden, "Your account is not allowed to send invitations here."},
+	{invites.ErrAccepted, http.StatusConflict, codeInviteAccepted, "That invite has already been accepted."},
+	{invites.ErrEmailRegistered, http.StatusConflict, codeEmailRegistered, "That email address already has an account. Add them to the workspace from its members page instead."},
 	{auth.ErrUserNotFound, http.StatusNotFound, codeNotFound, "Not found."},
 	{auth.ErrSelfDisable, http.StatusConflict, codeCannotDisableSelf, "You cannot disable your own account."},
 	{auth.ErrLastRoot, http.StatusConflict, codeLastRoot, "The last root user cannot be disabled."},
