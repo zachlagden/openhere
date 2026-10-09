@@ -1,0 +1,15 @@
+/selfhost
+/bin/
+/data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+coverage.out
+.idea/
+.vscode/
+.DS_Store
