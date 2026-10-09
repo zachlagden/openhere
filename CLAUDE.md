@@ -12,12 +12,13 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Keep SQL portable between both databases. No JSONB, arrays, LISTEN/NOTIFY or other PostgreSQL-only features.
 - Migrations are plain SQL files in `internal/store/migrations`, embedded with `go:embed` and run by goose on startup. One migration set serves both databases.
 - Logging is structured JSON through `log/slog`. Errors go to Sentry only when `SENTRY_DSN` is set.
-- Layout is in `internal/`: `config`, `store`, `telemetry`. Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
+- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
 
 ## Rules
 
 - Write no code comments. The only allowed marker is `TODO(zach): reason`.
 - Handle every error explicitly. Never swallow one.
+- The API documents itself in `docs/openapi.yaml`. Keep it in step with the handlers.
 - Nothing is reachable without auth, except hosted sites and the login, setup and invite pages. Add no health endpoint, root page or docs route that skips auth.
 - Docker Compose is forbidden, including for development. Run Postgres for tests with a plain `docker run`.
 - Deploy with the Dockerfile only.
@@ -39,4 +40,4 @@ TEST_DATABASE_URL=postgres://user:password@localhost:5432/selfhost_test go test 
 docker build -t selfhost .
 ```
 
-The store tests always run on SQLite and run on PostgreSQL when `TEST_DATABASE_URL` is set. They drop the tables they create, so point that variable at a throwaway database.
+The store, auth and API tests always run on SQLite and run on PostgreSQL when `TEST_DATABASE_URL` is set. The store tests drop the tables they create, so point that variable at a throwaway database. The `storetest` package gives the other tests a schema of their own.

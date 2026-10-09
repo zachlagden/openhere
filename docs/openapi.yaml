@@ -1,0 +1,411 @@
+openapi: 3.1.0
+info:
+  title: selfhost API
+  version: 0.1.0
+  description: |
+    REST API of the selfhost server. Every route except `GET /setup/status`, `POST /setup` and
+    `POST /auth/login` needs authentication, and every unknown path returns 401 without credentials
+    and 404 with them.
+
+    Authenticate with `Authorization: Bearer <api key>` or with the `session` cookie that setup and
+    login set. Requests authenticated by cookie that change state must also send an
+    `X-Requested-With` header (any non-empty value) and an `Origin` header that matches the request
+    host. API key requests skip both checks.
+
+    Request and response bodies are JSON. Request bodies must use `Content-Type: application/json`,
+    must stay under 16 KiB and must not contain unknown fields.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+  - sessionCookie: []
+tags:
+  - name: Setup
+  - name: Auth
+  - name: Account
+paths:
+  /setup/status:
+    get:
+      tags: [Setup]
+      operationId: getSetupStatus
+      summary: Report whether first-time setup is still needed
+      security: []
+      responses:
+        "200":
+          description: Setup state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupStatus"
+  /setup:
+    post:
+      tags: [Setup]
+      operationId: setup
+      summary: Create the root user and sign in
+      description: |
+        Works only while the instance has no users. The server logs the setup token once at startup.
+        Success discards the token and sets the `session` cookie. Rate limited per IP address and per email.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupRequest"
+      responses:
+        "201":
+          description: Root user created.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: The setup token is missing or wrong (`invalid_setup_token`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Setup is already complete (`setup_complete`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Sign in with email and password
+      description: |
+        Sets the `session` cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
+        email and a malformed email all return the same response. Rate limited per IP address and per email.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Signed in.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Wrong email or password (`invalid_credentials`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: End the current session
+      description: Deletes the session behind the cookie and clears the cookie. With an API key it only clears the cookie.
+      responses:
+        "204":
+          description: Signed out.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+  /me:
+    get:
+      tags: [Account]
+      operationId: getMe
+      summary: Get the signed-in user
+      responses:
+        "200":
+          description: The user and how the request authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /me/keys:
+    get:
+      tags: [Account]
+      operationId: listApiKeys
+      summary: List the user's API keys
+      description: Returns active and revoked keys, newest first. Never includes the key itself.
+      responses:
+        "200":
+          description: API keys.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+    post:
+      tags: [Account]
+      operationId: createApiKey
+      summary: Create an API key
+      description: |
+        The response is the only time the full key is shown. A user can hold 50 active keys.
+        A key has the full access of its user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyRequest"
+      responses:
+        "201":
+          description: Key created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedApiKey"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "409":
+          description: The user already has 50 active keys (`api_key_limit_reached`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /me/keys/{id}:
+    delete:
+      tags: [Account]
+      operationId: revokeApiKey
+      summary: Revoke an API key
+      description: Revoking an already revoked key succeeds.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Key revoked.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "404":
+          description: The key does not exist or belongs to another user (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: An API key created with `POST /me/keys`.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Set by `POST /setup` and `POST /auth/login`. HttpOnly, SameSite=Lax, and Secure over HTTPS.
+  headers:
+    SessionCookie:
+      description: The `session` cookie.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: |
+        The request was rejected. The `code` is one of `invalid_json` (400), `validation_failed` (400),
+        `body_too_large` (413) or `unsupported_media_type` (415).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthenticated:
+      description: No valid session or API key (`unauthenticated`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    CsrfRejected:
+      description: A cookie-authenticated request lacked `X-Requested-With` or a same-host `Origin` (`csrf_rejected`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Too many attempts (`rate_limited`). Limits are held in memory, per process, and reset on restart.
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable snake_case identifier.
+          enum:
+            - invalid_json
+            - validation_failed
+            - unsupported_media_type
+            - body_too_large
+            - unauthenticated
+            - invalid_credentials
+            - invalid_setup_token
+            - setup_complete
+            - csrf_rejected
+            - rate_limited
+            - not_found
+            - api_key_limit_reached
+            - internal_error
+        message:
+          type: string
+        retry_after:
+          type: integer
+          description: Seconds to wait. Present on `rate_limited`.
+    SetupStatus:
+      type: object
+      required: [setupRequired]
+      properties:
+        setupRequired:
+          type: boolean
+    SetupRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, setupToken]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: ASCII only. Stored in lower case.
+          examples: [alex@example.com]
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        setupToken:
+          type: string
+          description: The token the server logged at startup.
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          examples: [alex@example.com]
+        password:
+          type: string
+    User:
+      type: object
+      required: [id, email, isRoot, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        isRoot:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    UserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+    Me:
+      type: object
+      required: [user, authMethod]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        authMethod:
+          type: string
+          enum: [session, apiKey]
+    ApiKey:
+      type: object
+      required: [id, label, prefix, createdAt, lastUsedAt, revokedAt]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        prefix:
+          type: string
+          description: The start of the key, for recognising it in a list.
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Updated at most once a minute.
+        revokedAt:
+          type: [string, "null"]
+          format: date-time
+    ApiKeyList:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKey"
+    CreateApiKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+          examples: [ci runner]
+    CreatedApiKey:
+      type: object
+      required: [key, apiKey]
+      properties:
+        key:
+          type: string
+          description: The full key. Shown once.
+        apiKey:
+          $ref: "#/components/schemas/ApiKey"

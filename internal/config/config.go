@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -13,7 +15,10 @@ const (
 	defaultListenAddr = ":8080"
 	defaultDataDir    = "./data"
 	defaultLogLevel   = "info"
+	defaultKeyPrefix  = "sk_"
 )
+
+var keyPrefixPattern = regexp.MustCompile(`^[A-Za-z0-9_]{1,16}$`)
 
 type Config struct {
 	ListenAddr  string
@@ -21,6 +26,9 @@ type Config struct {
 	DatabaseURL string
 	LogLevel    slog.Level
 	SentryDSN   string
+
+	APIKeyPrefix   string
+	TrustedProxies []netip.Prefix
 }
 
 type Lookup func(key string) (string, bool)
@@ -33,6 +41,8 @@ func Load(lookup Lookup) (Config, error) {
 		DataDir:     values.get("DATA_DIR", defaultDataDir),
 		DatabaseURL: values.get("DATABASE_URL", ""),
 		SentryDSN:   values.get("SENTRY_DSN", ""),
+
+		APIKeyPrefix: values.get("API_KEY_PREFIX", defaultKeyPrefix),
 	}
 
 	var problems []error
@@ -44,6 +54,11 @@ func Load(lookup Lookup) (Config, error) {
 	problems = appendIf(problems, validateListenAddr(cfg.ListenAddr))
 	problems = appendIf(problems, validateDatabaseURL(cfg.DatabaseURL))
 	problems = appendIf(problems, validateSentryDSN(cfg.SentryDSN))
+	problems = appendIf(problems, validateKeyPrefix(cfg.APIKeyPrefix))
+
+	proxies, err := parseTrustedProxies(values.get("TRUSTED_PROXIES", ""))
+	problems = appendIf(problems, err)
+	cfg.TrustedProxies = proxies
 
 	if cfg.DatabaseURL == "" && cfg.DataDir == "" {
 		problems = append(problems, errors.New("DATA_DIR must not be empty when DATABASE_URL is unset"))
@@ -110,4 +125,43 @@ func validateSentryDSN(raw string) error {
 		return errors.New("SENTRY_DSN must be a URL with a scheme and host")
 	}
 	return nil
+}
+
+func validateKeyPrefix(prefix string) error {
+	if !keyPrefixPattern.MatchString(prefix) {
+		return fmt.Errorf("API_KEY_PREFIX %q must be 1 to 16 letters, digits or underscores", prefix)
+	}
+	return nil
+}
+
+func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var prefixes []netip.Prefix
+	var problems []error
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		prefix, err := parseProxyEntry(entry)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("TRUSTED_PROXIES entry %q must be an IP address or a CIDR range", entry))
+			continue
+		}
+		prefixes = append(prefixes, prefix)
+	}
+	return prefixes, errors.Join(problems...)
+}
+
+func parseProxyEntry(entry string) (netip.Prefix, error) {
+	if strings.Contains(entry, "/") {
+		return netip.ParsePrefix(entry)
+	}
+	addr, err := netip.ParseAddr(entry)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }
