@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/workspaces"
@@ -49,6 +52,8 @@ type harness struct {
 	clock   *fakeClock
 	auth    *auth.Service
 	gate    *auth.SetupGate
+	publish *publish.Service
+	dataDir string
 }
 
 type harnessOptions struct {
@@ -81,10 +86,17 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	if opts.limits != nil {
 		limits = *opts.limits
 	}
+	dataDir := t.TempDir()
+	files, err := sitefiles.New(dataDir)
+	if err != nil {
+		t.Fatalf("sitefiles.New: %v", err)
+	}
 	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now})
-	siteSvc := sites.New(db, workspaceSvc, sites.Options{Now: clock.Now})
-	server := New(svc, workspaceSvc, siteSvc, gate, Options{TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger})
-	return &harness{t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate}
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{Now: clock.Now, Files: files, Logger: logger})
+	settingsSvc := settings.New(db, settings.Options{Now: clock.Now})
+	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger})
+	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate, Options{TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger})
+	return &harness{t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir}
 }
 
 type requestOption func(*http.Request)

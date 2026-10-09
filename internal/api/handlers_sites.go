@@ -13,11 +13,13 @@ type createSiteRequest struct {
 	DisplayName string `json:"displayName"`
 	Description string `json:"description"`
 	FolderID    string `json:"folderId"`
+	SpaMode     bool   `json:"spaMode"`
 }
 
 type updateSiteRequest struct {
 	DisplayName *string        `json:"displayName"`
 	Description *string        `json:"description"`
+	SpaMode     *bool          `json:"spaMode"`
 	FolderID    optionalString `json:"folderId"`
 }
 
@@ -74,7 +76,7 @@ func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 	}
 	site, err := s.sites.CreateSite(r.Context(), sites.CreateInput{
 		UserID: p.user.ID, Workspace: r.PathValue("workspace"), Slug: req.Slug, DisplayName: req.DisplayName,
-		Description: req.Description, FolderID: req.FolderID,
+		Description: req.Description, FolderID: req.FolderID, SpaMode: req.SpaMode,
 	})
 	if err != nil {
 		s.writeDomainError(w, r, err)
@@ -99,7 +101,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	update := sites.UpdateInput{DisplayName: req.DisplayName, Description: req.Description}
+	update := sites.UpdateInput{DisplayName: req.DisplayName, Description: req.Description, SpaMode: req.SpaMode}
 	if req.FolderID.Set {
 		update.Folder.Set = true
 		if req.FolderID.Value != nil {

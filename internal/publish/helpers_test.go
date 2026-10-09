@@ -209,9 +209,11 @@ func (e *env) readLive(slug, path string) string {
 	if err != nil {
 		e.t.Fatalf("OpenLiveFile(%s): %v", path, err)
 	}
-	defer live.File.Close()
 	body, err := io.ReadAll(live.File)
 	if err != nil {
+		e.t.Fatal(err)
+	}
+	if err := live.File.Close(); err != nil {
 		e.t.Fatal(err)
 	}
 	return string(body)
@@ -231,10 +233,10 @@ func parsePatch(t *testing.T, raw string) map[string]json.RawMessage {
 func damage(t *testing.T, versionDir, rel, content string) {
 	t.Helper()
 	target := filepath.Join(versionDir, "files", filepath.FromSlash(rel))
-	if err := os.Chmod(target, 0o644); err != nil {
+	if err := os.Chmod(target, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

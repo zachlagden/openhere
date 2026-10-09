@@ -21,6 +21,7 @@ const (
 	KeySubdomainEnabled = "hosting.subdomainEnabled"
 	KeyPathEnabled      = "hosting.pathEnabled"
 
+	minimumInt          = 1
 	maxBaseDomainLength = 253
 	maxKeepVersions     = 10000
 	maxFilesLimit       = 1_000_000
@@ -48,16 +49,16 @@ type definition struct {
 }
 
 var definitions = []definition{
-	intDefinition(KeyKeepVersions, 10, 1, maxKeepVersions,
+	intDefinition(KeyKeepVersions, 10, maxKeepVersions,
 		func(s *Settings, v int64) { s.KeepVersions = int(v) },
 		func(s Settings) int64 { return int64(s.KeepVersions) }),
-	intDefinition(KeyMaxFilesPerVer, 2500, 1, maxFilesLimit,
+	intDefinition(KeyMaxFilesPerVer, 2500, maxFilesLimit,
 		func(s *Settings, v int64) { s.MaxFilesPerVer = int(v) },
 		func(s Settings) int64 { return int64(s.MaxFilesPerVer) }),
-	intDefinition(KeyMaxVersionBytes, 1<<30, 1, maxBytesLimit,
+	intDefinition(KeyMaxVersionBytes, 1<<30, maxBytesLimit,
 		func(s *Settings, v int64) { s.MaxVersionBytes = v },
 		func(s Settings) int64 { return s.MaxVersionBytes }),
-	intDefinition(KeyMaxFileBytes, 256<<20, 1, maxBytesLimit,
+	intDefinition(KeyMaxFileBytes, 256<<20, maxBytesLimit,
 		func(s *Settings, v int64) { s.MaxFileBytes = v },
 		func(s Settings) int64 { return s.MaxFileBytes }),
 	stringDefinition(KeyBaseDomain, "", normaliseBaseDomain,
@@ -93,7 +94,7 @@ func decodeValue(key string, raw json.RawMessage, target any) error {
 	return nil
 }
 
-func intDefinition(key string, fallback, min, max int64, set func(*Settings, int64), get func(Settings) int64) definition {
+func intDefinition(key string, fallback, max int64, set func(*Settings, int64), get func(Settings) int64) definition {
 	return definition{
 		key:      key,
 		fallback: strconv.FormatInt(fallback, 10),
@@ -102,8 +103,8 @@ func intDefinition(key string, fallback, min, max int64, set func(*Settings, int
 			if err := decodeValue(key, raw, &value); err != nil {
 				return "", err
 			}
-			if value < min || value > max {
-				return "", validate.Invalid(fmt.Sprintf("Setting %s must be between %d and %d.", key, min, max))
+			if value < minimumInt || value > max {
+				return "", validate.Invalid(fmt.Sprintf("Setting %s must be between %d and %d.", key, minimumInt, max))
 			}
 			return strconv.FormatInt(value, 10), nil
 		},

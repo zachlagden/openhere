@@ -38,16 +38,12 @@ func seedSite(t *testing.T, s Store, id, slug string) {
 	}
 }
 
-func seedVersion(t *testing.T, s Store, id, site, status string) {
+func seedVersion(t *testing.T, s Store, id, site string) {
 	t.Helper()
 	stamp := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-	var finalized any
-	if status == "finalized" {
-		finalized = stamp
-	}
 	if _, err := s.ExecContext(context.Background(),
 		`INSERT INTO versions (id, site_id, status, created_at, finalized_at, file_count, total_bytes)
-		VALUES ($1, $2, $3, $4, $5, 1, 5)`, id, site, status, stamp, finalized); err != nil {
+		VALUES ($1, $2, 'finalized', $3, $3, 1, 5)`, id, site, stamp); err != nil {
 		t.Fatalf("insert version: %v", err)
 	}
 }
@@ -84,7 +80,7 @@ func TestVersionConstraints(t *testing.T) {
 				t.Error("a finalized version without a finalized_at was accepted")
 			}
 
-			seedVersion(t, s, versionID, siteID, "finalized")
+			seedVersion(t, s, versionID, siteID)
 			if _, err := s.ExecContext(ctx,
 				"INSERT INTO version_files (version_id, path, size, sha256, content_type) VALUES ($1, 'index.html', 5, $2, 'text/html')",
 				versionID, "short"); err == nil {
@@ -111,7 +107,7 @@ func TestSitePointerConstraints(t *testing.T) {
 			s := openMigrated(t, target)
 			ctx := context.Background()
 			seedSite(t, s, siteID, "docs")
-			seedVersion(t, s, versionID, siteID, "finalized")
+			seedVersion(t, s, versionID, siteID)
 
 			if _, err := s.ExecContext(ctx, "UPDATE sites SET current_version_id = 'missing' WHERE id = $1", siteID); err == nil {
 				t.Error("a pointer to an unknown version was accepted")
@@ -137,8 +133,8 @@ func TestDeletingASiteRemovesItsVersions(t *testing.T) {
 			ctx := context.Background()
 			seedSite(t, s, siteID, "docs")
 			seedSite(t, s, otherSite, "notes")
-			seedVersion(t, s, versionID, siteID, "finalized")
-			seedVersion(t, s, otherVer, otherSite, "finalized")
+			seedVersion(t, s, versionID, siteID)
+			seedVersion(t, s, otherVer, otherSite)
 			const hash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 			for _, id := range []string{versionID, otherVer} {
 				if _, err := s.ExecContext(ctx,

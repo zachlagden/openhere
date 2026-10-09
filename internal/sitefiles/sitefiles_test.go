@@ -48,10 +48,12 @@ func TestPutAndOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer file.Close()
 	body, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatalf("read: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	if string(body) != "console.log(1)" || info.Size() != int64(len(body)) {
 		t.Errorf("content = %q, size = %d", body, info.Size())
@@ -187,7 +189,7 @@ func TestPutNeverFollowsSymlinks(t *testing.T) {
 	if err := put(t, s, "leak.txt", "replacement"); err == nil {
 		t.Error("Put replaced a symlink")
 	}
-	if body, err := os.ReadFile(secret); err != nil || string(body) != "secret" {
+	if body, err := os.ReadFile(filepath.Clean(secret)); err != nil || string(body) != "secret" {
 		t.Errorf("symlink target changed: %q, %v", body, err)
 	}
 }
@@ -259,10 +261,10 @@ func TestVerifyDetectsTampering(t *testing.T) {
 	}
 	filesDir, _ := s.filesDir(siteID, versionID)
 	target := filepath.Join(filesDir, "a.txt")
-	if err := os.Chmod(target, 0o644); err != nil {
+	if err := os.Chmod(target, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, []byte("jello"), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte("jello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Verify(siteID, versionID, Expected{Path: "a.txt", Size: 5, SHA256: sum("hello")}); !errors.Is(err, ErrHashMismatch) {

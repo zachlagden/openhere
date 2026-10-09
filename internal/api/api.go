@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
+	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/workspaces"
 )
@@ -48,6 +50,8 @@ type Server struct {
 	auth       *auth.Service
 	workspaces *workspaces.Service
 	sites      *sites.Service
+	publish    *publish.Service
+	settings   *settings.Service
 	gate       *auth.SetupGate
 	proxies    proxyTrust
 	logger     *slog.Logger
@@ -58,7 +62,7 @@ type Server struct {
 	setupEmail *ratelimit.Limiter
 }
 
-func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, gate *auth.SetupGate, opts Options) *Server {
+func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publishSvc *publish.Service, settingsSvc *settings.Service, gate *auth.SetupGate, opts Options) *Server {
 	logger := opts.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -72,6 +76,8 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, gate
 		auth:       svc,
 		workspaces: ws,
 		sites:      siteSvc,
+		publish:    publishSvc,
+		settings:   settingsSvc,
 		gate:       gate,
 		proxies:    proxyTrust{prefixes: opts.TrustedProxies},
 		logger:     logger,
@@ -96,6 +102,8 @@ func (s *Server) Handler() http.Handler {
 
 	s.registerWorkspaceRoutes(mux)
 	s.registerSiteRoutes(mux)
+	s.registerPublishRoutes(mux)
+	s.registerSettingsRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

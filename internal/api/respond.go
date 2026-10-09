@@ -31,12 +31,28 @@ const (
 	codeMemberExists      = "member_exists"
 	codeUserNotFound      = "user_not_found"
 	codeInternal          = "internal_error"
+	codeVersionConflict   = "version_conflict"
+	codeTooManyFiles      = "too_many_files"
+	codeVersionTooLarge   = "version_too_large"
+	codeFileTooLarge      = "file_too_large"
+	codeHashMismatch      = "hash_mismatch"
+	codeSizeMismatch      = "size_mismatch"
+	codeMissingFiles      = "missing_files"
+	codeInvalidPath       = "invalid_path"
+	codeVersionFinalized  = "version_finalized"
+	codeVersionExpired    = "version_expired"
+	codeVersionLive       = "version_live"
+	codeNotFinalized      = "version_not_finalized"
+	codeFileNotInManifest = "file_not_in_manifest"
 )
 
 type errorBody struct {
 	Code       string `json:"code"`
 	Message    string `json:"message"`
 	RetryAfter *int   `json:"retry_after,omitempty"`
+
+	CurrentVersionID *string  `json:"currentVersionId,omitempty"`
+	Missing          []string `json:"missing,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

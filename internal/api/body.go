@@ -8,15 +8,22 @@ import (
 	"net/http"
 )
 
-const maxBodyBytes = 16 << 10
+const (
+	maxBodyBytes         = 16 << 10
+	maxManifestBodyBytes = 16 << 20
+)
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	return decodeJSONLimited(w, r, dst, maxBodyBytes)
+}
+
+func decodeJSONLimited(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeError(w, http.StatusUnsupportedMediaType, codeUnsupportedMedia, "Content-Type must be application/json.")
 		return false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
