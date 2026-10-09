@@ -12,7 +12,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Keep SQL portable between both databases. No JSONB, arrays, LISTEN/NOTIFY or other PostgreSQL-only features.
 - Migrations are plain SQL files in `internal/store/migrations`, embedded with `go:embed` and run by goose on startup. One migration set serves both databases.
 - Logging is structured JSON through `log/slog`. Errors go to Sentry only when `SENTRY_DSN` is set.
-- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `workspaces` (workspaces, grants, the authorization function), `sites` (folders, sites, listing), `ids`, `slug` and `validate` (small shared helpers), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
+- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `workspaces` (workspaces, grants, the authorization function), `sites` (folders, sites, listing), `publish` (manifests, versions, finalize, restore, retention, maintenance), `sitefiles` (version files on disk), `sitepath` (path safety), `settings` (typed instance settings), `ids`, `slug` and `validate` (small shared helpers), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
 
 ## Rules
 
@@ -33,6 +33,15 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - A resource the user cannot see returns `workspaces.ErrNotFound` (404). A visible resource with too low a role returns `ErrForbidden` (403). `workspaces.Require` does both.
 - Create shared workspaces only through `workspaces.Service.CreateShared`, which later gates creation. Create sites only through `sites.Service.CreateSite`, which publishing reuses.
 - Pass every user-supplied string through `validate` and `slug` before it reaches SQL, and use `$n` placeholders only.
+
+## Publishing and settings
+
+- Every file path from a client passes `sitepath.Validate`, and every manifest passes `sitepath.CheckSet`. `sitefiles` is the only code that touches `DATA_DIR/sites`, builds paths from validated ids and paths, and opens files through `os.Root`. Never follow or create a symlink.
+- A version is `pending` or `finalized`. Whether it is live comes from `sites.current_version_id`, never from a stored flag. Only `publish` changes that pointer, in one transaction that also re-checks the base version.
+- A finalized version directory never changes. Upload and finalize take a per-version lock, so a file cannot land after finalize.
+- Return stored files only as `application/octet-stream` with `Content-Disposition: attachment` from the API. Serving them with their real type belongs to the hosting step.
+- Add an instance setting by adding a field to `settings.Settings` and one entry to `definitions` in `internal/settings/definitions.go`, then document it in `docs/openapi.yaml` and the README table.
+- Add maintenance work by passing an `auth.MaintenanceTask` to `RunMaintenance` in `cmd/selfhost`.
 
 ## Commands
 
