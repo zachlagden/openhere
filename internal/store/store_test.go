@@ -62,7 +62,7 @@ func openMigrated(t *testing.T, target testTarget) Store {
 
 func cleanPostgres(t *testing.T, s Store) {
 	t.Helper()
-	for _, table := range []string{"instance_settings", "goose_db_version"} {
+	for _, table := range []string{"api_keys", "sessions", "users", "instance_settings", "goose_db_version"} {
 		if _, err := s.ExecContext(context.Background(), "DROP TABLE IF EXISTS "+table); err != nil {
 			t.Fatalf("drop %s: %v", table, err)
 		}
@@ -195,5 +195,29 @@ func TestOpenSQLiteCreatesDatabaseFile(t *testing.T) {
 func TestOpenRequiresATarget(t *testing.T) {
 	if _, err := Open(context.Background(), Options{}); err == nil {
 		t.Error("expected an error with no database URL and no data directory")
+	}
+}
+
+func TestIsUniqueViolation(t *testing.T) {
+	for _, target := range testTargets() {
+		t.Run(target.name, func(t *testing.T) {
+			s := openMigrated(t, target)
+			ctx := context.Background()
+			stamp := time.Now().UTC()
+			const insert = "INSERT INTO instance_settings (key, value, updated_at) VALUES ($1, $2, $3)"
+			if _, err := s.ExecContext(ctx, insert, "dup", "a", stamp); err != nil {
+				t.Fatalf("first insert: %v", err)
+			}
+			_, err := s.ExecContext(ctx, insert, "dup", "b", stamp)
+			if err == nil {
+				t.Fatal("expected a duplicate key error")
+			}
+			if !IsUniqueViolation(err) {
+				t.Errorf("IsUniqueViolation(%v) = false, want true", err)
+			}
+			if IsUniqueViolation(errors.New("other")) {
+				t.Error("IsUniqueViolation reported a plain error as a unique violation")
+			}
+		})
 	}
 }
