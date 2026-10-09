@@ -67,7 +67,7 @@ func TestTamperedCookiesAreRejected(t *testing.T) {
 			"oversized":           strings.Repeat("a", maxCookieLength+1),
 			"not base64":          "v1.!!!.???",
 			"truncated mac":       parts[0] + "." + parts[1] + "." + parts[2][:10],
-			"mac of another site": cookieFor(t, e, e.other.ID, MethodPassword)[:strings.LastIndex(cookieFor(t, e, e.other.ID, MethodPassword), ".")] + "." + parts[2],
+			"mac of another site": cookieFor(t, e, e.other.ID)[:strings.LastIndex(cookieFor(t, e, e.other.ID), ".")] + "." + parts[2],
 		}
 		for name, tampered := range variants {
 			if _, ok, err := e.svc.ParseCookie(ctx, tampered); err != nil || ok {
@@ -77,9 +77,9 @@ func TestTamperedCookiesAreRejected(t *testing.T) {
 	})
 }
 
-func cookieFor(t *testing.T, e *env, siteID string, method Method) string {
+func cookieFor(t *testing.T, e *env, siteID string) string {
 	t.Helper()
-	value, _, err := e.svc.IssueCookie(context.Background(), siteID, 0, method, "")
+	value, _, err := e.svc.IssueCookie(context.Background(), siteID, 0, MethodPassword, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func cookieFor(t *testing.T, e *env, siteID string, method Method) string {
 func TestCookieSignedByAnotherInstanceIsRejected(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		first := newEnv(t, db)
-		value := cookieFor(t, first, first.site.ID, MethodPassword)
+		value := cookieFor(t, first, first.site.ID)
 		secondDB := newEnvOnFreshSecret(t, db)
 		if _, ok, err := secondDB.svc.ParseCookie(context.Background(), value); err != nil || ok {
 			t.Errorf("a cookie signed with another secret was accepted (ok = %v, err = %v)", ok, err)
@@ -109,7 +109,7 @@ func newEnvOnFreshSecret(t *testing.T, db store.Store) *env {
 func TestViewerSecretIsGeneratedOnceAndShared(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		e := newEnv(t, db)
-		value := cookieFor(t, e, e.site.ID, MethodPassword)
+		value := cookieFor(t, e, e.site.ID)
 		peer := New(db, Options{Params: fastParams, Now: e.clock.Now})
 		if _, ok, err := peer.ParseCookie(context.Background(), value); err != nil || !ok {
 			t.Fatalf("a second service on the same database rejected the cookie (ok = %v, err = %v)", ok, err)

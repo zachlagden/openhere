@@ -4,8 +4,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/store"
@@ -20,6 +23,10 @@ type Options struct {
 	Probes   ProbeConsumer
 	Resolver *Resolver
 	Logger   *slog.Logger
+	Access   *access.Service
+	Proxies  proxy.Trust
+	Limits   *GateLimits
+	Now      func() time.Time
 }
 
 type Router struct {
@@ -28,11 +35,12 @@ type Router struct {
 	resolver   *Resolver
 	server     siteServer
 	probes     ProbeConsumer
+	gate       *gate
 	host       string
 	logger     *slog.Logger
 }
 
-func New(management http.Handler, settingsSvc *settings.Service, db store.Querier, files *sitefiles.Store, opts Options) *Router {
+func New(management http.Handler, settingsSvc *settings.Service, db store.Store, files *sitefiles.Store, opts Options) *Router {
 	logger := opts.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -42,6 +50,7 @@ func New(management http.Handler, settingsSvc *settings.Service, db store.Querie
 		resolver = NewResolver(db, nil)
 	}
 	return &Router{
+		gate:       newGate(db, opts, logger),
 		management: management,
 		settings:   settingsSvc,
 		resolver:   resolver,
@@ -66,7 +75,9 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (rt *Router) servePathMode(w http.ResponseWriter, r *http.Request) {
 	setSiteHeaders(w, true)
-	if !isReadMethod(r.Method) {
+	rest, _ := strings.CutPrefix(r.URL.Path, pathModePrefix)
+	slugPart, tail, hasSlash := strings.Cut(rest, "/")
+	if !methodAllowed(r, "/"+tail) {
 		writeMethodNotAllowed(w)
 		return
 	}
@@ -75,8 +86,6 @@ func (rt *Router) servePathMode(w http.ResponseWriter, r *http.Request) {
 		rt.fail(w, err)
 		return
 	}
-	rest, _ := strings.CutPrefix(r.URL.Path, pathModePrefix)
-	slugPart, tail, hasSlash := strings.Cut(rest, "/")
 	if !cfg.PathEnabled || !validSlug(slugPart) {
 		writeNotFound(w, r)
 		return
@@ -90,7 +99,7 @@ func (rt *Router) servePathMode(w http.ResponseWriter, r *http.Request) {
 
 func (rt *Router) serveSiteHost(w http.ResponseWriter, r *http.Request) {
 	setSiteHeaders(w, false)
-	if !isReadMethod(r.Method) {
+	if !methodAllowed(r, r.URL.Path) {
 		writeMethodNotAllowed(w)
 		return
 	}
@@ -110,6 +119,10 @@ func (rt *Router) serveSiteHost(w http.ResponseWriter, r *http.Request) {
 	rt.serveSite(w, r, slugPart, r.URL.Path, "")
 }
 
+func methodAllowed(r *http.Request, requestPath string) bool {
+	return isReadMethod(r.Method) || (r.Method == http.MethodPost && isGatePost(requestPath))
+}
+
 func (rt *Router) serveSite(w http.ResponseWriter, r *http.Request, slugPart, requestPath, prefix string) {
 	site, live, err := rt.resolver.Lookup(r.Context(), slugPart)
 	if err != nil {
@@ -120,7 +133,15 @@ func (rt *Router) serveSite(w http.ResponseWriter, r *http.Request, slugPart, re
 		writeNotFound(w, r)
 		return
 	}
-	rt.server.serve(w, r, site, requestPath, prefix)
+	verdict := rt.gate.evaluate(siteRequest{w: w, r: r, site: site, path: requestPath, prefix: prefix})
+	if verdict == outcomeHandled {
+		return
+	}
+	if !isReadMethod(r.Method) {
+		writeMethodNotAllowed(w)
+		return
+	}
+	rt.server.serve(w, r, site, requestPath, serveTarget{prefix: prefix, private: verdict == outcomeOpenPrivate})
 }
 
 func (rt *Router) answerProbe(w http.ResponseWriter, r *http.Request) bool {

@@ -15,11 +15,16 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -29,24 +34,30 @@ import (
 	"github.com/zachlagden/selfhost/internal/workspaces"
 )
 
+var fastParams = auth.Params{MemoryKiB: 8, Time: 1, Threads: 1, KeyLen: 16, SaltLen: 8}
+
 const (
 	managementHost = "sites.example.com"
 	siteHost       = "demo.sites.example.com"
 )
 
 type env struct {
-	t        *testing.T
-	db       store.Store
-	dataDir  string
-	settings *settings.Service
-	publish  *publish.Service
-	sites    *sites.Service
-	files    *sitefiles.Store
-	resolver *Resolver
-	probes   *Probes
-	router   *Router
-	alex     string
-	managed  atomic.Int64
+	t          *testing.T
+	db         store.Store
+	dataDir    string
+	settings   *settings.Service
+	publish    *publish.Service
+	sites      *sites.Service
+	workspaces *workspaces.Service
+	files      *sitefiles.Store
+	resolver   *Resolver
+	probes     *Probes
+	router     *Router
+	access     *access.Service
+	mailer     *mail.Recorder
+	clock      *testClock
+	alex       string
+	managed    atomic.Int64
 }
 
 type siteSpec struct {
@@ -55,7 +66,35 @@ type siteSpec struct {
 	spa   bool
 }
 
+type testClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *testClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *testClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+type envOptions struct {
+	public  config.PublicURL
+	limits  *GateLimits
+	proxies proxy.Trust
+}
+
 func newEnv(t *testing.T, db store.Store) *env {
+	t.Helper()
+	return newEnvWith(t, db, envOptions{})
+}
+
+func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	dataDir := t.TempDir()
@@ -64,11 +103,17 @@ func newEnv(t *testing.T, db store.Store) *env {
 		t.Fatalf("sitefiles.New: %v", err)
 	}
 	e := &env{t: t, db: db, dataDir: dataDir, files: files}
+	e.clock = &testClock{now: time.Now().UTC().Truncate(time.Second)}
+	e.mailer = mail.NewRecorder()
+	e.access = access.New(db, access.Options{
+		Mailer: e.mailer, Params: fastParams, Now: e.clock.Now, Logger: logger, Spawn: func(task func()) { task() },
+	})
 	e.resolver = NewResolver(db, nil)
 	e.settings = settings.New(db, settings.Options{DefaultBaseDomain: managementHost})
 	ws := workspaces.New(db, workspaces.Options{})
 	siteSvc := sites.New(db, ws, sites.Options{Files: files, Logger: logger, OnSiteChange: e.resolver.Invalidate})
 	e.sites = siteSvc
+	e.workspaces = ws
 	e.publish = publish.New(db, siteSvc, ws, e.settings, files, publish.Options{Logger: logger, OnSiteChange: e.resolver.Invalidate})
 	e.alex = storetest.InsertUser(t, db, "alex@example.com")
 	if _, err := workspaces.CreatePersonal(context.Background(), db, e.alex, timeNow()); err != nil {
@@ -81,8 +126,14 @@ func newEnv(t *testing.T, db store.Store) *env {
 		w.Header().Set("X-Management-Path", r.URL.Path)
 		writeText(w, http.StatusOK, "management", true)
 	})
-	public := config.PublicURL{Scheme: "https", Host: managementHost}
-	e.router = New(management, e.settings, db, files, Options{Public: public, Probes: e.probes, Resolver: e.resolver, Logger: logger})
+	public := opts.public
+	if public == (config.PublicURL{}) {
+		public = config.PublicURL{Scheme: "https", Host: managementHost}
+	}
+	e.router = New(management, e.settings, db, files, Options{
+		Public: public, Probes: e.probes, Resolver: e.resolver, Logger: logger, Access: e.access, Proxies: opts.proxies,
+		Limits: opts.limits, Now: e.clock.Now,
+	})
 	return e
 }
 
@@ -121,11 +172,16 @@ func (e *env) specs(in siteSpec) []publish.FileSpec {
 
 func (e *env) publishSite(slug string, in siteSpec) (siteID, versionID string) {
 	e.t.Helper()
+	return e.publishSiteIn(slug, "", in)
+}
+
+func (e *env) publishSiteIn(slug, workspace string, in siteSpec) (siteID, versionID string) {
+	e.t.Helper()
 	ctx := context.Background()
 	var pending publish.Pending
 	var err error
 	if _, lookupErr := e.publish.List(ctx, e.alex, slug); lookupErr != nil {
-		pending, err = e.publish.Begin(ctx, publish.BeginInput{UserID: e.alex, Slug: slug, SpaMode: in.spa, Files: e.specs(in)})
+		pending, err = e.publish.Begin(ctx, publish.BeginInput{UserID: e.alex, Workspace: workspace, Slug: slug, SpaMode: in.spa, Files: e.specs(in)})
 	} else {
 		pending, err = e.publish.NewVersion(ctx, publish.NewVersionInput{UserID: e.alex, Site: slug, Files: e.specs(in)})
 	}

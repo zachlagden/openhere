@@ -9,31 +9,30 @@ import (
 )
 
 func (s *Service) Get(ctx context.Context, siteID string) (Config, error) {
-	current, _, _, err := loadConfig(ctx, s.db, siteID)
+	current, _, err := loadConfig(ctx, s.db, siteID)
 	return current, err
 }
 
-func loadConfig(ctx context.Context, q store.Querier, siteID string) (Config, sql.NullString, int64, error) {
+func loadConfig(ctx context.Context, q store.Querier, siteID string) (Config, sql.NullString, error) {
 	var mode string
 	var hash sql.NullString
-	var epoch int64
-	err := q.QueryRowContext(ctx, "SELECT access_mode, access_password_hash, access_epoch FROM sites WHERE id = $1", siteID).
-		Scan(&mode, &hash, &epoch)
+	err := q.QueryRowContext(ctx, "SELECT access_mode, access_password_hash FROM sites WHERE id = $1", siteID).
+		Scan(&mode, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Config{}, sql.NullString{}, 0, ErrSiteNotFound
+		return Config{}, sql.NullString{}, ErrSiteNotFound
 	}
 	if err != nil {
-		return Config{}, sql.NullString{}, 0, wrap("load site access", err)
+		return Config{}, sql.NullString{}, wrap("load site access", err)
 	}
 	emails, err := loadList(ctx, q, "SELECT email FROM site_access_emails WHERE site_id = $1 ORDER BY email", siteID)
 	if err != nil {
-		return Config{}, sql.NullString{}, 0, err
+		return Config{}, sql.NullString{}, err
 	}
 	domains, err := loadList(ctx, q, "SELECT domain FROM site_access_domains WHERE site_id = $1 ORDER BY domain", siteID)
 	if err != nil {
-		return Config{}, sql.NullString{}, 0, err
+		return Config{}, sql.NullString{}, err
 	}
-	return Config{Mode: Mode(mode), HasPassword: hash.Valid, Emails: emails, Domains: domains}, hash, epoch, nil
+	return Config{Mode: Mode(mode), HasPassword: hash.Valid, Emails: emails, Domains: domains}, hash, nil
 }
 
 func loadList(ctx context.Context, q store.Querier, query, siteID string) ([]string, error) {

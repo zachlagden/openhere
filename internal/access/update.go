@@ -87,7 +87,7 @@ func (s *Service) preparePassword(p *plan, change PasswordChange) error {
 }
 
 func applyPlan(ctx context.Context, q store.Querier, siteID string, p plan) (Config, error) {
-	current, currentHash, _, err := loadConfig(ctx, q, siteID)
+	current, currentHash, err := loadConfig(ctx, q, siteID)
 	if err != nil {
 		return Config{}, err
 	}
@@ -115,7 +115,7 @@ func applyPlan(ctx context.Context, q store.Querier, siteID string, p plan) (Con
 	if err := persist(ctx, q, siteID, next.Mode, hash); err != nil {
 		return Config{}, err
 	}
-	reloaded, _, _, err := loadConfig(ctx, q, siteID)
+	reloaded, _, err := loadConfig(ctx, q, siteID)
 	return reloaded, err
 }
 
