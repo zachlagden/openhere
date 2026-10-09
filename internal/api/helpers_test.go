@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -60,6 +61,7 @@ type harnessOptions struct {
 	configured bool
 	limits     *Limits
 	proxies    []netip.Prefix
+	public     config.PublicURL
 }
 
 func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
@@ -95,7 +97,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{Now: clock.Now, Files: files, Logger: logger})
 	settingsSvc := settings.New(db, settings.Options{Now: clock.Now})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger})
-	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate, Options{TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger})
+	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate, Options{TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: opts.public})
 	return &harness{t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir}
 }
 
@@ -157,7 +159,7 @@ func (h *harness) do(method, path string, body any, opts ...requestOption) *http
 
 func sessionCookie(rec *httptest.ResponseRecorder) *http.Cookie {
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == sessionCookieName {
+		if c.Name == sessionCookieName || c.Name == secureSessionCookieName {
 			return c
 		}
 	}

@@ -76,7 +76,7 @@ func (s *Server) resolvePrincipal(w http.ResponseWriter, r *http.Request) (*prin
 	if header := r.Header.Get("Authorization"); header != "" {
 		return s.principalFromBearer(r, header)
 	}
-	cookie, err := r.Cookie(sessionCookieName)
+	cookie, err := s.sessionCookieFrom(r)
 	if err != nil {
 		return nil, nil
 	}

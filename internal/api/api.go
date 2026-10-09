@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
 	"github.com/zachlagden/selfhost/internal/settings"
@@ -44,6 +45,7 @@ type Options struct {
 	Limits         Limits
 	Now            func() time.Time
 	Logger         *slog.Logger
+	Public         config.PublicURL
 }
 
 type Server struct {
@@ -55,6 +57,7 @@ type Server struct {
 	gate       *auth.SetupGate
 	proxies    proxyTrust
 	logger     *slog.Logger
+	public     config.PublicURL
 
 	loginIP    *ratelimit.Limiter
 	loginEmail *ratelimit.Limiter
@@ -81,6 +84,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		gate:       gate,
 		proxies:    proxyTrust{prefixes: opts.TrustedProxies},
 		logger:     logger,
+		public:     opts.Public,
 		loginIP:    limiter(limits.LoginPerIP),
 		loginEmail: limiter(limits.LoginPerEmail),
 		setupIP:    limiter(limits.SetupPerIP),
