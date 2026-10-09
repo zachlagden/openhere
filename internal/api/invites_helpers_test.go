@@ -13,6 +13,7 @@ func generousLimits() Limits {
 	return Limits{
 		LoginPerIP: generous, LoginPerEmail: generous, SetupPerIP: generous, SetupPerEmail: generous,
 		EmailTest: generous, InviteSend: generous, InviteLookup: generous, InviteAccept: generous,
+		ResetRequestIP: generous, ResetRequestEmail: generous, ResetConfirm: generous,
 	}
 }
 

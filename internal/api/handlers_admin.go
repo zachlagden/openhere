@@ -23,6 +23,7 @@ func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
 	mux.Handle("POST "+basePath+"/admin/email/test", s.protected(s.handleEmailTest))
 	mux.Handle("GET "+basePath+"/admin/users", s.protected(s.handleListUsers))
 	mux.Handle("PATCH "+basePath+"/admin/users/{id}", s.protected(s.handleUpdateUser))
+	mux.Handle("POST "+basePath+"/admin/users/{id}/password-reset", s.protected(s.handleAdminResetLink))
 }
 
 func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {

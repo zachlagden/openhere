@@ -12,6 +12,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/passwordreset"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
@@ -25,31 +26,39 @@ const basePath = "/api/v1"
 type Rule = ratelimit.Rule
 
 type Limits struct {
-	EmailTest     Rule
-	InviteSend    Rule
-	InviteLookup  Rule
-	InviteAccept  Rule
-	LoginPerIP    Rule
-	LoginPerEmail Rule
-	SetupPerIP    Rule
-	SetupPerEmail Rule
-	WildcardCheck Rule
-	Handoff       Rule
+	EmailTest    Rule
+	InviteSend   Rule
+	InviteLookup Rule
+	InviteAccept Rule
+
+	ResetRequestIP    Rule
+	ResetRequestEmail Rule
+	ResetConfirm      Rule
+	LoginPerIP        Rule
+	LoginPerEmail     Rule
+	SetupPerIP        Rule
+	SetupPerEmail     Rule
+	WildcardCheck     Rule
+	Handoff           Rule
 }
 
 func DefaultLimits() Limits {
 	window := 15 * time.Minute
 	return Limits{
-		EmailTest:     Rule{Max: 5, Window: time.Minute},
-		InviteSend:    Rule{Max: 30, Window: time.Hour},
-		InviteLookup:  Rule{Max: 60, Window: time.Minute},
-		InviteAccept:  Rule{Max: 10, Window: window},
-		LoginPerIP:    Rule{Max: 30, Window: window},
-		LoginPerEmail: Rule{Max: 10, Window: window},
-		SetupPerIP:    Rule{Max: 10, Window: window},
-		SetupPerEmail: Rule{Max: 5, Window: window},
-		WildcardCheck: Rule{Max: 6, Window: time.Minute},
-		Handoff:       Rule{Max: 30, Window: time.Minute},
+		EmailTest:    Rule{Max: 5, Window: time.Minute},
+		InviteSend:   Rule{Max: 30, Window: time.Hour},
+		InviteLookup: Rule{Max: 60, Window: time.Minute},
+		InviteAccept: Rule{Max: 10, Window: window},
+
+		ResetRequestIP:    Rule{Max: 5, Window: window},
+		ResetRequestEmail: Rule{Max: 3, Window: time.Hour},
+		ResetConfirm:      Rule{Max: 10, Window: window},
+		LoginPerIP:        Rule{Max: 30, Window: window},
+		LoginPerEmail:     Rule{Max: 10, Window: window},
+		SetupPerIP:        Rule{Max: 10, Window: window},
+		SetupPerEmail:     Rule{Max: 5, Window: window},
+		WildcardCheck:     Rule{Max: 6, Window: time.Minute},
+		Handoff:           Rule{Max: 30, Window: time.Minute},
 	}
 }
 
@@ -64,6 +73,9 @@ func (l Limits) withDefaults() Limits {
 	fill(&l.InviteSend, defaults.InviteSend)
 	fill(&l.InviteLookup, defaults.InviteLookup)
 	fill(&l.InviteAccept, defaults.InviteAccept)
+	fill(&l.ResetRequestIP, defaults.ResetRequestIP)
+	fill(&l.ResetRequestEmail, defaults.ResetRequestEmail)
+	fill(&l.ResetConfirm, defaults.ResetConfirm)
 	fill(&l.WildcardCheck, defaults.WildcardCheck)
 	fill(&l.Handoff, defaults.Handoff)
 	return l
@@ -78,6 +90,7 @@ type Options struct {
 	Wildcard       WildcardChecker
 	Mailer         mail.Sender
 	Invites        *invites.Service
+	PasswordReset  *passwordreset.Service
 }
 
 type Server struct {
@@ -94,8 +107,12 @@ type Server struct {
 	wildcard   WildcardChecker
 	mailer     mail.Sender
 	invites    *invites.Service
+	reset      *passwordreset.Service
 	now        func() time.Time
 
+	resetIP        *ratelimit.Limiter
+	resetEmail     *ratelimit.Limiter
+	resetConfirm   *ratelimit.Limiter
 	inviteSend     *ratelimit.Limiter
 	inviteLookup   *ratelimit.Limiter
 	inviteAccept   *ratelimit.Limiter
@@ -141,8 +158,12 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		wildcard:   opts.Wildcard,
 		mailer:     mailer,
 		invites:    opts.Invites,
+		reset:      opts.PasswordReset,
 		now:        now,
 
+		resetIP:        limiter(limits.ResetRequestIP),
+		resetEmail:     limiter(limits.ResetRequestEmail),
+		resetConfirm:   limiter(limits.ResetConfirm),
 		inviteSend:     limiter(limits.InviteSend),
 		inviteLookup:   limiter(limits.InviteLookup),
 		inviteAccept:   limiter(limits.InviteAccept),
@@ -176,6 +197,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerAccessRoutes(mux)
 	s.registerAdminRoutes(mux)
 	s.registerInviteRoutes(mux)
+	s.registerPasswordResetRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

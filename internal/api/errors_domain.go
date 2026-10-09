@@ -6,6 +6,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/invites"
+	"github.com/zachlagden/selfhost/internal/passwordreset"
 	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
@@ -37,6 +38,7 @@ var domainFailures = []domainFailure{
 	{invites.ErrNotPermitted, http.StatusForbidden, codeForbidden, "Your account is not allowed to send invitations here."},
 	{invites.ErrAccepted, http.StatusConflict, codeInviteAccepted, "That invite has already been accepted."},
 	{invites.ErrEmailRegistered, http.StatusConflict, codeEmailRegistered, "That email address already has an account. Add them to the workspace from its members page instead."},
+	{passwordreset.ErrInvalidToken, http.StatusBadRequest, codeInvalidResetToken, "This reset link is invalid or has expired."},
 	{auth.ErrUserNotFound, http.StatusNotFound, codeNotFound, "Not found."},
 	{auth.ErrSelfDisable, http.StatusConflict, codeCannotDisableSelf, "You cannot disable your own account."},
 	{auth.ErrLastRoot, http.StatusConflict, codeLastRoot, "The last root user cannot be disabled."},

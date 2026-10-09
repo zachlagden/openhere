@@ -21,6 +21,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/passwordreset"
 	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/secrets"
@@ -106,12 +107,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 			t.Fatalf("NewSetupGate: %v", err)
 		}
 	}
-	limits := Limits{
-		LoginPerIP:    Rule{Max: 1000, Window: time.Hour},
-		LoginPerEmail: Rule{Max: 1000, Window: time.Hour},
-		SetupPerIP:    Rule{Max: 1000, Window: time.Hour},
-		SetupPerEmail: Rule{Max: 1000, Window: time.Hour},
-	}
+	limits := generousLimits()
 	if opts.limits != nil {
 		limits = *opts.limits
 	}
@@ -149,13 +145,16 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	invitesSvc := invites.New(db, svc, workspaceSvc, settingsSvc, invites.Options{
 		BaseURL: "http://" + testHost, Mailer: mailer, Now: clock.Now, Logger: logger,
 	})
+	resetSvc := passwordreset.New(db, svc, passwordreset.Options{
+		BaseURL: "http://" + testHost, Mailer: mailer, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() },
+	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger})
 	public := opts.public
 	if public == (config.PublicURL{}) {
 		public = config.PublicURL{Scheme: "http", Host: testHost}
 	}
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc,
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc})
 	return &harness{
