@@ -15,9 +15,10 @@ func openPostgres(ctx context.Context, databaseURL string) (Store, error) {
 		return nil, fmt.Errorf("create postgres pool: %w", err)
 	}
 	s := &sqlStore{
-		db:     stdlib.OpenDBFromPool(pool),
-		driver: DriverPostgres,
-		rebind: identity,
+		db:      stdlib.OpenDBFromPool(pool),
+		driver:  DriverPostgres,
+		rebind:  identity,
+		onClose: pool.Close,
 	}
 	if err := s.Ping(ctx); err != nil {
 		if closeErr := s.Close(); closeErr != nil {
