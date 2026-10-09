@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/selfhost/internal/workspaces"
 )
 
 type User struct {
@@ -43,11 +44,22 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (User,
 	if err != nil {
 		return User{}, err
 	}
-	user, err := s.insertUser(ctx, s.db, prepared, false)
+	var created User
+	err = store.WithTx(ctx, s.db, func(q store.Querier) error {
+		user, insertErr := s.insertUser(ctx, q, prepared, false)
+		if insertErr != nil {
+			return insertErr
+		}
+		created = user
+		return nil
+	})
 	if store.IsUniqueViolation(err) {
 		return User{}, ErrEmailTaken
 	}
-	return user, err
+	if err != nil {
+		return User{}, err
+	}
+	return created, nil
 }
 
 func (s *Service) Setup(ctx context.Context, email, password string) (User, error) {
@@ -151,6 +163,9 @@ func (s *Service) insertUser(ctx context.Context, q store.Querier, c preparedCre
 		id, c.email, c.hash, isRoot, now, now)
 	if err != nil {
 		return User{}, fmt.Errorf("insert user: %w", err)
+	}
+	if _, err := workspaces.CreatePersonal(ctx, q, id, now); err != nil {
+		return User{}, fmt.Errorf("create personal workspace: %w", err)
 	}
 	return User{ID: id, Email: c.email, IsRoot: isRoot, CreatedAt: now, UpdatedAt: now}, nil
 }
