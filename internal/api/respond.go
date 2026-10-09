@@ -31,6 +31,7 @@ const (
 	codeMemberExists        = "member_exists"
 	codeUserNotFound        = "user_not_found"
 	codeInternal            = "internal_error"
+	codeAccountDisabled     = "account_disabled"
 	codeVersionConflict     = "version_conflict"
 	codeTooManyFiles        = "too_many_files"
 	codeVersionTooLarge     = "version_too_large"

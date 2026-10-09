@@ -35,6 +35,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, codeInvalidLogin, "Incorrect email or password.")
 		return
 	}
+	if errors.Is(err, auth.ErrUserDisabled) {
+		writeError(w, http.StatusForbidden, codeAccountDisabled, "This account is disabled. Ask an administrator of this instance.")
+		return
+	}
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return

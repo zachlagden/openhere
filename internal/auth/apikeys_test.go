@@ -32,7 +32,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		if err := db.QueryRowContext(ctx, "SELECT key_hash FROM api_keys WHERE id = $1", record.ID).Scan(&hash); err != nil {
 			t.Fatalf("read hash: %v", err)
 		}
-		if hash == key || hash != hashToken(key) {
+		if hash == key || hash != HashToken(key) {
 			t.Error("the stored key hash is not the SHA-256 of the key")
 		}
 

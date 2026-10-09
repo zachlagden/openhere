@@ -12,19 +12,34 @@ import (
 )
 
 type User struct {
-	ID        string
-	Email     string
-	IsRoot    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string
+	Email       string
+	DisplayName string
+	IsRoot      bool
+	DisabledAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-const userColumns = "id, email, is_root, created_at, updated_at"
+func (u User) Disabled() bool { return u.DisabledAt != nil }
+
+const userColumns = "id, email, display_name, is_root, disabled_at, created_at, updated_at"
+
+func scanUserFrom(row interface{ Scan(dest ...any) error }, extra ...any) (User, error) {
+	var u User
+	var disabled sql.NullTime
+	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.IsRoot, &disabled, &u.CreatedAt, &u.UpdatedAt}, extra...)
+	if err := row.Scan(dest...); err != nil {
+		return User{}, err
+	}
+	if disabled.Valid {
+		u.DisabledAt = &disabled.Time
+	}
+	return u, nil
+}
 
 func scanUser(row *sql.Row) (User, error) {
-	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.IsRoot, &u.CreatedAt, &u.UpdatedAt)
-	return u, err
+	return scanUserFrom(row)
 }
 
 func (s *Service) SetupNeeded(ctx context.Context) (bool, error) {
@@ -40,13 +55,13 @@ func (s *Service) SetupNeeded(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) CreateUser(ctx context.Context, email, password string) (User, error) {
-	prepared, err := s.prepareCredentials(email, password)
+	prepared, err := s.PrepareCredentials(email, password)
 	if err != nil {
 		return User{}, err
 	}
 	var created User
 	err = store.WithTx(ctx, s.db, func(q store.Querier) error {
-		user, insertErr := s.insertUser(ctx, q, prepared, false)
+		user, insertErr := s.insertUser(ctx, q, prepared, "", false)
 		if insertErr != nil {
 			return insertErr
 		}
@@ -63,7 +78,7 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (User,
 }
 
 func (s *Service) Setup(ctx context.Context, email, password string) (User, error) {
-	prepared, err := s.prepareCredentials(email, password)
+	prepared, err := s.PrepareCredentials(email, password)
 	if err != nil {
 		return User{}, err
 	}
@@ -77,7 +92,7 @@ func (s *Service) Setup(ctx context.Context, email, password string) (User, erro
 		if !errors.Is(scanErr, sql.ErrNoRows) {
 			return fmt.Errorf("check for users: %w", scanErr)
 		}
-		user, insertErr := s.insertUser(ctx, q, prepared, true)
+		user, insertErr := s.insertUser(ctx, q, prepared, "", true)
 		if insertErr != nil {
 			return insertErr
 		}
@@ -109,10 +124,9 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (Use
 	if err != nil {
 		return User{}, s.rejectUnknownUser(password)
 	}
-	var user User
 	var hash string
 	row := s.db.QueryRowContext(ctx, "SELECT "+userColumns+", password_hash FROM users WHERE email = $1", normalized)
-	err = row.Scan(&user.ID, &user.Email, &user.IsRoot, &user.CreatedAt, &user.UpdatedAt, &hash)
+	user, err := scanUserFrom(row, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, s.rejectUnknownUser(password)
 	}
@@ -126,48 +140,55 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (Use
 	if !ok {
 		return User{}, ErrInvalidCredentials
 	}
+	if user.Disabled() {
+		return User{}, ErrUserDisabled
+	}
 	if NeedsRehash(hash, s.params) {
 		s.upgradeHash(ctx, user.ID, password)
 	}
 	return user, nil
 }
 
-type preparedCredentials struct {
+type Credentials struct {
 	email string
 	hash  string
 }
 
-func (s *Service) prepareCredentials(email, password string) (preparedCredentials, error) {
+func (s *Service) PrepareCredentials(email, password string) (Credentials, error) {
 	normalized, err := NormalizeEmail(email)
 	if err != nil {
-		return preparedCredentials{}, err
+		return Credentials{}, err
 	}
 	if err := ValidatePassword(password); err != nil {
-		return preparedCredentials{}, err
+		return Credentials{}, err
 	}
 	hash, err := HashPassword(password, s.params)
 	if err != nil {
-		return preparedCredentials{}, fmt.Errorf("hash password: %w", err)
+		return Credentials{}, fmt.Errorf("hash password: %w", err)
 	}
-	return preparedCredentials{email: normalized, hash: hash}, nil
+	return Credentials{email: normalized, hash: hash}, nil
 }
 
-func (s *Service) insertUser(ctx context.Context, q store.Querier, c preparedCredentials, isRoot bool) (User, error) {
+func (s *Service) InsertMember(ctx context.Context, q store.Querier, c Credentials, displayName string) (User, error) {
+	return s.insertUser(ctx, q, c, displayName, false)
+}
+
+func (s *Service) insertUser(ctx context.Context, q store.Querier, c Credentials, displayName string, isRoot bool) (User, error) {
 	id, err := newID()
 	if err != nil {
 		return User{}, err
 	}
 	now := s.clock()
 	_, err = q.ExecContext(ctx,
-		"INSERT INTO users (id, email, password_hash, is_root, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
-		id, c.email, c.hash, isRoot, now, now)
+		"INSERT INTO users (id, email, display_name, password_hash, is_root, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		id, c.email, displayName, c.hash, isRoot, now, now)
 	if err != nil {
 		return User{}, fmt.Errorf("insert user: %w", err)
 	}
 	if _, err := workspaces.CreatePersonal(ctx, q, id, now); err != nil {
 		return User{}, fmt.Errorf("create personal workspace: %w", err)
 	}
-	return User{ID: id, Email: c.email, IsRoot: isRoot, CreatedAt: now, UpdatedAt: now}, nil
+	return User{ID: id, Email: c.email, DisplayName: displayName, IsRoot: isRoot, CreatedAt: now, UpdatedAt: now}, nil
 }
 
 func (s *Service) rejectUnknownUser(password string) error {

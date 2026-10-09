@@ -11,7 +11,7 @@ type SetupGate struct {
 }
 
 func NewSetupGate() (*SetupGate, error) {
-	token, err := newToken()
+	token, err := NewToken()
 	if err != nil {
 		return nil, err
 	}

@@ -7,14 +7,15 @@ import (
 )
 
 type userResponse struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	IsRoot    bool      `json:"isRoot"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID          string    `json:"id"`
+	Email       string    `json:"email"`
+	DisplayName string    `json:"displayName"`
+	IsRoot      bool      `json:"isRoot"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 func toUserResponse(u auth.User) userResponse {
-	return userResponse{ID: u.ID, Email: u.Email, IsRoot: u.IsRoot, CreatedAt: u.CreatedAt}
+	return userResponse{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, IsRoot: u.IsRoot, CreatedAt: u.CreatedAt}
 }
 
 type apiKeyResponse struct {
