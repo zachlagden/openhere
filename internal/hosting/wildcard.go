@@ -179,10 +179,7 @@ func (c *Checker) probe(ctx context.Context) (Outcome, error) {
 	if err != nil || len(addrs) == 0 {
 		return failure(fmt.Sprintf("DNS did not resolve %s. Add a wildcard record such as *.%s that points to this server.", host, cfg.BaseDomain)), nil
 	}
-	token, err := c.probes.Issue()
-	if err != nil {
-		return Outcome{}, err
-	}
+	token := c.probes.Issue()
 	defer c.probes.Revoke(token)
 	return c.request(ctx, host, token), nil
 }
@@ -201,16 +198,16 @@ func (c *Checker) request(ctx context.Context, host, token string) Outcome {
 	}
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxProbeBody))
 	closeErr := resp.Body.Close()
-	return judge(host, token, resp.StatusCode, body, errors.Join(readErr, closeErr))
+	return judge(host, c.probes.Proof(token), resp.StatusCode, body, errors.Join(readErr, closeErr))
 }
 
-func judge(host, token string, status int, body []byte, readErr error) Outcome {
+func judge(host, proof string, status int, body []byte, readErr error) Outcome {
 	switch {
 	case status >= 300 && status < 400:
 		return failure(fmt.Sprintf("%s answered with a redirect. The check does not follow redirects. Serve the wildcard host directly from this server.", host))
 	case readErr != nil:
 		return failure(fmt.Sprintf("The response from %s could not be read: %s", host, readErr.Error()))
-	case status != http.StatusOK || strings.TrimSpace(string(body)) != token:
+	case status != http.StatusOK || strings.TrimSpace(string(body)) != proof:
 		return failure(fmt.Sprintf("%s answered, but not with this server's check token (HTTP %d). Check that the wildcard record points to this server and that your reverse proxy forwards the Host header.", host, status))
 	}
 	return Outcome{Verified: true}

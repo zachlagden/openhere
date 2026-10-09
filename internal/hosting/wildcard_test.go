@@ -121,6 +121,9 @@ func TestWildcardCheckFailures(t *testing.T) {
 		{"DNS error", &fakeResolver{err: errors.New("no such host")}, notOurs, "DNS did not resolve"},
 		{"DNS with no addresses", &fakeResolver{}, notOurs, "DNS did not resolve"},
 		{"wrong body", &fakeResolver{addrs: []string{"192.0.2.10"}}, notOurs, "not with this server's check token"},
+		{"impostor echoing the token", &fakeResolver{addrs: []string{"192.0.2.10"}}, doerFunc(func(req *http.Request) (*http.Response, error) {
+			return reply(200, strings.TrimPrefix(req.URL.Path, ProbePath)), nil
+		}), "not with this server's check token"},
 		{"wrong status", &fakeResolver{addrs: []string{"192.0.2.10"}}, doerFunc(func(*http.Request) (*http.Response, error) { return reply(503, ""), nil }), "HTTP 503"},
 		{"redirect", &fakeResolver{addrs: []string{"192.0.2.10"}}, doerFunc(func(*http.Request) (*http.Response, error) { return reply(301, ""), nil }), "redirect"},
 		{"connection error", &fakeResolver{addrs: []string{"192.0.2.10"}}, doerFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("connection refused") }), "connection refused"},
@@ -239,13 +242,10 @@ func TestProbeRouteWorksOnceAndOnlyOnSiteHosts(t *testing.T) {
 			t.Errorf("a probe path without a token differs from the generic 404:\n%+v\n%+v", got, generic)
 		}
 
-		token, err := e.probes.Issue()
-		if err != nil {
-			t.Fatal(err)
-		}
+		token := e.probes.Issue()
 		before := e.managed.Load()
 		onManagement := e.get(managementHost, path(token))
-		if onManagement.Body.String() != "management "+path(token) || e.managed.Load() != before+1 {
+		if onManagement.Body.String() != "management" || e.managed.Load() != before+1 {
 			t.Errorf("the management host answered the probe: %d %q", onManagement.Code, onManagement.Body.String())
 		}
 		wrong := e.get("check-1.sites.example.com", path("0123456789abcdef"))
@@ -258,7 +258,7 @@ func TestProbeRouteWorksOnceAndOnlyOnSiteHosts(t *testing.T) {
 		}
 
 		ok := e.get("check-1.sites.example.com", path(token))
-		if ok.Code != 200 || ok.Body.String() != token || ok.Header().Get("Cache-Control") != "no-store" {
+		if ok.Code != 200 || ok.Body.String() != e.probes.Proof(token) || ok.Body.String() == token || ok.Header().Get("Cache-Control") != "no-store" {
 			t.Errorf("probe = %d %q", ok.Code, ok.Body.String())
 		}
 		again := e.get("check-1.sites.example.com", path(token))
@@ -271,34 +271,28 @@ func TestProbeRouteWorksOnceAndOnlyOnSiteHosts(t *testing.T) {
 func TestProbeTokensExpireAfterSixtySeconds(t *testing.T) {
 	clock := &fakeClock{now: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)}
 	probes := NewProbes(clock.Now)
-	fresh, err := probes.Issue()
-	if err != nil {
-		t.Fatal(err)
-	}
-	late, err := probes.Issue()
-	if err != nil {
-		t.Fatal(err)
-	}
+	fresh := probes.Issue()
+	late := probes.Issue()
 	clock.now = clock.now.Add(59 * time.Second)
-	if !probes.Consume(fresh) {
+	if !consumed(probes, fresh) {
 		t.Error("a token at 59 seconds was refused")
 	}
 	clock.now = clock.now.Add(2 * time.Second)
-	if probes.Consume(late) {
+	if consumed(probes, late) {
 		t.Error("a token at 61 seconds was accepted")
 	}
-	if probes.Consume(late) || probes.Consume("") || probes.Consume("unknown") {
+	if consumed(probes, late) || consumed(probes, "") || consumed(probes, "unknown") {
 		t.Error("an unknown or spent token was accepted")
 	}
 	if len(probes.tokens) != 0 {
 		t.Errorf("%d tokens remain", len(probes.tokens))
 	}
-	other, err := probes.Issue()
-	if err != nil || other == fresh || len(other) != 32 {
-		t.Errorf("token = %q, %v", other, err)
+	other := probes.Issue()
+	if other == fresh || len(other) < 26 {
+		t.Errorf("token = %q", other)
 	}
 	probes.Revoke(other)
-	if probes.Consume(other) {
+	if consumed(probes, other) {
 		t.Error("a revoked token was accepted")
 	}
 }
@@ -359,4 +353,9 @@ func TestRunStopsWhenTheContextEnds(t *testing.T) {
 			t.Fatal("Run ignored the cancelled context")
 		}
 	})
+}
+
+func consumed(probes *Probes, token string) bool {
+	_, ok := probes.Consume(token)
+	return ok
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -116,10 +117,9 @@ func lacksExtension(requestPath string) bool {
 }
 
 func redirectToDirectory(w http.ResponseWriter, r *http.Request, target string) {
-	if r.URL.RawQuery != "" {
-		target += "?" + r.URL.RawQuery
-	}
-	http.Redirect(w, r, target, http.StatusMovedPermanently)
+	location := url.URL{Path: target, RawQuery: r.URL.RawQuery}
+	w.Header().Set("Location", location.String())
+	writeText(w, http.StatusMovedPermanently, "Moved permanently\n", r.Method != http.MethodHead)
 }
 
 func (s siteServer) closeFile(file *os.File) {

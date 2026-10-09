@@ -121,7 +121,7 @@ Responses support `Range`, `If-None-Match` and `If-Modified-Since`. The `ETag` i
 
 ### Wildcard check
 
-Subdomain mode needs wildcard DNS, which the server cannot see from inside. The check proves it: the server picks a random label, resolves `{label}.{baseDomain}`, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}` and passes only when the server itself answers with the one-time token. It does not follow redirects, reads at most 256 bytes and gives up after 10 seconds. A pass proves DNS, the wildcard certificate (for HTTPS) and the proxy routing in one step.
+Subdomain mode needs wildcard DNS, which the server cannot see from inside. The check proves it: the server picks a random label, resolves `{label}.{baseDomain}`, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}` and passes only when the server itself answers. The answer is an HMAC of the one-time token under a secret that never leaves the process, so another server that receives the request cannot fake it. It does not follow redirects, reads at most 256 bytes and gives up after 10 seconds. A pass proves DNS, the wildcard certificate (for HTTPS) and the proxy routing in one step.
 
 The token route is the one unauthenticated path this feature adds. It exists only on site hosts, only while a check is running, accepts each token once for 60 seconds and returns the plain 404 otherwise.
 

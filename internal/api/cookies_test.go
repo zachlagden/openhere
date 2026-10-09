@@ -40,7 +40,7 @@ func TestPlainSessionCookieIsIgnoredOverHTTPS(t *testing.T) {
 		h := newHarness(t, db, harnessOptions{public: httpsPublic})
 		setup := h.completeSetup()
 
-		tossed := &http.Cookie{Name: "session", Value: setup.cookie.Value}
+		tossed := &http.Cookie{Name: "session", Value: setup.cookie.Value, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode}
 		expectError(t, h.do("GET", "/api/v1/me", nil, withCookie(tossed)), http.StatusUnauthorized, codeUnauthenticated)
 	})
 }
@@ -54,7 +54,7 @@ func TestHostPrefixedCookieIsIgnoredOverPlainHTTP(t *testing.T) {
 		}
 		expectStatus(t, h.do("GET", "/api/v1/me", nil, withCookie(setup.cookie)), http.StatusOK)
 
-		prefixed := &http.Cookie{Name: "__Host-session", Value: setup.cookie.Value}
+		prefixed := &http.Cookie{Name: "__Host-session", Value: setup.cookie.Value, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode}
 		expectError(t, h.do("GET", "/api/v1/me", nil, withCookie(prefixed)), http.StatusUnauthorized, codeUnauthenticated)
 	})
 }

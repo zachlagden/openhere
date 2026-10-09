@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -36,19 +35,18 @@ const (
 )
 
 type env struct {
-	t          *testing.T
-	db         store.Store
-	dataDir    string
-	settings   *settings.Service
-	publish    *publish.Service
-	sites      *sites.Service
-	files      *sitefiles.Store
-	resolver   *Resolver
-	probes     *Probes
-	router     *Router
-	alex       string
-	managed    atomic.Int64
-	managedURL atomic.Value
+	t        *testing.T
+	db       store.Store
+	dataDir  string
+	settings *settings.Service
+	publish  *publish.Service
+	sites    *sites.Service
+	files    *sitefiles.Store
+	resolver *Resolver
+	probes   *Probes
+	router   *Router
+	alex     string
+	managed  atomic.Int64
 }
 
 type siteSpec struct {
@@ -80,7 +78,8 @@ func newEnv(t *testing.T, db store.Store) *env {
 	management := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		e.managed.Add(1)
 		w.Header().Set("X-Management", "1")
-		fmt.Fprint(w, "management "+r.URL.Path)
+		w.Header().Set("X-Management-Path", r.URL.Path)
+		writeText(w, http.StatusOK, "management", true)
 	})
 	public := config.PublicURL{Scheme: "https", Host: managementHost}
 	e.router = New(management, e.settings, db, files, Options{Public: public, Probes: e.probes, Resolver: e.resolver, Logger: logger})

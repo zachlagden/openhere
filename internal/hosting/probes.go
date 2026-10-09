@@ -1,9 +1,10 @@
 package hosting
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -11,45 +12,52 @@ import (
 const (
 	ProbePath     = "/.well-known/selfhost-check/"
 	probeLifetime = 60 * time.Second
-	tokenBytes    = 16
 )
+
+type probe struct {
+	proof     string
+	expiresAt time.Time
+}
 
 type Probes struct {
 	now func() time.Time
+	key []byte
 
 	mu     sync.Mutex
-	tokens map[string]time.Time
+	tokens map[string]probe
 }
 
 func NewProbes(now func() time.Time) *Probes {
 	if now == nil {
 		now = time.Now
 	}
-	return &Probes{now: now, tokens: map[string]time.Time{}}
+	return &Probes{now: now, key: []byte(rand.Text() + rand.Text()), tokens: map[string]probe{}}
 }
 
-func (p *Probes) Issue() (string, error) {
-	raw := make([]byte, tokenBytes)
-	if _, err := rand.Read(raw); err != nil {
-		return "", fmt.Errorf("generate probe token: %w", err)
-	}
-	token := hex.EncodeToString(raw)
+func (p *Probes) Issue() string {
+	token := rand.Text()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.dropExpired()
-	p.tokens[token] = p.now().Add(probeLifetime)
-	return token, nil
+	p.tokens[token] = probe{proof: p.Proof(token), expiresAt: p.now().Add(probeLifetime)}
+	return token
 }
 
-func (p *Probes) Consume(token string) bool {
+func (p *Probes) Proof(token string) string {
+	mac := hmac.New(sha256.New, p.key)
+	mac.Write([]byte(token))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (p *Probes) Consume(token string) (string, bool) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	expiresAt, ok := p.tokens[token]
-	if !ok {
-		return false
-	}
+	entry, ok := p.tokens[token]
 	delete(p.tokens, token)
-	return p.now().Before(expiresAt)
+	p.mu.Unlock()
+	if !ok || !p.now().Before(entry.expiresAt) {
+		return "", false
+	}
+	return entry.proof, true
 }
 
 func (p *Probes) Revoke(token string) {
@@ -60,8 +68,8 @@ func (p *Probes) Revoke(token string) {
 
 func (p *Probes) dropExpired() {
 	now := p.now()
-	for token, expiresAt := range p.tokens {
-		if !now.Before(expiresAt) {
+	for token, entry := range p.tokens {
+		if !now.Before(entry.expiresAt) {
 			delete(p.tokens, token)
 		}
 	}

@@ -1196,7 +1196,7 @@ paths:
       description: |
         Root user only. Other users get 404 `not_found`. Picks a random label, resolves `{label}.{baseDomain}`
         through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}`
-        and succeeds only if the server itself answers with the one-time token. The check never follows
+        and succeeds only if the server itself answers with the HMAC of the one-time token (the key stays in the process). The check never follows
         redirects, reads at most 256 bytes and gives up after 10 seconds. It stores the outcome in the read-only
         `hosting.wildcard*` settings and, on failure, switches subdomain mode off. The server also runs the check
         at startup and every 6 hours. Rate limited to 6 calls per minute per user.

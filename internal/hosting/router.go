@@ -12,7 +12,7 @@ import (
 )
 
 type ProbeConsumer interface {
-	Consume(token string) bool
+	Consume(token string) (string, bool)
 }
 
 type Options struct {
@@ -128,11 +128,12 @@ func (rt *Router) answerProbe(w http.ResponseWriter, r *http.Request) bool {
 	if !isProbe || rt.probes == nil {
 		return false
 	}
-	if token == "" || !rt.probes.Consume(token) {
+	secret, accepted := rt.probes.Consume(token)
+	if token == "" || !accepted {
 		writeNotFound(w, r)
 		return true
 	}
-	writeText(w, http.StatusOK, token, r.Method != http.MethodHead)
+	writeText(w, http.StatusOK, secret, r.Method != http.MethodHead)
 	return true
 }
 

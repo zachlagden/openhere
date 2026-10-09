@@ -23,11 +23,11 @@ func TestHostRoutingMatrix(t *testing.T) {
 			body               string
 			managed            bool
 		}{
-			{"management root", managementHost, "/", 200, "management /", true},
-			{"management api path", managementHost, "/api/v1/me", 200, "management /api/v1/me", true},
-			{"management with port", managementHost + ":8443", "/x", 200, "management /x", true},
-			{"management uppercase", "SITES.Example.COM", "/x", 200, "management /x", true},
-			{"management trailing dot", managementHost + ".", "/x", 200, "management /x", true},
+			{"management root", managementHost, "/", 200, "management", true},
+			{"management api path", managementHost, "/api/v1/me", 200, "management", true},
+			{"management with port", managementHost + ":8443", "/x", 200, "management", true},
+			{"management uppercase", "SITES.Example.COM", "/x", 200, "management", true},
+			{"management trailing dot", managementHost + ".", "/x", 200, "management", true},
 			{"site subdomain", siteHost, "/", 200, "<h1>demo</h1>", false},
 			{"site subdomain with port", siteHost + ":8443", "/", 200, "<h1>demo</h1>", false},
 			{"site subdomain uppercase", "DEMO.Sites.Example.com", "/", 200, "<h1>demo</h1>", false},
@@ -38,7 +38,7 @@ func TestHostRoutingMatrix(t *testing.T) {
 			{"bare ip", "192.0.2.10", "/", 404, "Not found\n", false},
 			{"empty host", "", "/", 404, "Not found\n", false},
 			{"management route on a site host", siteHost, "/api/v1/me", 404, "Not found\n", false},
-			{"site file on the management host", managementHost, "/index.html", 200, "management /index.html", true},
+			{"site file on the management host", managementHost, "/index.html", 200, "management", true},
 			{"path mode", managementHost, "/s/demo/", 200, "<h1>demo</h1>", false},
 			{"path mode unknown slug", managementHost, "/s/nobody/", 404, "Not found\n", false},
 			{"path mode with port and case", "Sites.Example.com:443", "/s/demo/", 200, "<h1>demo</h1>", false},
@@ -47,6 +47,9 @@ func TestHostRoutingMatrix(t *testing.T) {
 			before := e.managed.Load()
 			rec := e.get(tc.host, tc.target)
 			expectBody(t, rec, tc.status, tc.body)
+			if tc.managed && rec.Header().Get("X-Management-Path") != tc.target {
+				t.Errorf("%s: management saw path %q, want %q", tc.name, rec.Header().Get("X-Management-Path"), tc.target)
+			}
 			if reached := e.managed.Load() != before; reached != tc.managed {
 				t.Errorf("%s: management handler reached = %v, want %v", tc.name, reached, tc.managed)
 			}
