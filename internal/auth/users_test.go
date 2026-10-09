@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -46,7 +47,7 @@ func TestConcurrentSetupHasOneWinner(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				email := "user" + string(rune('a'+i)) + "@example.com"
+				email := fmt.Sprintf("user%d@example.com", i)
 				_, err := svc.Setup(context.Background(), email, testPassword)
 				results <- err
 			}()

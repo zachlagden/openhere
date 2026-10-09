@@ -95,7 +95,7 @@ func browser() requestOption {
 func withCookie(c *http.Cookie) requestOption {
 	return func(r *http.Request) {
 		if c != nil {
-			r.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
+			r.Header.Add("Cookie", c.Name+"="+c.Value)
 		}
 	}
 }
@@ -127,7 +127,7 @@ func (h *harness) do(method, path string, body any, opts ...requestOption) *http
 			reader = bytes.NewReader(encoded)
 		}
 	}
-	req := httptest.NewRequest(method, "http://"+testHost+path, reader)
+	req := httptest.NewRequestWithContext(h.t.Context(), method, "http://"+testHost+path, reader)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

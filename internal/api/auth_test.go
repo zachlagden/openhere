@@ -50,7 +50,7 @@ func TestLoginFailuresDoNotRevealAccounts(t *testing.T) {
 		unknownEmail := h.do("POST", "/api/v1/auth/login", loginRequest{Email: "nobody@example.com", Password: testPassword})
 		malformed := h.do("POST", "/api/v1/auth/login", loginRequest{Email: "nonsense", Password: testPassword})
 		for _, rec := range []*httptest.ResponseRecorder{wrongPassword, unknownEmail, malformed} {
-			expectError(t, rec, http.StatusUnauthorized, codeInvalidCredential)
+			expectError(t, rec, http.StatusUnauthorized, codeInvalidLogin)
 			if sessionCookie(rec) != nil {
 				t.Error("failed login set a cookie")
 			}
@@ -94,7 +94,7 @@ func TestLoginRateLimitPerIP(t *testing.T) {
 		h := newHarness(t, db, harnessOptions{limits: &limits, configured: true})
 		bad := loginRequest{Email: "nobody@example.com", Password: "whatever it is"}
 		for range 3 {
-			expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidCredential)
+			expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
 		}
 		rec := h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1"))
 		body := expectError(t, rec, http.StatusTooManyRequests, codeRateLimited)
@@ -104,10 +104,10 @@ func TestLoginRateLimitPerIP(t *testing.T) {
 		if rec.Header().Get("Retry-After") == "" {
 			t.Error("Retry-After header missing")
 		}
-		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.2:1")), http.StatusUnauthorized, codeInvalidCredential)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.2:1")), http.StatusUnauthorized, codeInvalidLogin)
 
 		h.clock.Advance(61 * time.Second)
-		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidCredential)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
 	})
 }
 
@@ -122,13 +122,13 @@ func TestLoginRateLimitPerEmail(t *testing.T) {
 		h := newHarness(t, db, harnessOptions{limits: &limits})
 		h.completeSetup()
 		bad := loginRequest{Email: "alex@example.com", Password: "not the password"}
-		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidCredential)
-		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.2:1")), http.StatusUnauthorized, codeInvalidCredential)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.2:1")), http.StatusUnauthorized, codeInvalidLogin)
 		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.3:1")), http.StatusTooManyRequests, codeRateLimited)
 		expectError(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.4:1")), http.StatusTooManyRequests, codeRateLimited)
 
 		other := loginRequest{Email: "sam@example.com", Password: "not the password"}
-		expectError(t, h.do("POST", "/api/v1/auth/login", other, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidCredential)
+		expectError(t, h.do("POST", "/api/v1/auth/login", other, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
 	})
 }
 
@@ -145,7 +145,7 @@ func TestSuccessfulLoginResetsEmailLimit(t *testing.T) {
 		bad := loginRequest{Email: "alex@example.com", Password: "not the password"}
 		for range 5 {
 			expectStatus(t, h.do("POST", "/api/v1/auth/login", loginBody()), http.StatusOK)
-			expectError(t, h.do("POST", "/api/v1/auth/login", bad), http.StatusUnauthorized, codeInvalidCredential)
+			expectError(t, h.do("POST", "/api/v1/auth/login", bad), http.StatusUnauthorized, codeInvalidLogin)
 		}
 	})
 }

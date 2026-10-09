@@ -88,8 +88,11 @@ func decodeHash(encoded string) (Params, []byte, []byte, error) {
 	if err != nil {
 		return Params{}, nil, nil, errMalformedHash
 	}
-	p.SaltLen = uint32(len(salt))
-	p.KeyLen = uint32(len(key))
+	if len(salt) < minSaltLen || len(salt) > maxSaltLen || len(key) < minKeyLen || len(key) > maxKeyLen {
+		return Params{}, nil, nil, errMalformedHash
+	}
+	p.SaltLen = uint32(min(len(salt), maxSaltLen))
+	p.KeyLen = uint32(min(len(key), maxKeyLen))
 	if !withinBounds(p) {
 		return Params{}, nil, nil, errMalformedHash
 	}

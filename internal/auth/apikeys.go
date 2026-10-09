@@ -28,8 +28,6 @@ type APIKey struct {
 	RevokedAt  *time.Time
 }
 
-const apiKeyColumns = "id, user_id, label, prefix, created_at, last_used_at, revoked_at"
-
 func scanAPIKey(row interface{ Scan(dest ...any) error }) (APIKey, error) {
 	var k APIKey
 	var lastUsed, revoked sql.NullTime
@@ -100,7 +98,7 @@ func (s *Service) insertAPIKey(ctx context.Context, q store.Querier, record APIK
 
 func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]APIKey, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT "+apiKeyColumns+" FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC, id", userID)
+		"SELECT id, user_id, label, prefix, created_at, last_used_at, revoked_at FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC, id", userID)
 	if err != nil {
 		return nil, fmt.Errorf("list api keys: %w", err)
 	}

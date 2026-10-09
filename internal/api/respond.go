@@ -15,7 +15,7 @@ const (
 	codeUnsupportedMedia  = "unsupported_media_type"
 	codeBodyTooLarge      = "body_too_large"
 	codeUnauthenticated   = "unauthenticated"
-	codeInvalidCredential = "invalid_credentials"
+	codeInvalidLogin      = "invalid_credentials"
 	codeInvalidSetupToken = "invalid_setup_token"
 	codeSetupComplete     = "setup_complete"
 	codeCSRFRejected      = "csrf_rejected"

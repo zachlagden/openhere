@@ -9,25 +9,23 @@ import (
 const sessionCookieName = "session"
 
 func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   int(auth.SessionTTL.Seconds()),
-		HttpOnly: true,
-		Secure:   s.proxies.isHTTPS(r),
-		SameSite: http.SameSiteLaxMode,
-	})
+	writeSessionCookie(w, s.proxies.isHTTPS(r), token, int(auth.SessionTTL.Seconds()))
 }
 
 func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
+	writeSessionCookie(w, s.proxies.isHTTPS(r), "", -1)
+}
+
+func writeSessionCookie(w http.ResponseWriter, secure bool, value string, maxAge int) {
+	cookie := &http.Cookie{
 		Name:     sessionCookieName,
-		Value:    "",
+		Value:    value,
 		Path:     "/",
-		MaxAge:   -1,
+		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   s.proxies.isHTTPS(r),
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	cookie.Secure = secure
+	http.SetCookie(w, cookie)
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
@@ -67,7 +68,7 @@ func TestConcurrentSetupHasOneWinner(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				email := "user" + string(rune('a'+i)) + "@example.com"
+				email := fmt.Sprintf("user%d@example.com", i)
 				rec := h.do("POST", "/api/v1/setup", setupRequest{Email: email, Password: testPassword, SetupToken: token})
 				statuses <- rec.Code
 			}()

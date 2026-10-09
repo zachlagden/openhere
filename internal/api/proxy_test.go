@@ -26,7 +26,7 @@ func TestClientIP(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/", nil)
 			req.RemoteAddr = tc.remote
 			for _, v := range tc.xff {
 				req.Header.Add("X-Forwarded-For", v)
@@ -54,7 +54,7 @@ func TestIsHTTPS(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/", nil)
 			req.RemoteAddr = tc.remote
 			if tc.proto != "" {
 				req.Header.Set("X-Forwarded-Proto", tc.proto)
