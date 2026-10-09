@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/zachlagden/selfhost/internal/sitepath"
 )
@@ -42,7 +43,29 @@ func (s *Store) Open(siteID, versionID, rel string) (*os.File, os.FileInfo, erro
 	return file, info, nil
 }
 
+func checkParents(root *os.Root, rel string) error {
+	segments := strings.Split(rel, "/")
+	current := ""
+	for _, segment := range segments[:len(segments)-1] {
+		current = joinRel(current, segment)
+		info, err := root.Lstat(current)
+		if errors.Is(err, fs.ErrNotExist) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("inspect directory: %w", err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("%w: a parent of %q is not a directory", ErrNotRegular, rel)
+		}
+	}
+	return nil
+}
+
 func openRegular(root *os.Root, rel string) (*os.File, os.FileInfo, error) {
+	if err := checkParents(root, rel); err != nil {
+		return nil, nil, err
+	}
 	linkInfo, err := root.Lstat(rel)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil, ErrNotFound
