@@ -35,8 +35,8 @@ func RandomSlug() (string, error) {
 		return "", fmt.Errorf("read random bytes: %w", err)
 	}
 	suffix := make([]byte, suffixLength)
-	for i := range suffix {
-		suffix[i] = suffixAlphabet[int(pick[2+i])%len(suffixAlphabet)]
+	for i, b := range pick[2:] {
+		suffix[i] = suffixAlphabet[int(b)%len(suffixAlphabet)]
 	}
 	adjective := adjectives[int(pick[0])%len(adjectives)]
 	noun := nouns[int(pick[1])%len(nouns)]

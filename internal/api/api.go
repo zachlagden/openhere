@@ -9,6 +9,8 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
+	"github.com/zachlagden/selfhost/internal/sites"
+	"github.com/zachlagden/selfhost/internal/workspaces"
 )
 
 const basePath = "/api/v1"
@@ -43,10 +45,12 @@ type Options struct {
 }
 
 type Server struct {
-	auth    *auth.Service
-	gate    *auth.SetupGate
-	proxies proxyTrust
-	logger  *slog.Logger
+	auth       *auth.Service
+	workspaces *workspaces.Service
+	sites      *sites.Service
+	gate       *auth.SetupGate
+	proxies    proxyTrust
+	logger     *slog.Logger
 
 	loginIP    *ratelimit.Limiter
 	loginEmail *ratelimit.Limiter
@@ -54,7 +58,7 @@ type Server struct {
 	setupEmail *ratelimit.Limiter
 }
 
-func New(svc *auth.Service, gate *auth.SetupGate, opts Options) *Server {
+func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, gate *auth.SetupGate, opts Options) *Server {
 	logger := opts.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -66,6 +70,8 @@ func New(svc *auth.Service, gate *auth.SetupGate, opts Options) *Server {
 	limiter := func(r Rule) *ratelimit.Limiter { return ratelimit.New(r.Max, r.Window, opts.Now) }
 	return &Server{
 		auth:       svc,
+		workspaces: ws,
+		sites:      siteSvc,
 		gate:       gate,
 		proxies:    proxyTrust{prefixes: opts.TrustedProxies},
 		logger:     logger,
@@ -87,6 +93,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET "+basePath+"/me/keys", s.protected(s.handleListKeys))
 	mux.Handle("POST "+basePath+"/me/keys", s.protected(s.handleCreateKey))
 	mux.Handle("DELETE "+basePath+"/me/keys/{id}", s.protected(s.handleRevokeKey))
+
+	s.registerWorkspaceRoutes(mux)
+	s.registerSiteRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

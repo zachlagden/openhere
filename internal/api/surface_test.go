@@ -26,7 +26,10 @@ func TestOnlyThreeRoutesAreReachableWithoutAuth(t *testing.T) {
 			"/", "/health", "/healthz", "/ready", "/docs", "/openapi.yaml", "/openapi.json", "/llms.txt", "/robots.txt", "/favicon.ico",
 			"/api", "/api/", "/api/v1", "/api/v1/", "/api/v1/health", "/api/v1/docs", "/api/v1/openapi.yaml",
 			"/api/v1/setup", "/api/v1/setup/status", "/api/v1/setup/status/", "/api/v1/auth/login", "/api/v1/auth/logout",
-			"/api/v1/me", "/api/v1/me/keys", "/api/v1/me/keys/abc", "/api/v1/nope", "/api/v1/../me", "//", "/api//v1/me", "/./", "/s/site/",
+			"/api/v1/me", "/api/v1/me/keys", "/api/v1/me/keys/abc", "/api/v1/nope",
+			"/api/v1/workspaces", "/api/v1/workspaces/acme", "/api/v1/workspaces/acme/members", "/api/v1/workspaces/acme/members/abc",
+			"/api/v1/workspaces/acme/folders", "/api/v1/workspaces/acme/folders/abc", "/api/v1/workspaces/acme/sites",
+			"/api/v1/sites", "/api/v1/sites/launch", "/api/v1/../me", "//", "/api//v1/me", "/./", "/s/site/",
 		}
 		for _, path := range paths {
 			for _, method := range allMethods {

@@ -15,8 +15,10 @@ import (
 	"github.com/zachlagden/selfhost/internal/api"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/telemetry"
+	"github.com/zachlagden/selfhost/internal/workspaces"
 )
 
 const (
@@ -95,7 +97,9 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	if err != nil {
 		return nil, nil, err
 	}
-	server := api.New(svc, gate, api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger})
+	workspaceSvc := workspaces.New(db, workspaces.Options{})
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{})
+	server := api.New(svc, workspaceSvc, siteSvc, gate, api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger})
 
 	maintenanceCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})

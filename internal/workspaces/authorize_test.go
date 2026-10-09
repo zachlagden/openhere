@@ -1,6 +1,9 @@
 package workspaces
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 const matrixWorkspace = "ws1"
 
@@ -98,7 +101,7 @@ func TestRequire(t *testing.T) {
 		{RoleAdmin, RoleWrite, nil},
 	}
 	for _, tt := range tests {
-		if got := Require(tt.have, tt.need); got != tt.want {
+		if got := Require(tt.have, tt.need); !errors.Is(got, tt.want) {
 			t.Errorf("Require(%s, %s) = %v, want %v", tt.have, tt.need, got, tt.want)
 		}
 	}

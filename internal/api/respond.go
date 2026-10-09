@@ -22,6 +22,14 @@ const (
 	codeRateLimited       = "rate_limited"
 	codeNotFound          = "not_found"
 	codeKeyLimitReached   = "api_key_limit_reached"
+	codeForbidden         = "forbidden"
+	codeSlugTaken         = "slug_taken"
+	codeFolderNameTaken   = "folder_name_taken"
+	codeLastAdmin         = "last_admin"
+	codePersonalWorkspace = "personal_workspace"
+	codeWorkspaceNotEmpty = "workspace_not_empty"
+	codeMemberExists      = "member_exists"
+	codeUserNotFound      = "user_not_found"
 	codeInternal          = "internal_error"
 )
 
