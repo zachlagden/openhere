@@ -6,9 +6,9 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain or by path. There is no dashboard and no access control yet.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain or by path, and gates them with per-site access modes (public, password or restricted). There is no dashboard yet, and the server cannot send email yet, so the email-code sign-in for allowlisted viewers stays unavailable until an email sender exists.
 
-**Every site with a live version is public right now.** Anyone who can reach the server and knows or guesses a site's slug can read its files. Password and allow-list access modes arrive in a later step. Do not publish anything private until then.
+**A new site is public.** Anyone who can reach the server and knows or guesses its slug can read its files, until you set another access mode with `PATCH /api/v1/publish/{slug}/access` or change the default with the `sites.defaultAccessMode` setting. See [Access control](#access-control).
 
 ## First-time setup
 
@@ -30,7 +30,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 ## API
 
-`docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). The server does not serve it yet. Only `GET /api/v1/setup/status`, `POST /api/v1/setup` and `POST /api/v1/auth/login` work without credentials. Every other path returns a JSON 401, or a JSON 404 once signed in.
+`docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). The server does not serve it yet. Only `GET /api/v1/setup/status`, `POST /api/v1/setup` and `POST /api/v1/auth/login` work without credentials, plus `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. Every other path returns a JSON 401, or a JSON 404 once signed in.
 
 - Browsers sign in with a session cookie (HttpOnly, SameSite=Lax, 30 days, renewed on use). Over HTTPS it is named `__Host-session`, is Secure, has Path=/ and no Domain attribute, so a sibling subdomain cannot overwrite it. Over plain HTTP (local use) it is named `session`. The server reads only the form that matches the request. State-changing requests that use the cookie must send an `X-Requested-With` header and an `Origin` header that matches the host.
 - Scripts and agents use `Authorization: Bearer <key>` with a key from `POST /api/v1/me/keys`. The response shows the full key once. The server stores only its SHA-256 hash. Each user can hold 50 active keys.
@@ -38,7 +38,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 ### Rate limits
 
-Login and setup are limited per IP address and per email: login allows 30 attempts per IP and 10 per email in 15 minutes, setup allows 10 per IP and 5 per email. The counters live in process memory, so a restart resets them and each server process counts separately. A successful login resets that email's counter.
+Login and setup are limited per IP address and per email: login allows 30 attempts per IP and 10 per email in 15 minutes, setup allows 10 per IP and 5 per email. The account sign-in handoff allows 30 calls per user per minute. The counters live in process memory, so a restart resets them and each server process counts separately. A successful login resets that email's counter. The viewer gate has its own limits, listed under [Access control](#access-control).
 
 ### Running behind a reverse proxy
 
@@ -90,7 +90,7 @@ Several processes must not share one `DATA_DIR`. The upload and finalize locks l
 
 ## Hosting sites
 
-The server serves each site's live version in two ways. Both need no sign-in.
+The server serves each site's live version in two ways. A public site needs no sign-in, and the other [access modes](#access-control) put a gate in front of the files.
 
 | Mode | Address | Setting |
 |---|---|---|
@@ -107,9 +107,9 @@ The server normalises the request host (it drops the port and a trailing dot and
 
 - The host of `PUBLIC_URL` is the management host. It serves the API, and `/s/{slug}/...` serves a site in path mode. `/s/{slug}` redirects to `/s/{slug}/`. A site's files are never reachable on the management host except through `/s/`.
 - `{slug}.{baseDomain}` with subdomain mode on serves that site. The slug must be a single DNS label.
-- Every other host serves nothing from the API. Site hosts never run authentication: they ignore session cookies and API keys.
+- Every other host serves nothing from the API. Site hosts never run API authentication: they ignore session cookies and API keys. A gated site has its own viewer cookie, described under [Access control](#access-control).
 
-An unknown host, an unknown slug, a disabled mode and a site without a live version all return the same 404 response with the same headers and a one-line body, so a visitor cannot tell them apart. Only `GET` and `HEAD` work on site hosts and under `/s/`. Other methods return 405 with `Allow: GET, HEAD`.
+An unknown host, an unknown slug, a disabled mode and a site without a live version all return the same 404 response with the same headers and a one-line body, so a visitor cannot tell them apart. Only `GET` and `HEAD` work on site hosts and under `/s/`, apart from the `POST` forms of the gate on gated sites. Other methods return 405 with `Allow: GET, HEAD`.
 
 `hosting.baseDomain` defaults to the host name of `PUBLIC_URL`. Changing it to a different value resets the wildcard check and switches subdomain mode off.
 
@@ -129,6 +129,52 @@ The server runs the check shortly after startup (with up to three attempts) and 
 
 On a local setup with `PUBLIC_URL=http://localhost:8080`, the check fails unless your resolver maps `*.localhost` to the loopback address. Path mode still works.
 
+## Access control
+
+Every site has one access mode. New sites start in the mode of the `sites.defaultAccessMode` setting, which is `public` unless you change it.
+
+| Mode | Who gets in |
+|---|---|
+| `public` | Anyone with the link. |
+| `password` | Anyone who knows the site's password. |
+| `restricted` | Instance users who have at least read access to the site (through a workspace role or a grant scoped to the site or its folder), and viewers whose email address or email domain is on the site's allowlist. An empty allowlist means members only. |
+
+Read and change the settings with `GET` and `PATCH /api/v1/publish/{slug}/access`. Reading needs read access to the site and changing needs write. `mode`, `password` (a string, or `null` to remove it), `emailAllowlist` and `domainAllowlist` can be sent together or alone. The lists replace the stored lists, each holds at most 500 entries, and a domain entry such as `example.com` matches addresses at exactly that domain. Password mode needs a password to exist. Passwords have 8 to 128 characters, are stored as argon2id hashes and are never returned or logged. Responses show `hasPassword` instead. `accessMode` also appears on every site.
+
+Changing the mode, the password or either list moves the site's access epoch. Every viewer cookie carries the epoch it was issued under, so one change signs every viewer out. It also discards unused email codes and sign-in links for the site. Removing a user's workspace access takes effect at once too, because the server checks a member's access again on every request.
+
+### What a visitor sees
+
+A request for a gated site gets the gate page, an HTML page with status 401 and no site content. Requests that are clearly not page loads (scripts, images and `fetch` calls) get a plain 401. The gate runs before the server looks up any file, `404.html` included, so a path that exists and one that does not get the same answer. Gate pages are server-rendered with inline CSS, no JavaScript and no external requests.
+
+- A **password** site shows a password form. A wrong password gets the same message whatever the reason. Unlock attempts are limited to 10 per IP and 100 per site in 15 minutes, and a limited request gets 429 with `Retry-After` (or a JSON `retry_after` for `Accept: application/json`).
+- A **restricted** site shows a link that signs in an instance user, and, when the instance can send email, a form for allowlisted viewers. A viewer enters an email address and receives an 8-digit code that works once, for 10 minutes and for 5 attempts. The page answers the same way whether or not the address is on the allowlist, and only allowlisted addresses receive mail. Code requests are limited per address (3 per 10 minutes), per IP (10 per 15 minutes) and per site (60 per hour). Code checks are limited per address, per IP and per site as well.
+- **Email codes need an email sender.** SMTP and Resend senders arrive in a later step. Until then the instance reports `emailCodeAvailable: false`, the gate page says email sign-in is not available, and allowlisted addresses are stored but cannot sign in. Instance users can still use the account link.
+
+The account link goes to `GET /api/v1/access/handoff?site=<slug>&return=<path>` on the management host. A caller with a session or API key and read access gets a single-use token, valid for 60 seconds and for that site only, and a redirect to the site host, which exchanges it for the viewer cookie and redirects to `return`. A caller without credentials is redirected to `/login?next=...`. **The login page ships with the dashboard, so until then the interactive path works only for users who already have a session cookie in the browser.** The return path must be a path on the site: absolute URLs, protocol-relative URLs, backslashes, control characters, fragments and dot segments are refused, including percent-encoded forms.
+
+### Viewer cookies
+
+A successful sign-in sets a signed cookie (HMAC-SHA256 over the site id, the epoch, the expiry and the method) that lasts 7 days. The signing key is a random instance secret, created on first use and kept in the `instance_settings` table under a key the settings API neither returns nor accepts. A cookie from one site never opens another.
+
+| Mode | Name | Attributes |
+|---|---|---|
+| Subdomain, HTTPS | `__Host-viewer` | `Path=/`, `Secure`, `HttpOnly`, `SameSite=Lax`, no `Domain` |
+| Subdomain, plain HTTP | `viewer` | `Path=/`, `HttpOnly`, `SameSite=Lax` |
+| Path, HTTPS | `__Secure-viewer` | `Path=/s/<slug>/`, `Secure`, `HttpOnly`, `SameSite=None` |
+
+**Path mode behaves differently.** The sandbox gives a path-mode page an opaque origin, so the browser treats its requests for scripts, styles and images as cross-site and does not send `SameSite=Lax` cookies. The path-mode cookie therefore uses `SameSite=None; Secure`, scoped to the site's path. **Gated sites cannot work in path mode over plain HTTP**, because browsers refuse `Secure` cookies there. The server shows a page that says HTTPS is required instead of failing silently. Even over HTTPS, a browser that blocks third-party cookies may withhold the cookie from a path-mode page's own subresources. Use subdomain mode for gated sites.
+
+Every response for a gated site, gate pages included, carries `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`, so other pages cannot frame it. Public sites stay embeddable. Gated content is served with `Cache-Control: private` and gate pages with `private, no-store`. The gate forms carry a token tied to the site, its epoch and the visitor's IP address, and the server rejects a form posted from another origin.
+
+### Routes the gate adds
+
+On a site host, and under `/s/<slug>/` in path mode, a gated site answers four paths that need no credentials: `GET /.well-known/selfhost-auth` (exchanges a sign-in token) and `POST /.well-known/selfhost-gate/unlock`, `/code` and `/verify` (the gate forms). They exist only while the site is gated. On a public site they behave like any other path, and a site's own file at that path is shadowed only while the site is gated. The gate counters live in process memory, like the other rate limits.
+
+### Trade-off: the gate page shows that a site exists
+
+A gated site that has a live version answers with its gate page, so anyone who knows or guesses the slug can tell it exists. An unknown slug, and a site without a live version, still get the plain 404. The gate page shows nothing else about the site: no name, no description and no file names. If the existence of a slug is itself sensitive, choose slugs that cannot be guessed (the generated ones are).
+
 ## Instance settings
 
 The root user reads and changes instance settings with `GET` and `PATCH /api/v1/admin/settings`. Other users get 404. A `PATCH` sends only the keys to change, and the server rejects unknown keys and invalid values without applying any.
@@ -145,6 +191,7 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `hosting.wildcardStatus` | `unchecked` | Read-only. Outcome of the last wildcard check: `unchecked`, `ok` or `failed`. |
 | `hosting.wildcardCheckedAt` | null | Read-only. When the last check finished. |
 | `hosting.wildcardDetail` | empty | Read-only. Why the last check failed. |
+| `sites.defaultAccessMode` | `public` | Access mode of sites created from now on: `public` or `restricted`. Existing sites keep theirs. `password` is not allowed, because a password is set per site. |
 
 ## Configuration
 

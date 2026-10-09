@@ -19,42 +19,47 @@ const (
 	notFoundFile = "404.html"
 )
 
+type serveTarget struct {
+	prefix  string
+	private bool
+}
+
 type siteServer struct {
 	files  *sitefiles.Store
 	index  fileIndex
 	logger *slog.Logger
 }
 
-func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, requestPath, prefix string) {
+func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, requestPath string, target serveTarget) {
 	resolved, found, err := s.index.resolve(r.Context(), site.VersionID, requestPath)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 	if found && resolved.redirect {
-		redirectToDirectory(w, r, prefix+requestPath+"/")
+		redirectToDirectory(w, r, target.prefix+requestPath+"/")
 		return
 	}
 	if found {
-		s.respondWithFile(w, r, site, resolved.record, http.StatusOK)
+		s.respondWithFile(w, r, site, resolved.record, http.StatusOK, target.private)
 		return
 	}
-	s.serveMissing(w, r, site, requestPath)
+	s.serveMissing(w, r, site, requestPath, target.private)
 }
 
-func (s siteServer) serveMissing(w http.ResponseWriter, r *http.Request, site Site, requestPath string) {
+func (s siteServer) serveMissing(w http.ResponseWriter, r *http.Request, site Site, requestPath string, private bool) {
 	if site.SPAMode && lacksExtension(requestPath) {
-		if s.serveNamed(w, r, site, indexFile, http.StatusOK) {
+		if s.serveNamed(w, r, site, indexFile, http.StatusOK, private) {
 			return
 		}
 	}
-	if s.serveNamed(w, r, site, notFoundFile, http.StatusNotFound) {
+	if s.serveNamed(w, r, site, notFoundFile, http.StatusNotFound, private) {
 		return
 	}
 	writeNotFound(w, r)
 }
 
-func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, site Site, name string, status int) bool {
+func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, site Site, name string, status int, private bool) bool {
 	rec, found, err := s.index.one(r.Context(), site.VersionID, name)
 	if err != nil {
 		s.fail(w, err)
@@ -63,11 +68,11 @@ func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, site Site
 	if !found {
 		return false
 	}
-	s.respondWithFile(w, r, site, rec, status)
+	s.respondWithFile(w, r, site, rec, status, private)
 	return true
 }
 
-func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, site Site, rec fileRecord, status int) {
+func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, site Site, rec fileRecord, status int, private bool) {
 	file, info, err := s.files.Open(site.ID, site.VersionID, rec.Path)
 	if errors.Is(err, sitefiles.ErrNotFound) || errors.Is(err, sitefiles.ErrNotRegular) {
 		if errors.Is(err, sitefiles.ErrNotRegular) {
@@ -84,7 +89,7 @@ func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, site
 	contentType := contentTypeFor(rec)
 	h := w.Header()
 	h.Set("Content-Type", contentType)
-	h.Set("Cache-Control", cacheControlFor(contentType))
+	h.Set("Cache-Control", cacheControlFor(contentType, private))
 	if status == http.StatusOK {
 		h.Set("ETag", `"`+rec.SHA256+`"`)
 		http.ServeContent(w, r, "", info.ModTime(), file)
@@ -104,11 +109,17 @@ func writeStatusWithBody(w http.ResponseWriter, r *http.Request, file *os.File, 
 	}
 }
 
-func cacheControlFor(contentType string) string {
-	if isHTML(contentType) {
+func cacheControlFor(contentType string, private bool) string {
+	switch {
+	case private && isHTML(contentType):
+		return cachePrivateHTML
+	case private:
+		return cachePrivateAsset
+	case isHTML(contentType):
 		return CacheHTML
+	default:
+		return CacheAsset
 	}
-	return CacheAsset
 }
 
 func lacksExtension(requestPath string) bool {

@@ -45,6 +45,9 @@ func (s *Service) CreateSite(ctx context.Context, in CreateInput) (Site, error) 
 	if err != nil {
 		return Site{}, err
 	}
+	if site.AccessMode, err = s.newSiteAccessMode(ctx); err != nil {
+		return Site{}, err
+	}
 	if in.Slug != "" {
 		if err := insertSite(ctx, s.db, site); err != nil {
 			return Site{}, mapSlugError(err)

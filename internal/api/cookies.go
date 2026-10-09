@@ -12,7 +12,7 @@ const (
 )
 
 func (s *Server) secure(r *http.Request) bool {
-	return s.public.Secure() || s.proxies.isHTTPS(r)
+	return s.public.Secure() || s.proxies.IsHTTPS(r)
 }
 
 func cookieNameFor(secure bool) string {

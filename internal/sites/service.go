@@ -1,6 +1,7 @@
 package sites
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -12,6 +13,8 @@ const (
 	MaxDisplayNameLength = 100
 	MaxDescriptionLength = 1000
 	MaxFolderNameLength  = 64
+
+	accessPublic = "public"
 )
 
 type FileCleaner interface {
@@ -24,6 +27,8 @@ type Options struct {
 	Files         FileCleaner
 	Logger        *slog.Logger
 	OnSiteChange  func(slug string)
+
+	DefaultAccessMode func(ctx context.Context) (string, error)
 }
 
 type Service struct {
@@ -34,6 +39,8 @@ type Service struct {
 	files    FileCleaner
 	logger   *slog.Logger
 	changed  func(slug string)
+
+	defaultAccess func(ctx context.Context) (string, error)
 }
 
 func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
@@ -53,9 +60,16 @@ func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
 	if changed == nil {
 		changed = func(string) {}
 	}
-	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger, changed: changed}
+	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger, changed: changed, defaultAccess: opts.DefaultAccessMode}
 }
 
 func (s *Service) clock() time.Time {
 	return s.now().UTC().Truncate(time.Second)
+}
+
+func (s *Service) newSiteAccessMode(ctx context.Context) (string, error) {
+	if s.defaultAccess == nil {
+		return accessPublic, nil
+	}
+	return s.defaultAccess(ctx)
 }

@@ -3,9 +3,9 @@ info:
   title: selfhost API
   version: 0.1.0
   description: |
-    REST API of the selfhost server. Every route except `GET /setup/status`, `POST /setup` and
-    `POST /auth/login` needs authentication, and every unknown path returns 401 without credentials
-    and 404 with them.
+    REST API of the selfhost server. Every route except `GET /setup/status`, `POST /setup`,
+    `POST /auth/login` and `GET /access/handoff` needs authentication, and every unknown path returns 401
+    without credentials and 404 with them.
 
     Authenticate with `Authorization: Bearer <api key>` or with the session cookie that setup and
     login set. The cookie is named `session` over plain HTTP and `__Host-session` over HTTPS. Requests
@@ -16,16 +16,20 @@ info:
     not allow the action returns 403 `forbidden`.
 
     Request and response bodies are JSON, except file uploads and downloads. Request bodies must use
-    `Content-Type: application/json`, must stay under 16 KiB (publish manifests may be up to 16 MiB) and must
-    not contain unknown fields.
+    `Content-Type: application/json`, must stay under 16 KiB (publish manifests may be up to 16 MiB, access
+    settings up to 512 KiB) and must not contain unknown fields.
 
     Publishing takes three calls: `POST /publish` (new site) or `PUT /publish/{slug}` (new version) with a file
     manifest, one `PUT` per file to the returned upload URLs, then `POST .../finalize`. A version serves
     nothing until finalize succeeds.
 
     Published sites are not part of this API. The server serves a site's live version at
-    `https://{slug}.{baseDomain}/` (subdomain mode) and at `{publicUrl}/s/{slug}/` (path mode), with no
-    authentication. Each site response carries the URL the instance serves it at right now in `url`.
+    `https://{slug}.{baseDomain}/` (subdomain mode) and at `{publicUrl}/s/{slug}/` (path mode). A site is open
+    to anyone with the link unless its access mode says otherwise (see the Access tag). Each site response
+    carries the URL the instance serves it at right now in `url`, and its access mode in `accessMode`.
+
+    Every route except `GET /setup/status`, `POST /setup`, `POST /auth/login` and `GET /access/handoff` needs
+    credentials. `GET /access/handoff` answers a caller without credentials with a redirect to `/login`.
 servers:
   - url: /api/v1
 security:
@@ -40,6 +44,7 @@ tags:
   - name: Folders
   - name: Sites
   - name: Publish
+  - name: Access
   - name: Admin
 paths:
   /setup/status:
@@ -1071,6 +1076,117 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /publish/{slug}/access:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+    get:
+      tags: [Access]
+      operationId: getAccess
+      summary: Read a site's access settings
+      description: |
+        Needs read on the site. The response never contains the password or its hash, only whether a password
+        is set.
+      responses:
+        "200":
+          description: The access settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Access]
+      operationId: updateAccess
+      summary: Change a site's access settings
+      description: |
+        Needs write on the site. Omitted fields stay as they are. `emailAllowlist` and `domainAllowlist` replace
+        the whole list. `password` sets the password, or clears it when null. Switching to `password` mode needs
+        a password to exist after the change.
+
+        Changing the mode, the password or either list moves the site's access epoch, which invalidates every
+        viewer cookie and unused email code and handoff token for the site. Sending a value the site already has
+        changes nothing, except a password, which always counts as a change.
+
+        An empty allowlist in `restricted` mode means members only: only instance users with at least read access
+        to the site can open it.
+
+        Passwords need 8 to 128 characters. Each list holds at most 500 entries. Emails are ASCII and stored in
+        lower case. A domain such as `example.com` (a leading `@` is accepted) matches addresses at exactly that
+        domain, not its subdomains.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccessRequest"
+      responses:
+        "200":
+          description: The access settings after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /access/handoff:
+    get:
+      tags: [Access]
+      operationId: accessHandoff
+      summary: Sign an instance user in to a restricted site
+      security: []
+      description: |
+        Used by the sign-in link on a restricted site's gate page. Without credentials the response is a 303
+        redirect to `/login?next=<this request>`. The login page ships with the dashboard, so until then the
+        interactive path works only for users who already have a session in the browser.
+
+        With a session cookie or API key and read access to the site, the response is a 303 redirect to the site
+        host. For a `restricted` site that is `{site url}.well-known/selfhost-auth?token=...&return=...`, where the
+        token works once, for 60 seconds, for this site only. The site host exchanges it for a viewer cookie and
+        redirects to `return`. For a `public` or `password` site there is nothing to exchange, so the redirect goes
+        straight to `{site url}` plus `return`. Calls are limited to 30 per minute per user.
+
+        `return` must be a path on the site that starts with one `/`. The server rejects absolute URLs,
+        protocol-relative URLs, backslashes, control characters, fragments, `.` and `..` segments, and any of these
+        after up to three rounds of percent-decoding, with 400 `validation_failed`.
+      parameters:
+        - name: site
+          in: query
+          required: true
+          description: The site slug or id.
+          schema:
+            type: string
+        - name: return
+          in: query
+          required: false
+          description: The path, with an optional query, to open after sign-in. Defaults to `/`.
+          schema:
+            type: string
+      responses:
+        "303":
+          description: Redirect to the login page or to the site host.
+          headers:
+            Location:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /sites/{slug}/files:
     parameters:
       - $ref: "#/components/parameters/SiteSlug"
@@ -1685,7 +1801,7 @@ components:
           examples: [Reports]
     Site:
       type: object
-      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, currentVersionId, url, role, createdAt, updatedAt]
+      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, accessMode, currentVersionId, url, role, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1709,6 +1825,8 @@ components:
         spaMode:
           type: boolean
           description: Serve `index.html` with status 200 for unknown paths whose last segment has no file extension.
+        accessMode:
+          $ref: "#/components/schemas/AccessMode"
         currentVersionId:
           type: [string, "null"]
           description: The live version. Null until a version is finalized.
@@ -1722,6 +1840,67 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AccessMode:
+      type: string
+      enum: [public, password, restricted]
+      description: |
+        `public` serves the site to anyone with the link. `password` asks for the site's password. `restricted` lets
+        in instance users with at least read access to the site, and the viewers on its email and domain
+        allowlists, who sign in with an emailed code.
+    Access:
+      type: object
+      required: [mode, hasPassword, emailAllowlist, domainAllowlist, emailCodeAvailable]
+      properties:
+        mode:
+          $ref: "#/components/schemas/AccessMode"
+        hasPassword:
+          type: boolean
+          description: Whether a password is stored. The password itself is never returned.
+        emailAllowlist:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            format: email
+        domainAllowlist:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+        emailCodeAvailable:
+          type: boolean
+          description: |
+            Whether this instance can email sign-in codes. It is false until an email sender is configured. Allowlisted
+            addresses are still stored when it is false, but their owners cannot sign in with a code.
+    AccessEnvelope:
+      type: object
+      required: [access]
+      properties:
+        access:
+          $ref: "#/components/schemas/Access"
+    UpdateAccessRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          $ref: "#/components/schemas/AccessMode"
+        password:
+          type: [string, "null"]
+          minLength: 8
+          maxLength: 128
+          description: The new password, or null to remove it.
+        emailAllowlist:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+          description: Replaces the list.
+        domainAllowlist:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+          description: Replaces the list.
     SiteUrl:
       type: [string, "null"]
       description: |
@@ -2038,6 +2217,13 @@ components:
           type: string
           readOnly: true
           description: Why the last check failed, or an empty string. Read-only.
+        sites.defaultAccessMode:
+          type: string
+          enum: [public, restricted]
+          default: public
+          description: |
+            The access mode of sites created from now on. Existing sites keep theirs. `password` is not allowed as a
+            default, because a password has to be set per site.
     UpdateSettingsRequest:
       type: object
       additionalProperties: false

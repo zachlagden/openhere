@@ -52,3 +52,7 @@ func writeServerError(w http.ResponseWriter) {
 func isReadMethod(method string) bool {
 	return method == http.MethodGet || method == http.MethodHead
 }
+
+func logWriteFailure(err error) {
+	slog.Debug("write response body", "error", err)
+}

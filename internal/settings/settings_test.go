@@ -37,6 +37,7 @@ func TestDefaults(t *testing.T) {
 		want := Settings{
 			KeepVersions: 10, MaxFilesPerVer: 2500, MaxVersionBytes: 1 << 30, MaxFileBytes: 256 << 20,
 			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, WildcardStatus: WildcardUnchecked,
+			DefaultAccessMode: AccessPublic,
 		}
 		if got != want {
 			t.Errorf("defaults = %+v, want %+v", got, want)
@@ -148,6 +149,10 @@ func TestUpdateRejectsBadInput(t *testing.T) {
 			"read-only status":        `{"hosting.wildcardStatus": "ok"}`,
 			"read-only checked at":    `{"hosting.wildcardCheckedAt": "2026-03-01T12:00:00Z"}`,
 			"read-only detail":        `{"hosting.wildcardDetail": "fine"}`,
+			"password as default":     `{"sites.defaultAccessMode": "password"}`,
+			"unknown default mode":    `{"sites.defaultAccessMode": "friends"}`,
+			"empty default mode":      `{"sites.defaultAccessMode": ""}`,
+			"number for default mode": `{"sites.defaultAccessMode": 1}`,
 		}
 		for name, raw := range bad {
 			_, err := svc.Update(ctx, patch(t, raw))
@@ -209,6 +214,27 @@ func TestCorruptStoredValueIsAnError(t *testing.T) {
 		}
 		if _, err := New(db, Options{}).Get(ctx); err == nil {
 			t.Error("a corrupt stored value was ignored")
+		}
+	})
+}
+
+func TestDefaultAccessModeAcceptsPublicAndRestricted(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		ctx := context.Background()
+		svc := New(db, Options{})
+		got, err := svc.Update(ctx, patch(t, `{"sites.defaultAccessMode": "  Restricted "}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.DefaultAccessMode != AccessRestricted {
+			t.Errorf("DefaultAccessMode = %q, want restricted", got.DefaultAccessMode)
+		}
+		got, err = svc.Update(ctx, patch(t, `{"sites.defaultAccessMode": "public"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.DefaultAccessMode != AccessPublic {
+			t.Errorf("DefaultAccessMode = %q, want public", got.DefaultAccessMode)
 		}
 	})
 }
