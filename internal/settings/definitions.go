@@ -20,6 +20,13 @@ const (
 	KeyBaseDomain       = "hosting.baseDomain"
 	KeySubdomainEnabled = "hosting.subdomainEnabled"
 	KeyPathEnabled      = "hosting.pathEnabled"
+	KeyWildcardStatus   = "hosting.wildcardStatus"
+	KeyWildcardChecked  = "hosting.wildcardCheckedAt"
+	KeyWildcardDetail   = "hosting.wildcardDetail"
+
+	WildcardUnchecked = "unchecked"
+	WildcardOK        = "ok"
+	WildcardFailed    = "failed"
 
 	minimumInt          = 1
 	maxBaseDomainLength = 253
@@ -38,6 +45,10 @@ type Settings struct {
 	BaseDomain       string
 	SubdomainEnabled bool
 	PathEnabled      bool
+
+	WildcardStatus    string
+	WildcardCheckedAt string
+	WildcardDetail    string
 }
 
 type definition struct {
@@ -46,6 +57,7 @@ type definition struct {
 	decode   func(raw json.RawMessage) (string, error)
 	apply    func(s *Settings, stored string) error
 	value    func(s Settings) any
+	readOnly bool
 }
 
 var definitions = []definition{
@@ -70,6 +82,15 @@ var definitions = []definition{
 	boolDefinition(KeyPathEnabled, true,
 		func(s *Settings, v bool) { s.PathEnabled = v },
 		func(s Settings) bool { return s.PathEnabled }),
+	readOnlyString(KeyWildcardStatus, WildcardUnchecked, false,
+		func(s *Settings, v string) { s.WildcardStatus = v },
+		func(s Settings) string { return s.WildcardStatus }),
+	readOnlyString(KeyWildcardChecked, "", true,
+		func(s *Settings, v string) { s.WildcardCheckedAt = v },
+		func(s Settings) string { return s.WildcardCheckedAt }),
+	readOnlyString(KeyWildcardDetail, "", false,
+		func(s *Settings, v string) { s.WildcardDetail = v },
+		func(s Settings) string { return s.WildcardDetail }),
 }
 
 func findDefinition(key string) (definition, bool) {
@@ -163,6 +184,28 @@ func stringDefinition(key, fallback string, normalise func(string) (string, erro
 			return nil
 		},
 		value: func(s Settings) any { return get(s) },
+	}
+}
+
+func readOnlyString(key, fallback string, nullWhenEmpty bool, set func(*Settings, string), get func(Settings) string) definition {
+	return definition{
+		key:      key,
+		fallback: fallback,
+		readOnly: true,
+		decode: func(json.RawMessage) (string, error) {
+			return "", validate.Invalid(fmt.Sprintf("Setting %s is read-only.", key))
+		},
+		apply: func(s *Settings, stored string) error {
+			set(s, stored)
+			return nil
+		},
+		value: func(s Settings) any {
+			value := get(s)
+			if nullWhenEmpty && value == "" {
+				return nil
+			}
+			return value
+		},
 	}
 }
 
