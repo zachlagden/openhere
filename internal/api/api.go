@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/selfhost/internal/agentcode"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/invites"
@@ -34,6 +35,12 @@ type Limits struct {
 	ResetRequestIP    Rule
 	ResetRequestEmail Rule
 	ResetConfirm      Rule
+
+	AgentRequestIP    Rule
+	AgentRequestEmail Rule
+	AgentRequestAll   Rule
+	AgentVerifyIP     Rule
+	AgentVerifyEmail  Rule
 	LoginPerIP        Rule
 	LoginPerEmail     Rule
 	SetupPerIP        Rule
@@ -53,6 +60,12 @@ func DefaultLimits() Limits {
 		ResetRequestIP:    Rule{Max: 5, Window: window},
 		ResetRequestEmail: Rule{Max: 3, Window: time.Hour},
 		ResetConfirm:      Rule{Max: 10, Window: window},
+
+		AgentRequestIP:    Rule{Max: 10, Window: window},
+		AgentRequestEmail: Rule{Max: 3, Window: time.Hour},
+		AgentRequestAll:   Rule{Max: 100, Window: time.Hour},
+		AgentVerifyIP:     Rule{Max: 20, Window: window},
+		AgentVerifyEmail:  Rule{Max: 10, Window: window},
 		LoginPerIP:        Rule{Max: 30, Window: window},
 		LoginPerEmail:     Rule{Max: 10, Window: window},
 		SetupPerIP:        Rule{Max: 10, Window: window},
@@ -76,6 +89,11 @@ func (l Limits) withDefaults() Limits {
 	fill(&l.ResetRequestIP, defaults.ResetRequestIP)
 	fill(&l.ResetRequestEmail, defaults.ResetRequestEmail)
 	fill(&l.ResetConfirm, defaults.ResetConfirm)
+	fill(&l.AgentRequestIP, defaults.AgentRequestIP)
+	fill(&l.AgentRequestEmail, defaults.AgentRequestEmail)
+	fill(&l.AgentRequestAll, defaults.AgentRequestAll)
+	fill(&l.AgentVerifyIP, defaults.AgentVerifyIP)
+	fill(&l.AgentVerifyEmail, defaults.AgentVerifyEmail)
 	fill(&l.WildcardCheck, defaults.WildcardCheck)
 	fill(&l.Handoff, defaults.Handoff)
 	return l
@@ -91,6 +109,7 @@ type Options struct {
 	Mailer         mail.Sender
 	Invites        *invites.Service
 	PasswordReset  *passwordreset.Service
+	AgentCodes     *agentcode.Service
 }
 
 type Server struct {
@@ -108,8 +127,14 @@ type Server struct {
 	mailer     mail.Sender
 	invites    *invites.Service
 	reset      *passwordreset.Service
+	agents     *agentcode.Service
 	now        func() time.Time
 
+	agentReqIP     *ratelimit.Limiter
+	agentReqEmail  *ratelimit.Limiter
+	agentReqAll    *ratelimit.Limiter
+	agentVerifyIP  *ratelimit.Limiter
+	agentVerifyKey *ratelimit.Limiter
 	resetIP        *ratelimit.Limiter
 	resetEmail     *ratelimit.Limiter
 	resetConfirm   *ratelimit.Limiter
@@ -159,8 +184,14 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		mailer:     mailer,
 		invites:    opts.Invites,
 		reset:      opts.PasswordReset,
+		agents:     opts.AgentCodes,
 		now:        now,
 
+		agentReqIP:     limiter(limits.AgentRequestIP),
+		agentReqEmail:  limiter(limits.AgentRequestEmail),
+		agentReqAll:    limiter(limits.AgentRequestAll),
+		agentVerifyIP:  limiter(limits.AgentVerifyIP),
+		agentVerifyKey: limiter(limits.AgentVerifyEmail),
 		resetIP:        limiter(limits.ResetRequestIP),
 		resetEmail:     limiter(limits.ResetRequestEmail),
 		resetConfirm:   limiter(limits.ResetConfirm),
@@ -198,6 +229,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerAdminRoutes(mux)
 	s.registerInviteRoutes(mux)
 	s.registerPasswordResetRoutes(mux)
+	s.registerAgentRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

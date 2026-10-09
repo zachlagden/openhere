@@ -215,3 +215,9 @@ func TestLoadSecretKey(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentCredentialsPath(t *testing.T) {
+	if got := AgentCredentialsPath(); got != "~/.selfhost/credentials" {
+		t.Errorf("AgentCredentialsPath = %q", got)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/zachlagden/selfhost/internal/agentcode"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
@@ -39,6 +40,9 @@ var domainFailures = []domainFailure{
 	{invites.ErrAccepted, http.StatusConflict, codeInviteAccepted, "That invite has already been accepted."},
 	{invites.ErrEmailRegistered, http.StatusConflict, codeEmailRegistered, "That email address already has an account. Add them to the workspace from its members page instead."},
 	{passwordreset.ErrInvalidToken, http.StatusBadRequest, codeInvalidResetToken, "This reset link is invalid or has expired."},
+	{agentcode.ErrEmailNotConfigured, http.StatusConflict, codeEmailNotConfigured, agentNoEmailMessage},
+	{agentcode.ErrCodeInvalid, http.StatusBadRequest, codeInvalidCode, "The code is wrong, expired or already used. Request a new one."},
+	{auth.ErrAPIKeyLimit, http.StatusConflict, codeKeyLimitReached, "The account has reached the limit of 50 active API keys. Revoke one first."},
 	{auth.ErrUserNotFound, http.StatusNotFound, codeNotFound, "Not found."},
 	{auth.ErrSelfDisable, http.StatusConflict, codeCannotDisableSelf, "You cannot disable your own account."},
 	{auth.ErrLastRoot, http.StatusConflict, codeLastRoot, "The last root user cannot be disabled."},

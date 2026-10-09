@@ -38,6 +38,7 @@ const (
 	codeInviteAccepted      = "invite_accepted"
 	codeEmailRegistered     = "email_registered"
 	codeInvalidResetToken   = "invalid_reset_token"
+	codeInvalidCode         = "invalid_code"
 	codeVersionConflict     = "version_conflict"
 	codeTooManyFiles        = "too_many_files"
 	codeVersionTooLarge     = "version_too_large"

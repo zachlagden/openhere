@@ -14,6 +14,7 @@ func generousLimits() Limits {
 		LoginPerIP: generous, LoginPerEmail: generous, SetupPerIP: generous, SetupPerEmail: generous,
 		EmailTest: generous, InviteSend: generous, InviteLookup: generous, InviteAccept: generous,
 		ResetRequestIP: generous, ResetRequestEmail: generous, ResetConfirm: generous,
+		AgentRequestIP: generous, AgentRequestEmail: generous, AgentRequestAll: generous, AgentVerifyIP: generous, AgentVerifyEmail: generous,
 	}
 }
 
