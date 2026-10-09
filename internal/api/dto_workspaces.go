@@ -98,6 +98,7 @@ type siteResponse struct {
 	Description      string          `json:"description"`
 	CreatedBy        *string         `json:"createdBy"`
 	SpaMode          bool            `json:"spaMode"`
+	AccessMode       string          `json:"accessMode"`
 	CurrentVersionID *string         `json:"currentVersionId"`
 	URL              *string         `json:"url"`
 	Role             workspaces.Role `json:"role"`
@@ -118,7 +119,7 @@ func toSiteResponse(s sites.Site, siteURL *string) siteResponse {
 	return siteResponse{
 		ID: s.ID, WorkspaceID: s.WorkspaceID, WorkspaceSlug: s.WorkspaceSlug, FolderID: optional(s.FolderID),
 		Slug: s.Slug, DisplayName: s.DisplayName, Description: s.Description, CreatedBy: optional(s.CreatedBy),
-		SpaMode: s.SpaMode, CurrentVersionID: optional(s.CurrentVersionID), URL: siteURL,
+		SpaMode: s.SpaMode, AccessMode: s.AccessMode, CurrentVersionID: optional(s.CurrentVersionID), URL: siteURL,
 		Role: s.Role, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }

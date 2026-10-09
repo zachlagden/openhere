@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -13,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -59,6 +62,9 @@ type harness struct {
 
 	settings *settings.Service
 	routed   http.Handler
+	access   *access.Service
+	mailer   *mail.Recorder
+	logs     *bytes.Buffer
 }
 
 type harnessOptions struct {
@@ -67,12 +73,15 @@ type harnessOptions struct {
 	proxies    []netip.Prefix
 	public     config.PublicURL
 	wildcard   WildcardChecker
+	logToBuf   bool
+	noMailer   bool
 }
 
 func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	t.Helper()
 	clock := &fakeClock{now: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logs := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logSink(opts.logToBuf, logs), &slog.HandlerOptions{Level: slog.LevelDebug}))
 	svc, err := auth.New(db, auth.Options{KeyPrefix: "sk_", Params: testParams, Now: clock.Now, Logger: logger})
 	if err != nil {
 		t.Fatalf("auth.New: %v", err)
@@ -99,20 +108,34 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 		t.Fatalf("sitefiles.New: %v", err)
 	}
 	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now})
-	siteSvc := sites.New(db, workspaceSvc, sites.Options{Now: clock.Now, Files: files, Logger: logger})
 	settingsSvc := settings.New(db, settings.Options{Now: clock.Now})
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{
+		Now: clock.Now, Files: files, Logger: logger,
+		DefaultAccessMode: func(ctx context.Context) (string, error) {
+			cfg, err := settingsSvc.Get(ctx)
+			return cfg.DefaultAccessMode, err
+		},
+	})
+	recorder := mail.NewRecorder()
+	var mailer mail.Sender = recorder
+	if opts.noMailer {
+		mailer = mail.Unconfigured{}
+	}
+	accessSvc := access.New(db, access.Options{
+		Mailer: mailer, Params: testParams, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() },
+	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger})
 	public := opts.public
 	if public == (config.PublicURL{}) {
 		public = config.PublicURL{Scheme: "http", Host: testHost}
 	}
-	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate, Options{
+	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
 		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard,
 	})
-	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger})
+	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc})
 	return &harness{
 		t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir,
-		settings: settingsSvc, routed: routed,
+		settings: settingsSvc, routed: routed, access: accessSvc, mailer: recorder, logs: logs,
 	}
 }
 
@@ -240,4 +263,11 @@ func (h *harness) createKey(cookie *http.Cookie, label string) createKeyResponse
 	rec := h.do("POST", "/api/v1/me/keys", createKeyRequest{Label: label}, browser(), withCookie(cookie))
 	expectStatus(h.t, rec, http.StatusCreated)
 	return decodeBody[createKeyResponse](h.t, rec)
+}
+
+func logSink(capture bool, logs *bytes.Buffer) io.Writer {
+	if capture {
+		return logs
+	}
+	return io.Discard
 }

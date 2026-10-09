@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/api"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -110,27 +113,33 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	resolver := hosting.NewResolver(db, nil)
 	settingsSvc := settings.New(db, settings.Options{DefaultBaseDomain: cfg.PublicURL.Host})
 	workspaceSvc := workspaces.New(db, workspaces.Options{})
-	siteSvc := sites.New(db, workspaceSvc, sites.Options{Files: files, Logger: logger, OnSiteChange: resolver.Invalidate})
+	accessSvc := access.New(db, access.Options{Mailer: mail.Unconfigured{}, Logger: logger})
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{
+		Files: files, Logger: logger, OnSiteChange: resolver.Invalidate, DefaultAccessMode: defaultAccessMode(settingsSvc),
+	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger, OnSiteChange: resolver.Invalidate})
 	probes := hosting.NewProbes(nil)
 	checker := hosting.NewChecker(settingsSvc, probes, hosting.CheckerOptions{Public: cfg.PublicURL, Logger: logger})
-	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate,
+	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate,
 		api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker})
 	router := hosting.New(server.Handler(), settingsSvc, db, files,
-		hosting.Options{Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger})
+		hosting.Options{
+			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
+			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies},
+		})
 
-	stop := startBackground(ctx, svc, publishSvc, checker)
+	stop := startBackground(ctx, svc, checker, auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain},
+		auth.MaintenanceTask{Name: "access", Run: accessSvc.Purge})
 	return router, stop, nil
 }
 
-func startBackground(ctx context.Context, svc *auth.Service, publishSvc *publish.Service, checker *hosting.Checker) func() {
+func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Checker, tasks ...auth.MaintenanceTask) func() {
 	backgroundCtx, cancel := context.WithCancel(ctx)
 	var running sync.WaitGroup
 	running.Add(2)
 	go func() {
 		defer running.Done()
-		svc.RunMaintenance(backgroundCtx, maintenanceInterval,
-			auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain})
+		svc.RunMaintenance(backgroundCtx, maintenanceInterval, tasks...)
 	}()
 	go func() {
 		defer running.Done()
@@ -139,6 +148,16 @@ func startBackground(ctx context.Context, svc *auth.Service, publishSvc *publish
 	return func() {
 		cancel()
 		running.Wait()
+	}
+}
+
+func defaultAccessMode(settingsSvc *settings.Service) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		cfg, err := settingsSvc.Get(ctx)
+		if err != nil {
+			return "", err
+		}
+		return cfg.DefaultAccessMode, nil
 	}
 }
 
