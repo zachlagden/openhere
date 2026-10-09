@@ -7,6 +7,11 @@ import (
 
 const maxTrackedKeys = 50000
 
+type Rule struct {
+	Max    int
+	Window time.Duration
+}
+
 type window struct {
 	count   int
 	resetAt time.Time

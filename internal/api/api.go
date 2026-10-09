@@ -19,10 +19,7 @@ import (
 
 const basePath = "/api/v1"
 
-type Rule struct {
-	Max    int
-	Window time.Duration
-}
+type Rule = ratelimit.Rule
 
 type Limits struct {
 	LoginPerIP    Rule
