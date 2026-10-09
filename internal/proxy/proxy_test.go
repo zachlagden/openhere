@@ -1,4 +1,4 @@
-package api
+package proxy
 
 import (
 	"net/http/httptest"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestClientIP(t *testing.T) {
-	trust := proxyTrust{prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("fd00::/8")}}
+	trust := Trust{Prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("fd00::/8")}}
 	cases := []struct {
 		name   string
 		remote string
@@ -31,15 +31,15 @@ func TestClientIP(t *testing.T) {
 			for _, v := range tc.xff {
 				req.Header.Add("X-Forwarded-For", v)
 			}
-			if got := trust.clientIP(req).String(); got != tc.want {
-				t.Errorf("clientIP = %s, want %s", got, tc.want)
+			if got := trust.ClientIP(req).String(); got != tc.want {
+				t.Errorf("ClientIP = %s, want %s", got, tc.want)
 			}
 		})
 	}
 }
 
 func TestIsHTTPS(t *testing.T) {
-	trust := proxyTrust{prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}}
+	trust := Trust{Prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}}
 	cases := []struct {
 		name   string
 		remote string
@@ -59,24 +59,24 @@ func TestIsHTTPS(t *testing.T) {
 			if tc.proto != "" {
 				req.Header.Set("X-Forwarded-Proto", tc.proto)
 			}
-			if got := trust.isHTTPS(req); got != tc.want {
-				t.Errorf("isHTTPS = %v, want %v", got, tc.want)
+			if got := trust.IsHTTPS(req); got != tc.want {
+				t.Errorf("IsHTTPS = %v, want %v", got, tc.want)
 			}
 		})
 	}
 }
 
 func TestLimiterKeyAggregatesIPv6Subnets(t *testing.T) {
-	a := limiterKeyForIP(netip.MustParseAddr("2001:db8:1:2::1"))
-	b := limiterKeyForIP(netip.MustParseAddr("2001:db8:1:2:ffff::9"))
-	c := limiterKeyForIP(netip.MustParseAddr("2001:db8:1:3::1"))
+	a := LimiterKey(netip.MustParseAddr("2001:db8:1:2::1"))
+	b := LimiterKey(netip.MustParseAddr("2001:db8:1:2:ffff::9"))
+	c := LimiterKey(netip.MustParseAddr("2001:db8:1:3::1"))
 	if a != b || a == c {
 		t.Errorf("ipv6 keys = %s, %s, %s", a, b, c)
 	}
-	if got := limiterKeyForIP(netip.MustParseAddr("203.0.113.5")); got != "203.0.113.5" {
+	if got := LimiterKey(netip.MustParseAddr("203.0.113.5")); got != "203.0.113.5" {
 		t.Errorf("ipv4 key = %s", got)
 	}
-	if got := limiterKeyForIP(netip.Addr{}); got != "unknown" {
+	if got := LimiterKey(netip.Addr{}); got != "unknown" {
 		t.Errorf("invalid key = %s", got)
 	}
 }

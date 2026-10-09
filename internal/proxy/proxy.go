@@ -1,4 +1,4 @@
-package api
+package proxy
 
 import (
 	"net"
@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-type proxyTrust struct {
-	prefixes []netip.Prefix
+type Trust struct {
+	Prefixes []netip.Prefix
 }
 
-func (p proxyTrust) trusted(addr netip.Addr) bool {
+func (p Trust) trusted(addr netip.Addr) bool {
 	addr = addr.Unmap().WithZone("")
-	for _, prefix := range p.prefixes {
+	for _, prefix := range p.Prefixes {
 		if prefix.Contains(addr) {
 			return true
 		}
@@ -33,7 +33,7 @@ func peerAddr(r *http.Request) (netip.Addr, bool) {
 	return addr.Unmap(), true
 }
 
-func (p proxyTrust) clientIP(r *http.Request) netip.Addr {
+func (p Trust) ClientIP(r *http.Request) netip.Addr {
 	peer, ok := peerAddr(r)
 	if !ok {
 		return netip.Addr{}
@@ -55,7 +55,7 @@ func (p proxyTrust) clientIP(r *http.Request) netip.Addr {
 	return peer
 }
 
-func (p proxyTrust) isHTTPS(r *http.Request) bool {
+func (p Trust) IsHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
@@ -67,7 +67,7 @@ func (p proxyTrust) isHTTPS(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(values[0]), "https")
 }
 
-func limiterKeyForIP(addr netip.Addr) string {
+func LimiterKey(addr netip.Addr) string {
 	if !addr.IsValid() {
 		return "unknown"
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/proxy"
 )
 
 type setupStatusResponse struct {
@@ -33,7 +34,7 @@ func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
-	if !s.allow(w, s.setupIP, limiterKeyForIP(s.proxies.clientIP(r))) {
+	if !s.allow(w, s.setupIP, proxy.LimiterKey(s.proxies.ClientIP(r))) {
 		return
 	}
 	var req setupRequest

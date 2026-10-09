@@ -9,6 +9,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
 	"github.com/zachlagden/selfhost/internal/settings"
@@ -58,7 +59,7 @@ type Server struct {
 	publish    *publish.Service
 	settings   *settings.Service
 	gate       *auth.SetupGate
-	proxies    proxyTrust
+	proxies    proxy.Trust
 	logger     *slog.Logger
 	public     config.PublicURL
 	wildcard   WildcardChecker
@@ -90,7 +91,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		publish:    publishSvc,
 		settings:   settingsSvc,
 		gate:       gate,
-		proxies:    proxyTrust{prefixes: opts.TrustedProxies},
+		proxies:    proxy.Trust{Prefixes: opts.TrustedProxies},
 		logger:     logger,
 		public:     opts.Public,
 		wildcard:   opts.Wildcard,

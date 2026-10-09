@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/proxy"
 )
 
 type loginRequest struct {
@@ -18,7 +19,7 @@ type meResponse struct {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if !s.allow(w, s.loginIP, limiterKeyForIP(s.proxies.clientIP(r))) {
+	if !s.allow(w, s.loginIP, proxy.LimiterKey(s.proxies.ClientIP(r))) {
 		return
 	}
 	var req loginRequest
