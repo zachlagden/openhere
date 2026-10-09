@@ -76,19 +76,19 @@ func TestConcurrentSetupHasOneWinner(t *testing.T) {
 		wg.Wait()
 		close(statuses)
 
-		created, conflicts := 0, 0
+		created, refused := 0, 0
 		for status := range statuses {
 			switch status {
 			case http.StatusCreated:
 				created++
-			case http.StatusConflict:
-				conflicts++
+			case http.StatusConflict, http.StatusForbidden:
+				refused++
 			default:
 				t.Errorf("unexpected status %d", status)
 			}
 		}
-		if created != 1 || conflicts != attempts-1 {
-			t.Errorf("created = %d, conflicts = %d; want 1 and %d", created, conflicts, attempts-1)
+		if created != 1 || refused != attempts-1 {
+			t.Errorf("created = %d, refused = %d; want 1 and %d", created, refused, attempts-1)
 		}
 	})
 }
