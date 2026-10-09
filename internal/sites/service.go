@@ -23,6 +23,7 @@ type Options struct {
 	SlugGenerator func() (string, error)
 	Files         FileCleaner
 	Logger        *slog.Logger
+	OnSiteChange  func(slug string)
 }
 
 type Service struct {
@@ -32,6 +33,7 @@ type Service struct {
 	generate func() (string, error)
 	files    FileCleaner
 	logger   *slog.Logger
+	changed  func(slug string)
 }
 
 func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
@@ -47,7 +49,11 @@ func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger}
+	changed := opts.OnSiteChange
+	if changed == nil {
+		changed = func(string) {}
+	}
+	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger, changed: changed}
 }
 
 func (s *Service) clock() time.Time {

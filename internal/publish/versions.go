@@ -48,6 +48,7 @@ func (s *Service) Restore(ctx context.Context, userID, siteRef, versionID string
 	if err != nil {
 		return Result{}, err
 	}
+	s.changed(site.Slug)
 	if !changed {
 		return Result{}, workspaces.ErrNotFound
 	}

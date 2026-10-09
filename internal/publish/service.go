@@ -17,8 +17,9 @@ const (
 )
 
 type Options struct {
-	Now    func() time.Time
-	Logger *slog.Logger
+	Now          func() time.Time
+	Logger       *slog.Logger
+	OnSiteChange func(slug string)
 }
 
 type Service struct {
@@ -30,6 +31,7 @@ type Service struct {
 	now      func() time.Time
 	logger   *slog.Logger
 	locks    keyedLocker
+	changed  func(slug string)
 }
 
 func New(db store.Store, siteSvc *sites.Service, ws *workspaces.Service, cfg *settings.Service, files *sitefiles.Store, opts Options) *Service {
@@ -41,7 +43,11 @@ func New(db store.Store, siteSvc *sites.Service, ws *workspaces.Service, cfg *se
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{db: db, sites: siteSvc, ws: ws, settings: cfg, files: files, now: now, logger: logger, locks: newKeyedLocker()}
+	changed := opts.OnSiteChange
+	if changed == nil {
+		changed = func(string) {}
+	}
+	return &Service{db: db, sites: siteSvc, ws: ws, settings: cfg, files: files, now: now, logger: logger, locks: newKeyedLocker(), changed: changed}
 }
 
 func (s *Service) clock() time.Time {
