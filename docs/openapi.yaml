@@ -12,6 +12,9 @@ info:
     `X-Requested-With` header (any non-empty value) and an `Origin` header that matches the request
     host. API key requests skip both checks.
 
+    A resource the user cannot see returns 404 `not_found`. A resource the user can see but whose role does
+    not allow the action returns 403 `forbidden`.
+
     Request and response bodies are JSON. Request bodies must use `Content-Type: application/json`,
     must stay under 16 KiB and must not contain unknown fields.
 servers:
@@ -23,6 +26,10 @@ tags:
   - name: Setup
   - name: Auth
   - name: Account
+  - name: Workspaces
+  - name: Members
+  - name: Folders
+  - name: Sites
 paths:
   /setup/status:
     get:
@@ -224,6 +231,545 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      operationId: listWorkspaces
+      summary: List the workspaces the user can reach
+      description: |
+        Returns the personal workspace first, then shared workspaces. A workspace appears when the user holds
+        any grant in it, including grants limited to one folder or one site. `role` is the highest workspace-wide
+        role. When the user has only scoped grants, `scopedOnly` is true and `role` is `read`.
+      responses:
+        "200":
+          description: Workspaces.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+    post:
+      tags: [Workspaces]
+      operationId: createWorkspace
+      summary: Create a shared workspace
+      description: The creator becomes its workspace-wide admin. When `slug` is omitted, the server derives it from the name.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspaceRequest"
+      responses:
+        "201":
+          description: Workspace created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "409":
+          description: The slug is already taken (`slug_taken`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /workspaces/{workspace}:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspace
+      summary: Get a workspace
+      responses:
+        "200":
+          description: The workspace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Workspaces]
+      operationId: renameWorkspace
+      summary: Rename a workspace
+      description: Needs a workspace-wide admin role. The slug never changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameWorkspaceRequest"
+      responses:
+        "200":
+          description: The renamed workspace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      tags: [Workspaces]
+      operationId: deleteWorkspace
+      summary: Delete a shared workspace
+      description: Needs a workspace-wide admin role. Deletes the workspace's folders and grants. Refused while the workspace contains sites.
+      responses:
+        "204":
+          description: Workspace deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            The workspace is personal (`personal_workspace`) or still contains sites (`workspace_not_empty`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /workspaces/{workspace}/members:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+    get:
+      tags: [Members]
+      operationId: listMembers
+      summary: List the grants in a workspace
+      description: Needs a workspace-wide admin role. A user with several grants appears once per grant.
+      responses:
+        "200":
+          description: Grants.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Members]
+      operationId: addMember
+      summary: Grant a user access to a workspace
+      description: |
+        Needs a workspace-wide admin role. The user must already have an account and is found by email.
+        A grant covers the whole workspace, one folder or one site. Admin applies to the whole workspace only.
+        A user can hold several scoped grants, but only one grant per scope. Personal workspaces take no members.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberRequest"
+      responses:
+        "201":
+          description: Grant created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: |
+            The workspace, folder or site does not exist or is not visible (`not_found`), or no user has that
+            email (`user_not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            The user already holds this grant (`member_exists`) or the workspace is personal (`personal_workspace`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /workspaces/{workspace}/members/{memberId}:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+      - name: memberId
+        in: path
+        required: true
+        description: The grant id from the member list.
+        schema:
+          type: string
+    patch:
+      tags: [Members]
+      operationId: updateMember
+      summary: Change the role of a grant
+      description: |
+        Needs a workspace-wide admin role. The scope of a grant cannot change: remove it and add a new one.
+        The last workspace-wide admin of a workspace cannot be demoted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRequest"
+      responses:
+        "200":
+          description: The updated grant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            The change would leave no workspace-wide admin (`last_admin`) or the workspace is personal
+            (`personal_workspace`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      tags: [Members]
+      operationId: removeMember
+      summary: Remove a grant
+      description: Needs a workspace-wide admin role. The last workspace-wide admin cannot be removed.
+      responses:
+        "204":
+          description: Grant removed.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            The grant belongs to the last workspace-wide admin (`last_admin`) or the workspace is personal
+            (`personal_workspace`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /workspaces/{workspace}/folders:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+    get:
+      tags: [Folders]
+      operationId: listFolders
+      summary: List the folders the user can see
+      description: Ordered by name. A user with only scoped grants sees only the folders those grants cover.
+      responses:
+        "200":
+          description: Folders.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Folders]
+      operationId: createFolder
+      summary: Create a folder
+      description: |
+        Needs a workspace-wide write or admin role. Folders are flat, and names are unique per workspace
+        regardless of case.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderRequest"
+      responses:
+        "201":
+          description: Folder created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A folder with that name exists (`folder_name_taken`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /workspaces/{workspace}/folders/{folder}:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+      - name: folder
+        in: path
+        required: true
+        description: The folder id.
+        schema:
+          type: string
+    patch:
+      tags: [Folders]
+      operationId: renameFolder
+      summary: Rename a folder
+      description: Needs write on the folder, from a workspace-wide grant or a grant on that folder.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderRequest"
+      responses:
+        "200":
+          description: The renamed folder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A folder with that name exists (`folder_name_taken`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      tags: [Folders]
+      operationId: deleteFolder
+      summary: Delete a folder
+      description: |
+        Needs write on the folder. The folder's sites stay in the workspace as unfiled sites. Grants limited to
+        the folder are removed with it.
+      responses:
+        "204":
+          description: Folder deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /workspaces/{workspace}/sites:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+    post:
+      tags: [Sites]
+      operationId: createSite
+      summary: Create an empty site
+      description: |
+        Needs a workspace-wide write or admin role, or write on the target folder. A user with write on one
+        folder can create sites in that folder only. The site holds no files yet. When `slug` is omitted, the
+        server generates a readable one such as `quiet-meadow-k3p7`. The slug cannot change afterwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSiteRequest"
+      responses:
+        "201":
+          description: Site created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another site on the instance already uses the slug (`slug_taken`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /sites:
+    get:
+      tags: [Sites]
+      operationId: listSites
+      summary: List every site the user can reach
+      description: |
+        Spans all workspaces. Sites come newest first. Paging uses an opaque cursor: pass `nextCursor` from a
+        response as `cursor` to get the next page. `nextCursor` is null on the last page. Sites created while
+        paging do not shift later pages. Search matches the display name and the slug without regard to case
+        (SQLite folds ASCII letters only).
+      parameters:
+        - name: workspace
+          in: query
+          description: Limit the list to one workspace, by slug or id.
+          schema:
+            type: string
+        - name: folder
+          in: query
+          description: A folder id, or `none` for unfiled sites.
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Search text.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of sites.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sites/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        description: The site slug or id.
+        schema:
+          type: string
+    get:
+      tags: [Sites]
+      operationId: getSite
+      summary: Get a site
+      responses:
+        "200":
+          description: The site.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Sites]
+      operationId: updateSite
+      summary: Edit a site
+      description: |
+        Needs write on the site. Omitted fields stay as they are. `folderId: null` moves the site to unfiled,
+        which needs a workspace-wide write role. Moving to a folder needs write on that folder. A site cannot
+        move to another workspace, and its slug cannot change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSiteRequest"
+      responses:
+        "200":
+          description: The updated site.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+    delete:
+      tags: [Sites]
+      operationId: deleteSite
+      summary: Delete a site
+      description: Needs write on the site. Removes the site record and any grants limited to it.
+      responses:
+        "204":
+          description: Site deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     bearerAuth:
@@ -235,6 +781,14 @@ components:
       in: cookie
       name: session
       description: Set by `POST /setup` and `POST /auth/login`. HttpOnly, SameSite=Lax, and Secure over HTTPS.
+  parameters:
+    Workspace:
+      name: workspace
+      in: path
+      required: true
+      description: The workspace slug or id.
+      schema:
+        type: string
   headers:
     SessionCookie:
       description: The `session` cookie.
@@ -257,6 +811,21 @@ components:
             $ref: "#/components/schemas/Error"
     CsrfRejected:
       description: A cookie-authenticated request lacked `X-Requested-With` or a same-host `Origin` (`csrf_rejected`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: |
+        Either a cookie-authenticated request lacked `X-Requested-With` or a same-host `Origin` (`csrf_rejected`),
+        or the user can see the resource but their role does not allow the action (`forbidden`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: |
+        The resource does not exist or the user cannot see it (`not_found`). The two cases are indistinguishable.
       content:
         application/json:
           schema:
@@ -293,6 +862,14 @@ components:
             - rate_limited
             - not_found
             - api_key_limit_reached
+            - forbidden
+            - slug_taken
+            - folder_name_taken
+            - last_admin
+            - personal_workspace
+            - workspace_not_empty
+            - member_exists
+            - user_not_found
             - internal_error
         message:
           type: string
@@ -409,3 +986,264 @@ components:
           description: The full key. Shown once.
         apiKey:
           $ref: "#/components/schemas/ApiKey"
+    Role:
+      type: string
+      enum: [admin, write, read]
+      description: |
+        `admin` manages members, grants, the workspace name and deletion, and applies to the whole workspace only.
+        `write` creates, edits, moves and deletes sites and folders it covers. `read` views and searches.
+    Workspace:
+      type: object
+      required: [id, slug, name, kind, role, scopedOnly, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [personal, shared]
+        role:
+          $ref: "#/components/schemas/Role"
+        scopedOnly:
+          type: boolean
+          description: True when the user holds only grants limited to folders or sites. `role` is then `read`.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkspaceEnvelope:
+      type: object
+      required: [workspace]
+      properties:
+        workspace:
+          $ref: "#/components/schemas/Workspace"
+    WorkspaceList:
+      type: object
+      required: [workspaces]
+      properties:
+        workspaces:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workspace"
+    CreateWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          examples: [Acme Ltd]
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+          description: Optional. Derived from the name when omitted.
+          examples: [acme]
+    RenameWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+    Member:
+      type: object
+      required: [id, userId, email, role, scopeType, scopeId, scopeName, createdAt]
+      properties:
+        id:
+          type: string
+          description: The grant id.
+        userId:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        scopeType:
+          type: string
+          enum: [workspace, folder, site]
+        scopeId:
+          type: [string, "null"]
+          description: The folder id or site id. Null for a workspace-wide grant.
+        scopeName:
+          type: [string, "null"]
+          description: The folder name or site slug. Null for a workspace-wide grant.
+        createdAt:
+          type: string
+          format: date-time
+    MemberEnvelope:
+      type: object
+      required: [member]
+      properties:
+        member:
+          $ref: "#/components/schemas/Member"
+    MemberList:
+      type: object
+      required: [members]
+      properties:
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/Member"
+    AddMemberRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          examples: [sam@example.com]
+        role:
+          $ref: "#/components/schemas/Role"
+        scopeType:
+          type: string
+          enum: [workspace, folder, site]
+          default: workspace
+        scopeId:
+          type: string
+          description: A folder id, or a site id or slug. Required for folder and site grants and forbidden for workspace grants.
+    UpdateMemberRequest:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+    Folder:
+      type: object
+      required: [id, workspaceId, name, role, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FolderEnvelope:
+      type: object
+      required: [folder]
+      properties:
+        folder:
+          $ref: "#/components/schemas/Folder"
+    FolderList:
+      type: object
+      required: [folders]
+      properties:
+        folders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Folder"
+    FolderRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          examples: [Reports]
+    Site:
+      type: object
+      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, role, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        workspaceSlug:
+          type: string
+        folderId:
+          type: [string, "null"]
+          description: Null for an unfiled site.
+        slug:
+          type: string
+          description: Unique across the instance. Never changes.
+        displayName:
+          type: string
+        description:
+          type: string
+        createdBy:
+          type: [string, "null"]
+          description: The creating user's id.
+        role:
+          $ref: "#/components/schemas/Role"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SiteEnvelope:
+      type: object
+      required: [site]
+      properties:
+        site:
+          $ref: "#/components/schemas/Site"
+    SiteList:
+      type: object
+      required: [sites, nextCursor]
+      properties:
+        sites:
+          type: array
+          items:
+            $ref: "#/components/schemas/Site"
+        nextCursor:
+          type: [string, "null"]
+    CreateSiteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+          description: |
+            Lowercase letters, digits and hyphens, with no leading or trailing hyphen. Reserved words such as
+            `www`, `api`, `app`, `admin`, `dashboard`, `mail`, `static`, `assets`, `docs`, `status`, `login`,
+            `setup` and `settings` are rejected, as is any 32-character hex string. Generated when omitted.
+          examples: [launch-page]
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Defaults to the slug.
+        description:
+          type: string
+          maxLength: 1000
+        folderId:
+          type: string
+          description: A folder in the same workspace. Omit for an unfiled site.
+    UpdateSiteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        folderId:
+          type: [string, "null"]
+          description: A folder in the same workspace, or null for unfiled.
