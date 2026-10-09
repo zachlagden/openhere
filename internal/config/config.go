@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/zachlagden/selfhost/internal/secrets"
 )
 
 const (
@@ -30,6 +32,7 @@ type Config struct {
 	APIKeyPrefix   string
 	TrustedProxies []netip.Prefix
 	PublicURL      PublicURL
+	SecretKey      []byte
 }
 
 type Lookup func(key string) (string, bool)
@@ -64,6 +67,10 @@ func Load(lookup Lookup) (Config, error) {
 	public, err := parsePublicURL(values.get("PUBLIC_URL", ""), cfg.ListenAddr)
 	problems = appendIf(problems, err)
 	cfg.PublicURL = public
+
+	secretKey, err := parseSecretKey(values.get("SECRET_KEY", ""))
+	problems = appendIf(problems, err)
+	cfg.SecretKey = secretKey
 
 	if cfg.DatabaseURL == "" && cfg.DataDir == "" {
 		problems = append(problems, errors.New("DATA_DIR must not be empty when DATABASE_URL is unset"))
@@ -130,6 +137,17 @@ func validateSentryDSN(raw string) error {
 		return errors.New("SENTRY_DSN must be a URL with a scheme and host")
 	}
 	return nil
+}
+
+func parseSecretKey(raw string) ([]byte, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	key, err := secrets.ParseKey(raw)
+	if err != nil {
+		return nil, fmt.Errorf("SECRET_KEY: %w", err)
+	}
+	return key, nil
 }
 
 func validateKeyPrefix(prefix string) error {

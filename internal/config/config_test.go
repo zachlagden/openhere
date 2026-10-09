@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"log/slog"
 	"strings"
 	"testing"
@@ -193,6 +194,24 @@ func TestPublicURLRejectsBadValues(t *testing.T) {
 		_, err := Load(lookupFrom(map[string]string{"PUBLIC_URL": raw}))
 		if err == nil || !strings.Contains(err.Error(), "PUBLIC_URL") {
 			t.Errorf("%q: error = %v, want a PUBLIC_URL problem", raw, err)
+		}
+	}
+}
+
+func TestLoadSecretKey(t *testing.T) {
+	cfg, err := Load(lookupFrom(nil))
+	if err != nil || cfg.SecretKey != nil {
+		t.Fatalf("default secret key = %v, %v; want none", cfg.SecretKey, err)
+	}
+	valid := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	cfg, err = Load(lookupFrom(map[string]string{"SECRET_KEY": valid}))
+	if err != nil || len(cfg.SecretKey) != 32 {
+		t.Fatalf("valid secret key: %v, %v", cfg.SecretKey, err)
+	}
+	for _, bad := range []string{"short", base64.StdEncoding.EncodeToString(make([]byte, 16))} {
+		_, err := Load(lookupFrom(map[string]string{"SECRET_KEY": bad}))
+		if err == nil || strings.Contains(err.Error(), bad) {
+			t.Errorf("SECRET_KEY %q: error = %v, want a rejection that does not echo the value", bad, err)
 		}
 	}
 }
