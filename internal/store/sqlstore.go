@@ -12,6 +12,8 @@ type sqlStore struct {
 	db     *sql.DB
 	driver Driver
 	rebind rebinder
+
+	onClose func()
 }
 
 func identity(query string) string { return query }
@@ -46,7 +48,11 @@ func (s *sqlStore) Ping(ctx context.Context) error {
 }
 
 func (s *sqlStore) Close() error {
-	return s.db.Close()
+	err := s.db.Close()
+	if s.onClose != nil {
+		s.onClose()
+	}
+	return err
 }
 
 type sqlTx struct {

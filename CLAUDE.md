@@ -12,7 +12,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Keep SQL portable between both databases. No JSONB, arrays, LISTEN/NOTIFY or other PostgreSQL-only features.
 - Migrations are plain SQL files in `internal/store/migrations`, embedded with `go:embed` and run by goose on startup. One migration set serves both databases.
 - Logging is structured JSON through `log/slog`. Errors go to Sentry only when `SENTRY_DSN` is set.
-- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
+- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `workspaces` (workspaces, grants, the authorization function), `sites` (folders, sites, listing), `ids`, `slug` and `validate` (small shared helpers), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
 
 ## Rules
 
@@ -26,6 +26,13 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Commits follow `<type>(<scope>): <description>`: lowercase type, imperative mood, 72 characters at most, no trailing period. Work happens on branches, not on `main`.
 - Versions are `MAJOR.MINOR.PATCH`, released with annotated `vX.Y.Z` tags.
 - Write prose in plain, direct English: active voice, no filler, sentence-case headings.
+
+## Authorization
+
+- `workspaces.EffectiveRole` is the only place that decides a role. Services load a user's grants into `workspaces.Access` and ask it. Do not re-implement the rule. The one exception is the SQL fragment `workspaces.SiteCoverSQL` for listing, which a test checks against `EffectiveRole`.
+- A resource the user cannot see returns `workspaces.ErrNotFound` (404). A visible resource with too low a role returns `ErrForbidden` (403). `workspaces.Require` does both.
+- Create shared workspaces only through `workspaces.Service.CreateShared`, which later gates creation. Create sites only through `sites.Service.CreateSite`, which publishing reuses.
+- Pass every user-supplied string through `validate` and `slug` before it reaches SQL, and use `$n` placeholders only.
 
 ## Commands
 

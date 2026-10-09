@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/selfhost/internal/workspaces"
 )
 
 const (
@@ -79,7 +81,9 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	if opts.limits != nil {
 		limits = *opts.limits
 	}
-	server := New(svc, gate, Options{TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger})
+	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now})
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{Now: clock.Now})
+	server := New(svc, workspaceSvc, siteSvc, gate, Options{TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger})
 	return &harness{t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate}
 }
 
