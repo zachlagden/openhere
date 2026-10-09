@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/zachlagden/selfhost/internal/api"
+	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/telemetry"
@@ -21,6 +23,9 @@ const (
 	shutdownTimeout   = 15 * time.Second
 	readHeaderTimeout = 10 * time.Second
 	startupTimeout    = 30 * time.Second
+
+	maintenanceInterval = time.Hour
+	setupPath           = "/api/v1/setup"
 )
 
 var version = "dev"
@@ -67,12 +72,61 @@ func serve(cfg config.Config, logger *slog.Logger) error {
 	}
 	defer closeStore(db, logger)
 
+	handler, stopMaintenance, err := buildHandler(ctx, cfg, db, logger)
+	if err != nil {
+		return err
+	}
+	defer stopMaintenance()
+
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           http.NewServeMux(),
+		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	return runServer(ctx, srv, logger)
+}
+
+func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger *slog.Logger) (http.Handler, func(), error) {
+	svc, err := auth.New(db, auth.Options{KeyPrefix: cfg.APIKeyPrefix, Logger: logger})
+	if err != nil {
+		return nil, nil, err
+	}
+	gate, err := newSetupGate(ctx, svc, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	server := api.New(svc, gate, api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger})
+
+	maintenanceCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		svc.RunMaintenance(maintenanceCtx, maintenanceInterval)
+	}()
+	stop := func() {
+		cancel()
+		<-done
+	}
+	return server.Handler(), stop, nil
+}
+
+func newSetupGate(ctx context.Context, svc *auth.Service, logger *slog.Logger) (*auth.SetupGate, error) {
+	startCtx, cancel := context.WithTimeout(ctx, startupTimeout)
+	defer cancel()
+	needed, err := svc.SetupNeeded(startCtx)
+	if err != nil {
+		return nil, fmt.Errorf("check setup state: %w", err)
+	}
+	if !needed {
+		return auth.ClosedSetupGate(), nil
+	}
+	gate, err := auth.NewSetupGate()
+	if err != nil {
+		return nil, fmt.Errorf("create setup token: %w", err)
+	}
+	logger.Info("setup required: send this token with the first setup request",
+		"setup_path", setupPath, "setup_token", gate.Token())
+	return gate, nil
 }
 
 func openStore(ctx context.Context, cfg config.Config, logger *slog.Logger) (store.Store, error) {
