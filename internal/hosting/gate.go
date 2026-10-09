@@ -25,7 +25,6 @@ type gate struct {
 	public  config.PublicURL
 	proxies proxy.Trust
 	limits  gateLimiters
-	now     func() time.Time
 	logger  *slog.Logger
 }
 
@@ -111,6 +110,6 @@ func newGate(db store.Store, opts Options, logger *slog.Logger) *gate {
 		now = time.Now
 	}
 	return &gate{
-		access: svc, public: opts.Public, proxies: opts.Proxies, limits: newGateLimiters(limits, now), now: now, logger: logger,
+		access: svc, public: opts.Public, proxies: opts.Proxies, limits: newGateLimiters(limits, now), logger: logger,
 	}
 }
