@@ -89,17 +89,19 @@ func toFolderResponse(f sites.Folder) folderResponse {
 }
 
 type siteResponse struct {
-	ID            string          `json:"id"`
-	WorkspaceID   string          `json:"workspaceId"`
-	WorkspaceSlug string          `json:"workspaceSlug"`
-	FolderID      *string         `json:"folderId"`
-	Slug          string          `json:"slug"`
-	DisplayName   string          `json:"displayName"`
-	Description   string          `json:"description"`
-	CreatedBy     *string         `json:"createdBy"`
-	Role          workspaces.Role `json:"role"`
-	CreatedAt     time.Time       `json:"createdAt"`
-	UpdatedAt     time.Time       `json:"updatedAt"`
+	ID               string          `json:"id"`
+	WorkspaceID      string          `json:"workspaceId"`
+	WorkspaceSlug    string          `json:"workspaceSlug"`
+	FolderID         *string         `json:"folderId"`
+	Slug             string          `json:"slug"`
+	DisplayName      string          `json:"displayName"`
+	Description      string          `json:"description"`
+	CreatedBy        *string         `json:"createdBy"`
+	SpaMode          bool            `json:"spaMode"`
+	CurrentVersionID *string         `json:"currentVersionId"`
+	Role             workspaces.Role `json:"role"`
+	CreatedAt        time.Time       `json:"createdAt"`
+	UpdatedAt        time.Time       `json:"updatedAt"`
 }
 
 type siteEnvelope struct {
@@ -115,6 +117,7 @@ func toSiteResponse(s sites.Site) siteResponse {
 	return siteResponse{
 		ID: s.ID, WorkspaceID: s.WorkspaceID, WorkspaceSlug: s.WorkspaceSlug, FolderID: optional(s.FolderID),
 		Slug: s.Slug, DisplayName: s.DisplayName, Description: s.Description, CreatedBy: optional(s.CreatedBy),
+		SpaMode: s.SpaMode, CurrentVersionID: optional(s.CurrentVersionID),
 		Role: s.Role, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }

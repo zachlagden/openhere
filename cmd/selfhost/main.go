@@ -15,6 +15,9 @@ import (
 	"github.com/zachlagden/selfhost/internal/api"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/telemetry"
@@ -97,15 +100,22 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	if err != nil {
 		return nil, nil, err
 	}
+	files, err := sitefiles.New(cfg.DataDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	settingsSvc := settings.New(db, settings.Options{})
 	workspaceSvc := workspaces.New(db, workspaces.Options{})
-	siteSvc := sites.New(db, workspaceSvc, sites.Options{})
-	server := api.New(svc, workspaceSvc, siteSvc, gate, api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger})
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{Files: files, Logger: logger})
+	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger})
+	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate, api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger})
 
 	maintenanceCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		svc.RunMaintenance(maintenanceCtx, maintenanceInterval)
+		svc.RunMaintenance(maintenanceCtx, maintenanceInterval,
+			auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain})
 	}()
 	stop := func() {
 		cancel()

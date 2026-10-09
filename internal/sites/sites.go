@@ -18,6 +18,7 @@ type CreateInput struct {
 	DisplayName string
 	Description string
 	FolderID    string
+	SpaMode     bool
 }
 
 type FolderChange struct {
@@ -28,6 +29,7 @@ type FolderChange struct {
 type UpdateInput struct {
 	DisplayName *string
 	Description *string
+	SpaMode     *bool
 	Folder      FolderChange
 }
 
@@ -81,7 +83,7 @@ func (s *Service) buildSite(in CreateInput, ws workspaces.Workspace) (Site, erro
 	now := s.clock()
 	return Site{
 		ID: id, WorkspaceID: ws.ID, WorkspaceSlug: ws.Slug, FolderID: in.FolderID, Slug: in.Slug, DisplayName: displayName,
-		Description: description, CreatedBy: in.UserID, CreatedAt: now, UpdatedAt: now,
+		Description: description, CreatedBy: in.UserID, SpaMode: in.SpaMode, CreatedAt: now, UpdatedAt: now,
 	}, nil
 }
 
@@ -134,7 +136,7 @@ func (s *Service) UpdateSite(ctx context.Context, userID, ref string, in UpdateI
 	if err != nil {
 		return Site{}, err
 	}
-	if err := applyTextChanges(&site, in); err != nil {
+	if err := applyFieldChanges(&site, in); err != nil {
 		return Site{}, err
 	}
 	if in.Folder.Set && in.Folder.ID != site.FolderID {
@@ -151,13 +153,16 @@ func (s *Service) UpdateSite(ctx context.Context, userID, ref string, in UpdateI
 	return site, nil
 }
 
-func applyTextChanges(site *Site, in UpdateInput) error {
+func applyFieldChanges(site *Site, in UpdateInput) error {
 	if in.DisplayName != nil {
 		name, err := validate.Line("Display name", *in.DisplayName, MaxDisplayNameLength)
 		if err != nil {
 			return err
 		}
 		site.DisplayName = name
+	}
+	if in.SpaMode != nil {
+		site.SpaMode = *in.SpaMode
 	}
 	if in.Description != nil {
 		description, err := validate.Text("Description", *in.Description, MaxDescriptionLength)
@@ -175,8 +180,8 @@ func updateSite(ctx context.Context, q store.Querier, site Site) error {
 		folderID = sql.NullString{String: site.FolderID, Valid: true}
 	}
 	_, err := q.ExecContext(ctx,
-		"UPDATE sites SET display_name = $1, description = $2, folder_id = $3, updated_at = $4 WHERE id = $5",
-		site.DisplayName, site.Description, folderID, site.UpdatedAt, site.ID)
+		"UPDATE sites SET display_name = $1, description = $2, folder_id = $3, spa_mode = $4, updated_at = $5 WHERE id = $6",
+		site.DisplayName, site.Description, folderID, site.SpaMode, site.UpdatedAt, site.ID)
 	if err != nil {
 		return fmt.Errorf("update site: %w", err)
 	}
@@ -191,7 +196,22 @@ func (s *Service) DeleteSite(ctx context.Context, userID, ref string) error {
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM sites WHERE id = $1", site.ID); err != nil {
 		return fmt.Errorf("delete site: %w", err)
 	}
+	s.removeSiteFiles(site.ID)
 	return nil
+}
+
+func (s *Service) removeSiteFiles(siteID string) {
+	if s.files == nil {
+		return
+	}
+	if err := s.files.RemoveSite(siteID); err != nil {
+		s.logger.Error("remove site files", "site_id", siteID, "error", err)
+	}
+}
+
+func (s *Service) Authorize(ctx context.Context, userID, ref string, need workspaces.Role) (Site, error) {
+	site, _, err := s.siteAccess(ctx, userID, ref, need)
+	return site, err
 }
 
 func (s *Service) siteAccess(ctx context.Context, userID, ref string, need workspaces.Role) (Site, workspaces.Access, error) {

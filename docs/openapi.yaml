@@ -15,8 +15,13 @@ info:
     A resource the user cannot see returns 404 `not_found`. A resource the user can see but whose role does
     not allow the action returns 403 `forbidden`.
 
-    Request and response bodies are JSON. Request bodies must use `Content-Type: application/json`,
-    must stay under 16 KiB and must not contain unknown fields.
+    Request and response bodies are JSON, except file uploads and downloads. Request bodies must use
+    `Content-Type: application/json`, must stay under 16 KiB (publish manifests may be up to 16 MiB) and must
+    not contain unknown fields.
+
+    Publishing takes three calls: `POST /publish` (new site) or `PUT /publish/{slug}` (new version) with a file
+    manifest, one `PUT` per file to the returned upload URLs, then `POST .../finalize`. A version serves
+    nothing until finalize succeeds. The server stores files but does not serve sites yet.
 servers:
   - url: /api/v1
 security:
@@ -30,6 +35,8 @@ tags:
   - name: Members
   - name: Folders
   - name: Sites
+  - name: Publish
+  - name: Admin
 paths:
   /setup/status:
     get:
@@ -770,6 +777,404 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /publish:
+    post:
+      tags: [Publish]
+      operationId: publishNewSite
+      summary: Create a site and a pending version
+      description: |
+        Starts a publish to a new site. The body lists every file with its size, SHA-256 and content type. The
+        server creates the site, records a pending version and returns one upload URL per file. Upload each
+        file with `PUT`, then call finalize. Nothing is live until finalize succeeds.
+
+        The workspace comes from `workspace` in the body (slug or id), then from the `X-Workspace` header, then
+        defaults to the caller's personal workspace. Creating a site needs a workspace-wide write or admin role,
+        or write on the target `folder` when the grant is scoped to it. `folder` accepts a folder id or a name.
+
+        A pending version that is not finalized within 24 hours expires and a maintenance task deletes it.
+        Manifests may be up to 16 MiB of JSON.
+      parameters:
+        - name: X-Workspace
+          in: header
+          required: false
+          description: The workspace slug or id. The `workspace` body field takes precedence.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishRequest"
+      responses:
+        "201":
+          description: Site and pending version created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishResponse"
+        "400":
+          $ref: "#/components/responses/PublishInvalid"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another site on the instance already uses the slug (`slug_taken`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/PublishTooLarge"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /publish/{slug}:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+    put:
+      tags: [Publish]
+      operationId: publishNewVersion
+      summary: Create a pending version of an existing site
+      description: |
+        Needs write on the site. The body lists every file of the new version, not only the changed ones.
+        With `baseVersionId`, the call fails with 409 `version_conflict` when the site's live version is not
+        that id, and finalize checks it again so two racing publishes cannot both win. A version created with
+        a base that goes stale before finalize stays pending and can never finalize, so start a new one.
+        Without `baseVersionId`, finalize overwrites whatever is live.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepublishRequest"
+      responses:
+        "201":
+          description: Pending version created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishResponse"
+        "400":
+          $ref: "#/components/responses/PublishInvalid"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "413":
+          $ref: "#/components/responses/PublishTooLarge"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /publish/{slug}/versions:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+    get:
+      tags: [Publish]
+      operationId: listVersions
+      summary: List versions of a site
+      description: |
+        Needs read on the site. Returns pending and finalized versions, newest first, up to 200. `live` is true
+        for the version the site currently serves.
+      responses:
+        "200":
+          description: The versions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /publish/{slug}/versions/{versionId}/files/{path}:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/VersionId"
+      - name: path
+        in: path
+        required: true
+        description: |
+          The file path from the manifest, with each segment URL-encoded and the segments joined by `/`.
+        schema:
+          type: string
+    put:
+      tags: [Publish]
+      operationId: uploadVersionFile
+      summary: Upload one file of a pending version
+      description: |
+        Needs write on the site. The request body is the raw file content, whatever its `Content-Type`. The server
+        streams it to a temporary file, checks the size and SHA-256 against the manifest, then moves it into place.
+        A rejected upload stores nothing. Uploading the same path again replaces it while the version is pending.
+        The body may not exceed `limits.maxFileBytes`. The version directory never changes after finalize.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: File stored and verified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEnvelope"
+        "400":
+          description: |
+            The path is invalid (`invalid_path`), or the body does not match the manifest (`size_mismatch`,
+            `hash_mismatch`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: |
+            The site or version is not visible to the caller (`not_found`), or the path is not in the manifest
+            (`file_not_in_manifest`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The version is already finalized (`version_finalized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "410":
+          description: The pending version expired (`version_expired`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: The file is larger than `limits.maxFileBytes` (`file_too_large`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /publish/{slug}/versions/{versionId}/finalize:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/VersionId"
+    post:
+      tags: [Publish]
+      operationId: finalizeVersion
+      summary: Make a pending version live
+      description: |
+        Needs write on the site. Checks the limits again, then checks that every file exists with the right size
+        and SHA-256. If any file is absent or damaged, the response is 409 `missing_files` with the paths in
+        `missing`; upload those files again and retry. Then one transaction flips the site's live pointer. If the
+        version was created with a `baseVersionId`, the transaction also requires that base to still be live and
+        fails with 409 `version_conflict` otherwise, so exactly one of several racing finalisations succeeds.
+        Afterwards the server deletes finalized versions beyond `retention.keepVersions`, never the live one.
+
+        Calling finalize again on a finalized version returns the same result without changing anything.
+        `live` tells whether the version is still the one served.
+      responses:
+        "200":
+          description: The finalized version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            `missing_files` lists the paths to upload again in `missing`. `version_conflict` carries the live
+            version in `currentVersionId`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "410":
+          description: The pending version expired (`version_expired`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/PublishTooLarge"
+  /publish/{slug}/versions/{versionId}/restore:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/VersionId"
+    post:
+      tags: [Publish]
+      operationId: restoreVersion
+      summary: Make an older finalized version live again
+      description: |
+        Needs write on the site. Flips the live pointer in one statement and uploads nothing. Restoring the
+        live version succeeds without change. Pending versions cannot be restored.
+      responses:
+        "200":
+          description: The restored version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The version is still pending (`version_not_finalized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /publish/{slug}/versions/{versionId}:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/VersionId"
+    delete:
+      tags: [Publish]
+      operationId: deleteVersion
+      summary: Delete a version
+      description: |
+        Needs write on the site. Removes the version and its files. The live version cannot be deleted, so
+        restore another one first.
+      responses:
+        "204":
+          description: Version deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The version is live (`version_live`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sites/{slug}/files:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+    get:
+      tags: [Sites]
+      operationId: listFileInfos
+      summary: List the files of the live version
+      description: |
+        Needs read on the site. `versionId` is null and `files` is empty while the site has no live version.
+        Agents use this to reconcile their local folder after a `version_conflict`.
+      responses:
+        "200":
+          description: The live manifest.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveManifest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sites/{slug}/files/{path}:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - name: path
+        in: path
+        required: true
+        description: A file path from the live manifest, with each segment URL-encoded.
+        schema:
+          type: string
+    get:
+      tags: [Sites]
+      operationId: getFileInfo
+      summary: Download a file of the live version
+      description: |
+        Needs read on the site. The response is always `application/octet-stream` with
+        `Content-Disposition: attachment`, whatever the file's recorded content type, so a stored HTML file cannot
+        run on the API origin. It supports `Range` requests and sets `ETag` to the quoted SHA-256.
+      responses:
+        "200":
+          description: The raw file.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "206":
+          description: A byte range of the file.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/settings:
+    get:
+      tags: [Admin]
+      operationId: getSettings
+      summary: Read the instance settings
+      description: |
+        Root user only. Every other user gets 404 `not_found`, as if the route did not exist. Values that were never
+        set show their defaults.
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Admin]
+      operationId: updateSettings
+      summary: Change instance settings
+      description: |
+        Root user only. Send only the keys to change. The server validates all of them first and applies none if
+        one is invalid. Unknown keys are rejected with 400 `validation_failed`. Changes apply to the next request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          description: All settings after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
 components:
   securitySchemes:
     bearerAuth:
@@ -782,6 +1187,20 @@ components:
       name: session
       description: Set by `POST /setup` and `POST /auth/login`. HttpOnly, SameSite=Lax, and Secure over HTTPS.
   parameters:
+    SiteSlug:
+      name: slug
+      in: path
+      required: true
+      description: The site slug or id.
+      schema:
+        type: string
+    VersionId:
+      name: versionId
+      in: path
+      required: true
+      description: A version id returned by a publish call.
+      schema:
+        type: string
     Workspace:
       name: workspace
       in: path
@@ -799,6 +1218,30 @@ components:
       description: |
         The request was rejected. The `code` is one of `invalid_json` (400), `validation_failed` (400),
         `body_too_large` (413) or `unsupported_media_type` (415).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PublishInvalid:
+      description: |
+        The request was rejected. The `code` is `invalid_json`, `validation_failed` (a malformed hash, size or
+        content type, or an empty file list) or `invalid_path` (a path that breaks the rules on `FileSpec.path`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PublishTooLarge:
+      description: |
+        A limit from the instance settings was exceeded: `too_many_files`, `file_too_large` or
+        `version_too_large`. `body_too_large` (a manifest over 16 MiB) also returns 413.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    VersionConflict:
+      description: |
+        The site's live version is not the `baseVersionId` sent (`version_conflict`). `currentVersionId` names the
+        live version, or is absent when the site has none.
       content:
         application/json:
           schema:
@@ -871,11 +1314,32 @@ components:
             - member_exists
             - user_not_found
             - internal_error
+            - version_conflict
+            - too_many_files
+            - version_too_large
+            - file_too_large
+            - hash_mismatch
+            - size_mismatch
+            - missing_files
+            - invalid_path
+            - version_finalized
+            - version_expired
+            - version_live
+            - version_not_finalized
+            - file_not_in_manifest
         message:
           type: string
         retry_after:
           type: integer
           description: Seconds to wait. Present on `rate_limited`.
+        currentVersionId:
+          type: string
+          description: The site's live version. Present on `version_conflict` when the site has one.
+        missing:
+          type: array
+          items:
+            type: string
+          description: Paths to upload again. Present on `missing_files`.
     SetupStatus:
       type: object
       required: [setupRequired]
@@ -1163,7 +1627,7 @@ components:
           examples: [Reports]
     Site:
       type: object
-      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, role, createdAt, updatedAt]
+      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, currentVersionId, role, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1184,6 +1648,12 @@ components:
         createdBy:
           type: [string, "null"]
           description: The creating user's id.
+        spaMode:
+          type: boolean
+          description: Serve `index.html` for unknown paths once serving exists.
+        currentVersionId:
+          type: [string, "null"]
+          description: The live version. Null until a version is finalized.
         role:
           $ref: "#/components/schemas/Role"
         createdAt:
@@ -1233,6 +1703,9 @@ components:
         folderId:
           type: string
           description: A folder in the same workspace. Omit for an unfiled site.
+        spaMode:
+          type: boolean
+          default: false
     UpdateSiteRequest:
       type: object
       additionalProperties: false
@@ -1247,3 +1720,234 @@ components:
         folderId:
           type: [string, "null"]
           description: A folder in the same workspace, or null for unfiled.
+        spaMode:
+          type: boolean
+    FileSpec:
+      type: object
+      additionalProperties: false
+      required: [path, size, sha256]
+      properties:
+        path:
+          type: string
+          maxLength: 1024
+          description: |
+            A relative path with `/` separators, at most 1024 bytes, each segment 1 to 255 bytes. The server rejects
+            empty and absolute paths, `.` and `..` segments, empty segments, backslashes, NUL, control and invisible
+            formatting characters, and invalid UTF-8 (`invalid_path`). Dotfiles and dot-directories such as
+            `.well-known/` are allowed. No two paths may differ only in letter case, and no path may also be
+            the directory of another.
+          examples: [assets/app.js]
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+        sha256:
+          type: string
+          pattern: "^[0-9a-fA-F]{64}$"
+          description: Hex digest of the file content. Stored in lower case.
+        contentType:
+          type: string
+          maxLength: 255
+          description: A media type. Guessed from the file extension when omitted.
+          examples: [text/html; charset=utf-8]
+    PublishRequest:
+      type: object
+      additionalProperties: false
+      required: [files]
+      properties:
+        workspace:
+          type: string
+          description: Workspace slug or id. Defaults to the `X-Workspace` header, then the caller's personal workspace.
+        slug:
+          type: string
+          description: Same rules as `CreateSiteRequest.slug`. Generated when omitted.
+        folder:
+          type: string
+          description: A folder id or name in the workspace. Omit for an unfiled site.
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        spaMode:
+          type: boolean
+          default: false
+        files:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/FileSpec"
+    RepublishRequest:
+      type: object
+      additionalProperties: false
+      required: [files]
+      properties:
+        baseVersionId:
+          type: string
+          description: The live version the new files were built from. Enables conflict detection.
+        files:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/FileSpec"
+    Upload:
+      type: object
+      required: [path, method, url, headers]
+      properties:
+        path:
+          type: string
+        method:
+          type: string
+          enum: [PUT]
+        url:
+          type: string
+          description: A path on this API. Send the same credentials as for other calls.
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+    PublishResponse:
+      type: object
+      required: [slug, siteId, versionId, expiresAt, uploads, finalizeUrl]
+      properties:
+        slug:
+          type: string
+        siteId:
+          type: string
+        versionId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: The version expires after this time unless finalized.
+        uploads:
+          type: array
+          items:
+            $ref: "#/components/schemas/Upload"
+        finalizeUrl:
+          type: string
+    Version:
+      type: object
+      required: [id, siteId, status, live, createdBy, createdAt, finalizedAt, fileCount, totalBytes, baseVersionId]
+      properties:
+        id:
+          type: string
+        siteId:
+          type: string
+        status:
+          type: string
+          enum: [pending, finalized]
+        live:
+          type: boolean
+          description: True for the version the site currently serves. Derived from the site, not stored.
+        createdBy:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        finalizedAt:
+          type: [string, "null"]
+          format: date-time
+        fileCount:
+          type: integer
+        totalBytes:
+          type: integer
+          format: int64
+        baseVersionId:
+          type: [string, "null"]
+    VersionList:
+      type: object
+      required: [versions]
+      properties:
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Version"
+    VersionResult:
+      type: object
+      required: [slug, version]
+      properties:
+        slug:
+          type: string
+        version:
+          $ref: "#/components/schemas/Version"
+    FileInfo:
+      type: object
+      required: [path, size, sha256, contentType]
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        contentType:
+          type: string
+    FileEnvelope:
+      type: object
+      required: [file]
+      properties:
+        file:
+          $ref: "#/components/schemas/FileInfo"
+    LiveManifest:
+      type: object
+      required: [versionId, files]
+      properties:
+        versionId:
+          type: [string, "null"]
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileInfo"
+    SettingsEnvelope:
+      type: object
+      required: [settings]
+      properties:
+        settings:
+          $ref: "#/components/schemas/Settings"
+    Settings:
+      type: object
+      additionalProperties: false
+      properties:
+        retention.keepVersions:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 10
+          description: Finalized versions kept per site, counting the live one.
+        limits.maxFilesPerVersion:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          default: 2500
+        limits.maxVersionBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          default: 1073741824
+          description: Total size of one version in bytes.
+        limits.maxFileBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          default: 268435456
+          description: Size of one file in bytes. Also caps the upload request body.
+        hosting.baseDomain:
+          type: string
+          default: ""
+          description: A bare host name such as `example.com`, or empty. Stored in lower case. Site serving arrives in a later release.
+        hosting.subdomainEnabled:
+          type: boolean
+          default: false
+        hosting.pathEnabled:
+          type: boolean
+          default: true
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [settings]
+      properties:
+        settings:
+          $ref: "#/components/schemas/Settings"

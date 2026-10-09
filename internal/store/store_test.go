@@ -62,8 +62,8 @@ func openMigrated(t *testing.T, target testTarget) Store {
 
 func cleanPostgres(t *testing.T, s Store) {
 	t.Helper()
-	for _, table := range []string{"workspace_access", "sites", "folders", "workspaces", "api_keys", "sessions", "users", "instance_settings", "goose_db_version"} {
-		if _, err := s.ExecContext(context.Background(), "DROP TABLE IF EXISTS "+table); err != nil {
+	for _, table := range []string{"workspace_access", "version_files", "versions", "sites", "folders", "workspaces", "api_keys", "sessions", "users", "instance_settings", "goose_db_version"} {
+		if _, err := s.ExecContext(context.Background(), "DROP TABLE IF EXISTS "+table+" CASCADE"); err != nil {
 			t.Fatalf("drop %s: %v", table, err)
 		}
 	}

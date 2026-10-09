@@ -1,6 +1,7 @@
 package sites
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/store"
@@ -13,9 +14,15 @@ const (
 	MaxFolderNameLength  = 64
 )
 
+type FileCleaner interface {
+	RemoveSite(siteID string) error
+}
+
 type Options struct {
 	Now           func() time.Time
 	SlugGenerator func() (string, error)
+	Files         FileCleaner
+	Logger        *slog.Logger
 }
 
 type Service struct {
@@ -23,6 +30,8 @@ type Service struct {
 	ws       *workspaces.Service
 	now      func() time.Time
 	generate func() (string, error)
+	files    FileCleaner
+	logger   *slog.Logger
 }
 
 func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
@@ -34,7 +43,11 @@ func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
 	if generate == nil {
 		generate = RandomSlug
 	}
-	return &Service{db: db, ws: ws, now: now, generate: generate}
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger}
 }
 
 func (s *Service) clock() time.Time {

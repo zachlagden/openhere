@@ -6,7 +6,7 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys) and the workspace API (workspaces, members, folders and empty sites). Sites hold no files yet, so there is no publishing and no hosting. There is no dashboard.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It stores published files but does not serve them yet: serving sites by host name or path arrives in the next step. There is no dashboard.
 
 ## First-time setup
 
@@ -62,6 +62,40 @@ A site belongs to one workspace and at most one folder. Its slug is unique acros
 
 `GET /api/v1/sites` lists every site the caller can reach, newest first. Filter with `workspace`, `folder` (a folder id, or `none` for unfiled sites) and `q`, which matches the display name and slug without regard to case. Page with `limit` (default 50, at most 200) and the `cursor` from the previous response's `nextCursor`.
 
+## Publishing
+
+Publishing takes three steps, and a version serves nothing until the last one succeeds.
+
+1. `POST /api/v1/publish` creates a site and a pending version. `PUT /api/v1/publish/{slug}` creates a pending version of an existing site. The body lists every file of the version with its `path`, `size`, `sha256` and `contentType`. The response holds one upload URL per file.
+2. `PUT` each file's raw bytes to its upload URL. The server streams the body to a temporary file under `DATA_DIR/tmp`, checks the size and SHA-256 against the manifest, and moves the file to `DATA_DIR/sites/<siteId>/versions/<versionId>/files/<path>`. A mismatch stores nothing.
+3. `POST /api/v1/publish/{slug}/versions/{versionId}/finalize` checks that every file exists with the right size and hash, checks the limits, and flips the site's live pointer in one transaction. A missing file returns 409 `missing_files` with the paths to upload again. Calling finalize again returns the same result.
+
+Pass `baseVersionId` on `PUT /publish/{slug}` to detect conflicts. If the site's live version is not that id, the server returns 409 `version_conflict` with `currentVersionId`, and `GET /api/v1/sites/{slug}/files` lists the live files so an agent can reconcile. Finalize checks the base again inside its transaction, so two publishes built on the same base cannot both go live. Without `baseVersionId`, a publish overwrites whatever is live.
+
+`GET /api/v1/publish/{slug}/versions` lists versions. `POST .../versions/{versionId}/restore` makes an older finalized version live without uploading, and `DELETE .../versions/{versionId}` removes one unless it is live. After each finalize the server deletes finalized versions beyond `retention.keepVersions`, never the live one. Pending versions that are not finalized within 24 hours expire, and an hourly maintenance task removes them, orphaned directories and stale upload files. Deleting a site removes its directory.
+
+`GET /api/v1/sites/{slug}/files/{path}` returns a live file as `application/octet-stream` with `Content-Disposition: attachment`, so a stored HTML file never runs on the API origin.
+
+Paths are relative with `/` separators. The server rejects empty and absolute paths, `.` and `..` segments, empty segments, backslashes, NUL, control and invisible formatting characters, paths over 1024 bytes and segments over 255 bytes. It also rejects two paths that differ only in letter case, and a path that is also the directory of another. Dotfiles such as `.well-known/` are allowed. The server never creates or follows symlinks.
+
+Set a site's `spaMode` when creating it or with `PATCH /api/v1/sites/{slug}`. It records that unknown paths should fall back to `index.html`, which takes effect once serving exists.
+
+Several processes must not share one `DATA_DIR`. The upload and finalize locks live in process memory.
+
+## Instance settings
+
+The root user reads and changes instance settings with `GET` and `PATCH /api/v1/admin/settings`. Other users get 404. A `PATCH` sends only the keys to change, and the server rejects unknown keys and invalid values without applying any.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `retention.keepVersions` | 10 | Finalized versions kept per site, counting the live one. Minimum 1. |
+| `limits.maxFilesPerVersion` | 2500 | Files in one version. |
+| `limits.maxVersionBytes` | 1073741824 | Total bytes in one version. |
+| `limits.maxFileBytes` | 268435456 | Bytes in one file. Also caps the upload body. |
+| `hosting.baseDomain` | empty | Bare host name for site subdomains, such as `example.com`. |
+| `hosting.subdomainEnabled` | false | Serve sites at `{slug}.{baseDomain}`. Used by the serving step. |
+| `hosting.pathEnabled` | true | Serve sites at `/s/{slug}/`. Used by the serving step. |
+
 ## Configuration
 
 The server reads these environment variables.
@@ -69,7 +103,7 @@ The server reads these environment variables.
 | Variable | Default | Description |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | Address the HTTP server listens on, as `host:port` or `:port`. |
-| `DATA_DIR` | `./data` (`/data` in the Docker image) | Directory for the SQLite database file `selfhost.db`. |
+| `DATA_DIR` | `./data` (`/data` in the Docker image) | Directory for the SQLite database file `selfhost.db`, published site files under `sites/` and upload temporaries under `tmp/`. Keep it on a persistent volume. |
 | `DATABASE_URL` | unset | PostgreSQL connection URL. When unset, the server uses SQLite in `DATA_DIR`. |
 | `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error`. Logs are JSON on standard output. |
 | `SENTRY_DSN` | unset | Enables error reporting through the Sentry SDK. A self-hosted GlitchTip works. |

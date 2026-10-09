@@ -143,3 +143,16 @@ func loadFolder(ctx context.Context, q store.Querier, workspaceID, folderID stri
 func nameKey(name string) string {
 	return strings.ToLower(name)
 }
+
+func (s *Service) FindFolder(ctx context.Context, workspaceID, ref string) (Folder, error) {
+	f, err := scanFolder(s.db.QueryRowContext(ctx,
+		"SELECT "+folderColumns+" FROM folders WHERE workspace_id = $1 AND (id = $2 OR name_key = $3) ORDER BY CASE WHEN id = $2 THEN 0 ELSE 1 END LIMIT 1",
+		workspaceID, ref, nameKey(ref)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Folder{}, workspaces.ErrNotFound
+	}
+	if err != nil {
+		return Folder{}, fmt.Errorf("find folder: %w", err)
+	}
+	return f, nil
+}

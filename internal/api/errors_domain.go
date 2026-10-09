@@ -35,6 +35,9 @@ func (s *Server) writeDomainError(w http.ResponseWriter, r *http.Request, err er
 		writeError(w, http.StatusBadRequest, codeValidationFailed, invalid.Message)
 		return
 	}
+	if writePublishFailure(w, err) {
+		return
+	}
 	for _, failure := range domainFailures {
 		if errors.Is(err, failure.target) {
 			writeError(w, failure.status, failure.code, failure.message)
