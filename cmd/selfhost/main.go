@@ -14,14 +14,18 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/selfhost/internal/agentcode"
 	"github.com/zachlagden/selfhost/internal/api"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/passwordreset"
 	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/sites"
@@ -111,26 +115,40 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	if err != nil {
 		return nil, nil, err
 	}
+	box, err := secrets.Resolve(cfg.SecretKey, cfg.DataDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load secret key: %w", err)
+	}
 	resolver := hosting.NewResolver(db, nil)
-	settingsSvc := settings.New(db, settings.Options{DefaultBaseDomain: cfg.PublicURL.Host})
+	settingsSvc := settings.New(db, settings.Options{DefaultBaseDomain: cfg.PublicURL.Host, Secrets: box})
+	mailer := mail.New(mail.NewSettingsSource(settingsSvc, box), mail.Options{Logger: logger})
 	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
-	accessSvc := access.New(db, access.Options{Mailer: mail.Unconfigured{}, Logger: logger})
+	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Files: files, Logger: logger, OnSiteChange: resolver.Invalidate, DefaultAccessMode: defaultAccessMode(settingsSvc),
 	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger, OnSiteChange: resolver.Invalidate})
+	baseURL := cfg.PublicURL.String()
+	invitesSvc := invites.New(db, svc, workspaceSvc, settingsSvc, invites.Options{BaseURL: baseURL, Mailer: mailer, Logger: logger})
+	resetSvc := passwordreset.New(db, svc, passwordreset.Options{BaseURL: baseURL, Mailer: mailer, Logger: logger})
+	agentSvc := agentcode.New(db, svc, box, agentcode.Options{BaseURL: baseURL, Mailer: mailer, Logger: logger})
 	probes := hosting.NewProbes(nil)
 	checker := hosting.NewChecker(settingsSvc, probes, hosting.CheckerOptions{Public: cfg.PublicURL, Logger: logger})
-	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate,
-		api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker})
+	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
+		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
+		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc,
+	})
 	router := hosting.New(server.Handler(), settingsSvc, db, files,
 		hosting.Options{
 			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
 			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies},
 		})
 
-	stop := startBackground(ctx, svc, checker, auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain},
-		auth.MaintenanceTask{Name: "access", Run: accessSvc.Purge})
+	stop := startBackground(ctx, svc, checker,
+		auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain},
+		auth.MaintenanceTask{Name: "access", Run: accessSvc.Purge},
+		auth.MaintenanceTask{Name: "password reset", Run: resetSvc.Purge},
+		auth.MaintenanceTask{Name: "agent codes", Run: agentSvc.Purge})
 	return router, stop, nil
 }
 
