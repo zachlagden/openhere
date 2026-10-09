@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/zachlagden/selfhost/internal/store"
 )
@@ -102,4 +103,17 @@ func randomSuffix(t *testing.T) string {
 		t.Fatalf("random suffix: %v", err)
 	}
 	return hex.EncodeToString(buf)
+}
+
+func InsertUser(t *testing.T, db store.Store, email string) string {
+	t.Helper()
+	id := randomSuffix(t) + randomSuffix(t) + randomSuffix(t)[:8]
+	now := time.Now().UTC().Truncate(time.Second)
+	_, err := db.ExecContext(context.Background(),
+		"INSERT INTO users (id, email, password_hash, is_root, created_at, updated_at) VALUES ($1, $2, $3, FALSE, $4, $4)",
+		id, email, "not-a-real-hash", now)
+	if err != nil {
+		t.Fatalf("insert user %s: %v", email, err)
+	}
+	return id
 }
