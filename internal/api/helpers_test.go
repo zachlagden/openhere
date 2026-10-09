@@ -19,6 +19,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -107,8 +108,8 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	if err != nil {
 		t.Fatalf("sitefiles.New: %v", err)
 	}
-	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now})
 	settingsSvc := settings.New(db, settings.Options{Now: clock.Now})
+	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now, MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Now: clock.Now, Files: files, Logger: logger,
 		DefaultAccessMode: func(ctx context.Context) (string, error) {

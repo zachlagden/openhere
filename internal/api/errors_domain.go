@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/validate"
@@ -28,6 +29,7 @@ var domainFailures = []domainFailure{
 	{workspaces.ErrNotEmpty, http.StatusConflict, codeWorkspaceNotEmpty, "Delete or move the workspace's sites first."},
 	{workspaces.ErrMemberExists, http.StatusConflict, codeMemberExists, "That user already has this access."},
 	{settings.ErrWildcardNotVerified, http.StatusConflict, codeWildcardNotVerified, "Subdomain mode needs a successful wildcard check. Run POST /admin/hosting/check first."},
+	{policy.ErrSharedCreationRestricted, http.StatusForbidden, codeForbidden, "Only the root user can create workspaces on this instance."},
 	{workspaces.ErrUserNotFound, http.StatusNotFound, codeUserNotFound, "No user has that email address."},
 }
 

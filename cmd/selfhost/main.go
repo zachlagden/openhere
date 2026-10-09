@@ -19,6 +19,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
@@ -112,7 +113,7 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	}
 	resolver := hosting.NewResolver(db, nil)
 	settingsSvc := settings.New(db, settings.Options{DefaultBaseDomain: cfg.PublicURL.Host})
-	workspaceSvc := workspaces.New(db, workspaces.Options{})
+	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
 	accessSvc := access.New(db, access.Options{Mailer: mail.Unconfigured{}, Logger: logger})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Files: files, Logger: logger, OnSiteChange: resolver.Invalidate, DefaultAccessMode: defaultAccessMode(settingsSvc),
