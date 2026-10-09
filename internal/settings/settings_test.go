@@ -36,7 +36,7 @@ func TestDefaults(t *testing.T) {
 		}
 		want := Settings{
 			KeepVersions: 10, MaxFilesPerVer: 2500, MaxVersionBytes: 1 << 30, MaxFileBytes: 256 << 20,
-			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true,
+			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, WildcardStatus: WildcardUnchecked,
 		}
 		if got != want {
 			t.Errorf("defaults = %+v, want %+v", got, want)
@@ -55,14 +55,14 @@ func TestUpdateStoresAndReturnsValues(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		ctx := context.Background()
 		svc := New(db, Options{Now: func() time.Time { return time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC) }})
-		updated, err := svc.Update(ctx, patch(t, `{"retention.keepVersions": 3, "hosting.baseDomain": "  Sites.Example.COM ", "hosting.subdomainEnabled": true, "limits.maxFileBytes": 1024}`))
+		updated, err := svc.Update(ctx, patch(t, `{"retention.keepVersions": 3, "hosting.baseDomain": "  Sites.Example.COM ", "hosting.pathEnabled": false, "limits.maxFileBytes": 1024}`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if updated.KeepVersions != 3 || updated.BaseDomain != "sites.example.com" || !updated.SubdomainEnabled || updated.MaxFileBytes != 1024 {
+		if updated.KeepVersions != 3 || updated.BaseDomain != "sites.example.com" || updated.PathEnabled || updated.MaxFileBytes != 1024 {
 			t.Errorf("updated = %+v", updated)
 		}
-		if updated.MaxFilesPerVer != 2500 || !updated.PathEnabled {
+		if updated.MaxFilesPerVer != 2500 || updated.SubdomainEnabled {
 			t.Errorf("untouched keys changed: %+v", updated)
 		}
 
@@ -145,6 +145,9 @@ func TestUpdateRejectsBadInput(t *testing.T) {
 			"long label":              `{"hosting.baseDomain": "` + strings.Repeat("a", 64) + `.example.com"}`,
 			"long domain":             `{"hosting.baseDomain": "` + strings.Repeat("a.", 130) + `com"}`,
 			"empty patch":             `{}`,
+			"read-only status":        `{"hosting.wildcardStatus": "ok"}`,
+			"read-only checked at":    `{"hosting.wildcardCheckedAt": "2026-03-01T12:00:00Z"}`,
+			"read-only detail":        `{"hosting.wildcardDetail": "fine"}`,
 		}
 		for name, raw := range bad {
 			_, err := svc.Update(ctx, patch(t, raw))

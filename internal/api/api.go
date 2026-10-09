@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
 	"github.com/zachlagden/selfhost/internal/settings"
@@ -27,6 +28,7 @@ type Limits struct {
 	LoginPerEmail Rule
 	SetupPerIP    Rule
 	SetupPerEmail Rule
+	WildcardCheck Rule
 }
 
 func DefaultLimits() Limits {
@@ -36,6 +38,7 @@ func DefaultLimits() Limits {
 		LoginPerEmail: Rule{Max: 10, Window: window},
 		SetupPerIP:    Rule{Max: 10, Window: window},
 		SetupPerEmail: Rule{Max: 5, Window: window},
+		WildcardCheck: Rule{Max: 6, Window: time.Minute},
 	}
 }
 
@@ -44,6 +47,8 @@ type Options struct {
 	Limits         Limits
 	Now            func() time.Time
 	Logger         *slog.Logger
+	Public         config.PublicURL
+	Wildcard       WildcardChecker
 }
 
 type Server struct {
@@ -55,11 +60,14 @@ type Server struct {
 	gate       *auth.SetupGate
 	proxies    proxyTrust
 	logger     *slog.Logger
+	public     config.PublicURL
+	wildcard   WildcardChecker
 
-	loginIP    *ratelimit.Limiter
-	loginEmail *ratelimit.Limiter
-	setupIP    *ratelimit.Limiter
-	setupEmail *ratelimit.Limiter
+	wildcardLimit *ratelimit.Limiter
+	loginIP       *ratelimit.Limiter
+	loginEmail    *ratelimit.Limiter
+	setupIP       *ratelimit.Limiter
+	setupEmail    *ratelimit.Limiter
 }
 
 func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publishSvc *publish.Service, settingsSvc *settings.Service, gate *auth.SetupGate, opts Options) *Server {
@@ -71,6 +79,9 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 	if limits == (Limits{}) {
 		limits = DefaultLimits()
 	}
+	if limits.WildcardCheck == (Rule{}) {
+		limits.WildcardCheck = DefaultLimits().WildcardCheck
+	}
 	limiter := func(r Rule) *ratelimit.Limiter { return ratelimit.New(r.Max, r.Window, opts.Now) }
 	return &Server{
 		auth:       svc,
@@ -81,10 +92,14 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		gate:       gate,
 		proxies:    proxyTrust{prefixes: opts.TrustedProxies},
 		logger:     logger,
-		loginIP:    limiter(limits.LoginPerIP),
-		loginEmail: limiter(limits.LoginPerEmail),
-		setupIP:    limiter(limits.SetupPerIP),
-		setupEmail: limiter(limits.SetupPerEmail),
+		public:     opts.Public,
+		wildcard:   opts.Wildcard,
+
+		wildcardLimit: limiter(limits.WildcardCheck),
+		loginIP:       limiter(limits.LoginPerIP),
+		loginEmail:    limiter(limits.LoginPerEmail),
+		setupIP:       limiter(limits.SetupPerIP),
+		setupEmail:    limiter(limits.SetupPerEmail),
 	}
 }
 
@@ -104,6 +119,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerSiteRoutes(mux)
 	s.registerPublishRoutes(mux)
 	s.registerSettingsRoutes(mux)
+	s.registerHostingRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

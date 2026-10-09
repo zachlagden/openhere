@@ -7,10 +7,10 @@ info:
     `POST /auth/login` needs authentication, and every unknown path returns 401 without credentials
     and 404 with them.
 
-    Authenticate with `Authorization: Bearer <api key>` or with the `session` cookie that setup and
-    login set. Requests authenticated by cookie that change state must also send an
-    `X-Requested-With` header (any non-empty value) and an `Origin` header that matches the request
-    host. API key requests skip both checks.
+    Authenticate with `Authorization: Bearer <api key>` or with the session cookie that setup and
+    login set. The cookie is named `session` over plain HTTP and `__Host-session` over HTTPS. Requests
+    authenticated by cookie that change state must also send an `X-Requested-With` header (any non-empty
+    value) and an `Origin` header that matches the request host. API key requests skip both checks.
 
     A resource the user cannot see returns 404 `not_found`. A resource the user can see but whose role does
     not allow the action returns 403 `forbidden`.
@@ -21,7 +21,11 @@ info:
 
     Publishing takes three calls: `POST /publish` (new site) or `PUT /publish/{slug}` (new version) with a file
     manifest, one `PUT` per file to the returned upload URLs, then `POST .../finalize`. A version serves
-    nothing until finalize succeeds. The server stores files but does not serve sites yet.
+    nothing until finalize succeeds.
+
+    Published sites are not part of this API. The server serves a site's live version at
+    `https://{slug}.{baseDomain}/` (subdomain mode) and at `{publicUrl}/s/{slug}/` (path mode), with no
+    authentication. Each site response carries the URL the instance serves it at right now in `url`.
 servers:
   - url: /api/v1
 security:
@@ -58,7 +62,7 @@ paths:
       summary: Create the root user and sign in
       description: |
         Works only while the instance has no users. The server logs the setup token once at startup.
-        Success discards the token and sets the `session` cookie. Rate limited per IP address and per email.
+        Success discards the token and sets the session cookie. Rate limited per IP address and per email.
       security: []
       requestBody:
         required: true
@@ -102,7 +106,7 @@ paths:
       operationId: login
       summary: Sign in with email and password
       description: |
-        Sets the `session` cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
+        Sets the session cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
         email and a malformed email all return the same response. Rate limited per IP address and per email.
       security: []
       requestBody:
@@ -1149,7 +1153,12 @@ paths:
       summary: Change instance settings
       description: |
         Root user only. Send only the keys to change. The server validates all of them first and applies none if
-        one is invalid. Unknown keys are rejected with 400 `validation_failed`. Changes apply to the next request.
+        one is invalid. Unknown keys and the read-only `hosting.wildcard*` keys are rejected with 400
+        `validation_failed`. Changes apply to the next request.
+
+        Setting `hosting.subdomainEnabled` to true returns 409 `wildcard_not_verified` unless the last wildcard
+        check succeeded. Changing `hosting.baseDomain` to a different effective value resets the check to
+        `unchecked` and switches subdomain mode off.
       requestBody:
         required: true
         content:
@@ -1171,10 +1180,48 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/WildcardNotVerified"
         "413":
           $ref: "#/components/responses/BadRequest"
         "415":
           $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /admin/hosting/check:
+    post:
+      tags: [Admin]
+      operationId: checkWildcard
+      summary: Check that wildcard subdomains reach this server
+      description: |
+        Root user only. Other users get 404 `not_found`. Picks a random label, resolves `{label}.{baseDomain}`
+        through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}`
+        and succeeds only if the server itself answers with the HMAC of the one-time token (the key stays in the process). The check never follows
+        redirects, reads at most 256 bytes and gives up after 10 seconds. It stores the outcome in the read-only
+        `hosting.wildcard*` settings and, on failure, switches subdomain mode off. The server also runs the check
+        at startup and every 6 hours. Rate limited to 6 calls per minute per user.
+
+        A failed check is a normal 200 response with `status` set to `failed`. The `.well-known/selfhost-check/`
+        route on site hosts is the only unauthenticated route this feature adds. It answers only while a check
+        is running, once per token, and returns the generic 404 otherwise.
+      responses:
+        "200":
+          description: The outcome, and all settings after it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WildcardCheckResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1185,7 +1232,11 @@ components:
       type: apiKey
       in: cookie
       name: session
-      description: Set by `POST /setup` and `POST /auth/login`. HttpOnly, SameSite=Lax, and Secure over HTTPS.
+      description: |
+        Set by `POST /setup` and `POST /auth/login`. HttpOnly and SameSite=Lax. Over HTTPS the cookie is named
+        `__Host-session`, is Secure, has Path=/ and carries no Domain attribute. Over plain HTTP (local use) the name is
+        `session`. The server reads only the form that matches the request, so a `session` cookie set by a sibling
+        subdomain is ignored over HTTPS.
   parameters:
     SiteSlug:
       name: slug
@@ -1210,7 +1261,7 @@ components:
         type: string
   headers:
     SessionCookie:
-      description: The `session` cookie.
+      description: The session cookie, named `__Host-session` over HTTPS and `session` over plain HTTP.
       schema:
         type: string
   responses:
@@ -1273,6 +1324,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    WildcardNotVerified:
+      description: Subdomain mode cannot be enabled until a wildcard check succeeds (`wildcard_not_verified`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     RateLimited:
       description: Too many attempts (`rate_limited`). Limits are held in memory, per process, and reset on restart.
       headers:
@@ -1327,6 +1384,7 @@ components:
             - version_live
             - version_not_finalized
             - file_not_in_manifest
+            - wildcard_not_verified
         message:
           type: string
         retry_after:
@@ -1627,7 +1685,7 @@ components:
           examples: [Reports]
     Site:
       type: object
-      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, currentVersionId, role, createdAt, updatedAt]
+      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, currentVersionId, url, role, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1650,10 +1708,12 @@ components:
           description: The creating user's id.
         spaMode:
           type: boolean
-          description: Serve `index.html` for unknown paths once serving exists.
+          description: Serve `index.html` with status 200 for unknown paths whose last segment has no file extension.
         currentVersionId:
           type: [string, "null"]
           description: The live version. Null until a version is finalized.
+        url:
+          $ref: "#/components/schemas/SiteUrl"
         role:
           $ref: "#/components/schemas/Role"
         createdAt:
@@ -1662,6 +1722,12 @@ components:
         updatedAt:
           type: string
           format: date-time
+    SiteUrl:
+      type: [string, "null"]
+      description: |
+        Where the instance serves the site right now: `https://{slug}.{baseDomain}/` when subdomain mode is
+        enabled, else `{publicUrl}/s/{slug}/` when path mode is enabled, else null. The URL does not say whether
+        the site has a live version. A site without one answers 404.
     SiteEnvelope:
       type: object
       required: [site]
@@ -1809,7 +1875,7 @@ components:
             type: string
     PublishResponse:
       type: object
-      required: [slug, siteId, versionId, expiresAt, uploads, finalizeUrl]
+      required: [slug, siteId, versionId, expiresAt, uploads, finalizeUrl, url]
       properties:
         slug:
           type: string
@@ -1827,6 +1893,8 @@ components:
             $ref: "#/components/schemas/Upload"
         finalizeUrl:
           type: string
+        url:
+          $ref: "#/components/schemas/SiteUrl"
     Version:
       type: object
       required: [id, siteId, status, live, createdBy, createdAt, finalizedAt, fileCount, totalBytes, baseVersionId]
@@ -1866,10 +1934,12 @@ components:
             $ref: "#/components/schemas/Version"
     VersionResult:
       type: object
-      required: [slug, version]
+      required: [slug, url, version]
       properties:
         slug:
           type: string
+        url:
+          $ref: "#/components/schemas/SiteUrl"
         version:
           $ref: "#/components/schemas/Version"
     FileInfo:
@@ -1936,18 +2006,60 @@ components:
           description: Size of one file in bytes. Also caps the upload request body.
         hosting.baseDomain:
           type: string
-          default: ""
-          description: A bare host name such as `example.com`, or empty. Stored in lower case. Site serving arrives in a later release.
+          description: |
+            A bare host name such as `example.com`. Stored in lower case. Sites are served at `{slug}.{baseDomain}`.
+            An empty value means the host name of the server's `PUBLIC_URL`, which is also what a new instance
+            reports.
         hosting.subdomainEnabled:
           type: boolean
           default: false
+          description: |
+            Serve sites at `{slug}.{baseDomain}`. Needs wildcard DNS and, over HTTPS, a wildcard certificate. Can
+            only be set to true while `hosting.wildcardStatus` is `ok`. A failed wildcard check switches it off.
+            Subdomain mode is the recommended way to host sites, because every site gets its own origin.
         hosting.pathEnabled:
           type: boolean
           default: true
+          description: |
+            Serve sites at `{publicUrl}/s/{slug}/`. Path-mode pages share an origin with the dashboard, so the server
+            sends a `sandbox` Content-Security-Policy without `allow-same-origin` on every `/s/` response. The pages
+            cannot use cookies, localStorage or the dashboard session.
+        hosting.wildcardStatus:
+          type: string
+          enum: [unchecked, ok, failed]
+          readOnly: true
+          description: The outcome of the last wildcard check. Read-only.
+        hosting.wildcardCheckedAt:
+          type: [string, "null"]
+          format: date-time
+          readOnly: true
+          description: When the last wildcard check finished. Null before the first one. Read-only.
+        hosting.wildcardDetail:
+          type: string
+          readOnly: true
+          description: Why the last check failed, or an empty string. Read-only.
     UpdateSettingsRequest:
       type: object
       additionalProperties: false
       required: [settings]
       properties:
+        settings:
+          $ref: "#/components/schemas/Settings"
+    WildcardCheckResult:
+      type: object
+      required: [wildcard, settings]
+      properties:
+        wildcard:
+          type: object
+          required: [status, checkedAt, detail]
+          properties:
+            status:
+              type: string
+              enum: [ok, failed]
+            checkedAt:
+              type: [string, "null"]
+              format: date-time
+            detail:
+              type: string
         settings:
           $ref: "#/components/schemas/Settings"

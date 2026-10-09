@@ -43,9 +43,14 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	urlFor, err := s.siteURLs(r.Context())
+	if err != nil {
+		s.writeInternal(w, r, err)
+		return
+	}
 	response := siteListResponse{Sites: make([]siteResponse, 0, len(page.Sites)), NextCursor: optional(page.NextCursor)}
 	for _, site := range page.Sites {
-		response.Sites = append(response.Sites, toSiteResponse(site))
+		response.Sites = append(response.Sites, toSiteResponse(site, urlFor(site.Slug)))
 	}
 	writeJSON(w, http.StatusOK, response)
 }
@@ -82,7 +87,7 @@ func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, siteEnvelope{Site: toSiteResponse(site)})
+	s.writeSite(w, r, http.StatusCreated, site)
 }
 
 func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +97,7 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, siteEnvelope{Site: toSiteResponse(site)})
+	s.writeSite(w, r, http.StatusOK, site)
 }
 
 func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +118,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, siteEnvelope{Site: toSiteResponse(site)})
+	s.writeSite(w, r, http.StatusOK, site)
 }
 
 func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
@@ -123,4 +128,13 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) writeSite(w http.ResponseWriter, r *http.Request, status int, site sites.Site) {
+	urlFor, err := s.siteURLs(r.Context())
+	if err != nil {
+		s.writeInternal(w, r, err)
+		return
+	}
+	writeJSON(w, status, siteEnvelope{Site: toSiteResponse(site, urlFor(site.Slug))})
 }

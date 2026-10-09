@@ -132,3 +132,67 @@ func TestLoadReportsEveryProblem(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicURLDefaultsFollowTheListenPort(t *testing.T) {
+	cases := map[string]string{
+		"":               "http://localhost:8080",
+		":9000":          "http://localhost:9000",
+		"127.0.0.1:3000": "http://localhost:3000",
+		":80":            "http://localhost",
+	}
+	for listen, want := range cases {
+		env := map[string]string{}
+		if listen != "" {
+			env["LISTEN_ADDR"] = listen
+		}
+		cfg, err := Load(lookupFrom(env))
+		if err != nil {
+			t.Fatalf("listen %q: %v", listen, err)
+		}
+		if cfg.PublicURL.String() != want || cfg.PublicURL.Secure() {
+			t.Errorf("listen %q: public URL = %s, want %s over http", listen, cfg.PublicURL, want)
+		}
+	}
+}
+
+func TestPublicURLParsing(t *testing.T) {
+	cases := map[string]PublicURL{
+		"https://sites.example.com":      {Scheme: "https", Host: "sites.example.com"},
+		"HTTPS://Sites.Example.com/":     {Scheme: "https", Host: "sites.example.com"},
+		"http://sites.example.com:8443":  {Scheme: "http", Host: "sites.example.com", Port: "8443"},
+		"https://sites.example.com.":     {Scheme: "https", Host: "sites.example.com"},
+		"http://[2001:db8::1]:8080":      {Scheme: "http", Host: "2001:db8::1", Port: "8080"},
+		"  https://sites.example.com  ":  {Scheme: "https", Host: "sites.example.com"},
+		"https://sites.example.com:443/": {Scheme: "https", Host: "sites.example.com", Port: "443"},
+	}
+	for raw, want := range cases {
+		cfg, err := Load(lookupFrom(map[string]string{"PUBLIC_URL": raw}))
+		if err != nil {
+			t.Fatalf("%q: %v", raw, err)
+		}
+		if cfg.PublicURL != want {
+			t.Errorf("%q: got %+v, want %+v", raw, cfg.PublicURL, want)
+		}
+	}
+	cfg, err := Load(lookupFrom(map[string]string{"PUBLIC_URL": "https://sites.example.com"}))
+	if err != nil || !cfg.PublicURL.Secure() || cfg.PublicURL.String() != "https://sites.example.com" {
+		t.Errorf("https URL = %+v, %v", cfg.PublicURL, err)
+	}
+	ipv6 := PublicURL{Scheme: "http", Host: "2001:db8::1", Port: "8080"}
+	if ipv6.String() != "http://[2001:db8::1]:8080" {
+		t.Errorf("ipv6 string = %s", ipv6)
+	}
+}
+
+func TestPublicURLRejectsBadValues(t *testing.T) {
+	for _, raw := range []string{
+		"sites.example.com", "ftp://sites.example.com", "https://", "https://sites.example.com/path",
+		"https://sites.example.com?x=1", "https://sites.example.com#top", "https://alex:secret@sites.example.com",
+		"https://sites.example.com:0", "https://sites.example.com:70000", "https://sites.example.com:abc", "https://sites.example.com/?",
+	} {
+		_, err := Load(lookupFrom(map[string]string{"PUBLIC_URL": raw}))
+		if err == nil || !strings.Contains(err.Error(), "PUBLIC_URL") {
+			t.Errorf("%q: error = %v, want a PUBLIC_URL problem", raw, err)
+		}
+	}
+}

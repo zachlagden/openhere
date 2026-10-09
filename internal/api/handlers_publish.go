@@ -40,7 +40,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toPublishResponse(pending))
+	s.writePending(w, r, pending)
 }
 
 func (s *Server) handleRepublish(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +56,7 @@ func (s *Server) handleRepublish(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toPublishResponse(pending))
+	s.writePending(w, r, pending)
 }
 
 func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +82,7 @@ func (s *Server) handleFinalize(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, resultResponse{Slug: result.Site.Slug, Version: toVersionResponse(result.Version)})
+	s.writeResult(w, r, result)
 }
 
 func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +106,7 @@ func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, resultResponse{Slug: result.Site.Slug, Version: toVersionResponse(result.Version)})
+	s.writeResult(w, r, result)
 }
 
 func (s *Server) handleDeleteVersion(w http.ResponseWriter, r *http.Request) {
@@ -149,4 +149,22 @@ func (s *Server) handleLiveFile(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Disposition", "attachment")
 	h.Set("ETag", `"`+live.Spec.SHA256+`"`)
 	http.ServeContent(w, r, "", time.Time{}, live.File)
+}
+
+func (s *Server) writePending(w http.ResponseWriter, r *http.Request, pending publish.Pending) {
+	urlFor, err := s.siteURLs(r.Context())
+	if err != nil {
+		s.writeInternal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toPublishResponse(pending, urlFor(pending.Site.Slug)))
+}
+
+func (s *Server) writeResult(w http.ResponseWriter, r *http.Request, result publish.Result) {
+	urlFor, err := s.siteURLs(r.Context())
+	if err != nil {
+		s.writeInternal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resultResponse{Slug: result.Site.Slug, URL: urlFor(result.Site.Slug), Version: toVersionResponse(result.Version)})
 }

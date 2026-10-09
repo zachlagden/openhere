@@ -29,6 +29,7 @@ type Config struct {
 
 	APIKeyPrefix   string
 	TrustedProxies []netip.Prefix
+	PublicURL      PublicURL
 }
 
 type Lookup func(key string) (string, bool)
@@ -59,6 +60,10 @@ func Load(lookup Lookup) (Config, error) {
 	proxies, err := parseTrustedProxies(values.get("TRUSTED_PROXIES", ""))
 	problems = appendIf(problems, err)
 	cfg.TrustedProxies = proxies
+
+	public, err := parsePublicURL(values.get("PUBLIC_URL", ""), cfg.ListenAddr)
+	problems = appendIf(problems, err)
+	cfg.PublicURL = public
 
 	if cfg.DatabaseURL == "" && cfg.DataDir == "" {
 		problems = append(problems, errors.New("DATA_DIR must not be empty when DATABASE_URL is unset"))

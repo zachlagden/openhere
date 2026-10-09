@@ -30,7 +30,9 @@ func (s *Service) Finalize(ctx context.Context, userID, siteRef, versionID strin
 	if version.Status == StatusFinalized {
 		return s.result(ctx, userID, site.ID, version.ID)
 	}
-	if err := s.finalizePending(ctx, site, version); err != nil {
+	err = s.finalizePending(ctx, site, version)
+	s.changed(site.Slug)
+	if err != nil {
 		return Result{}, err
 	}
 	s.prune(ctx, site.ID)

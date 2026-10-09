@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/api"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -29,8 +31,9 @@ const (
 	readHeaderTimeout = 10 * time.Second
 	startupTimeout    = 30 * time.Second
 
-	maintenanceInterval = time.Hour
-	setupPath           = "/api/v1/setup"
+	maintenanceInterval   = time.Hour
+	wildcardCheckInterval = 6 * time.Hour
+	setupPath             = "/api/v1/setup"
 )
 
 var version = "dev"
@@ -104,24 +107,39 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	if err != nil {
 		return nil, nil, err
 	}
-	settingsSvc := settings.New(db, settings.Options{})
+	resolver := hosting.NewResolver(db, nil)
+	settingsSvc := settings.New(db, settings.Options{DefaultBaseDomain: cfg.PublicURL.Host})
 	workspaceSvc := workspaces.New(db, workspaces.Options{})
-	siteSvc := sites.New(db, workspaceSvc, sites.Options{Files: files, Logger: logger})
-	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger})
-	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate, api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger})
+	siteSvc := sites.New(db, workspaceSvc, sites.Options{Files: files, Logger: logger, OnSiteChange: resolver.Invalidate})
+	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger, OnSiteChange: resolver.Invalidate})
+	probes := hosting.NewProbes(nil)
+	checker := hosting.NewChecker(settingsSvc, probes, hosting.CheckerOptions{Public: cfg.PublicURL, Logger: logger})
+	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, gate,
+		api.Options{TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker})
+	router := hosting.New(server.Handler(), settingsSvc, db, files,
+		hosting.Options{Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger})
 
-	maintenanceCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
+	stop := startBackground(ctx, svc, publishSvc, checker)
+	return router, stop, nil
+}
+
+func startBackground(ctx context.Context, svc *auth.Service, publishSvc *publish.Service, checker *hosting.Checker) func() {
+	backgroundCtx, cancel := context.WithCancel(ctx)
+	var running sync.WaitGroup
+	running.Add(2)
 	go func() {
-		defer close(done)
-		svc.RunMaintenance(maintenanceCtx, maintenanceInterval,
+		defer running.Done()
+		svc.RunMaintenance(backgroundCtx, maintenanceInterval,
 			auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain})
 	}()
-	stop := func() {
+	go func() {
+		defer running.Done()
+		checker.Run(backgroundCtx, wildcardCheckInterval)
+	}()
+	return func() {
 		cancel()
-		<-done
+		running.Wait()
 	}
-	return server.Handler(), stop, nil
 }
 
 func newSetupGate(ctx context.Context, svc *auth.Service, logger *slog.Logger) (*auth.SetupGate, error) {

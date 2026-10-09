@@ -162,6 +162,15 @@ func TestPutNeverFollowsSymlinks(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(filesDir, "link")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(outside, "inside.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Open(siteID, versionID, "link/inside.txt"); !errors.Is(err, ErrNotRegular) {
+		t.Errorf("Open through a symlinked directory = %v, want ErrNotRegular", err)
+	}
+	if _, _, err := s.Open(siteID, versionID, "missing/inside.txt"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Open below a missing directory = %v, want ErrNotFound", err)
+	}
 	if err := put(t, s, "link/stolen.txt", "x"); err == nil {
 		t.Error("Put wrote through a symlinked directory")
 	}
@@ -169,7 +178,7 @@ func TestPutNeverFollowsSymlinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 0 {
+	if len(entries) != 1 {
 		t.Errorf("a file landed outside the files directory: %v", entries)
 	}
 

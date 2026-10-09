@@ -12,12 +12,14 @@ import (
 )
 
 type Options struct {
-	Now func() time.Time
+	Now               func() time.Time
+	DefaultBaseDomain string
 }
 
 type Service struct {
-	db  store.Store
-	now func() time.Time
+	db            store.Store
+	now           func() time.Time
+	defaultDomain string
 
 	mu         sync.Mutex
 	cached     *Settings
@@ -29,7 +31,11 @@ func New(db store.Store, opts Options) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: db, now: now}
+	defaultDomain, err := normaliseBaseDomain(opts.DefaultBaseDomain)
+	if err != nil {
+		defaultDomain = ""
+	}
+	return &Service{db: db, now: now, defaultDomain: defaultDomain}
 }
 
 func Defaults() Settings {
@@ -91,7 +97,14 @@ func (s *Service) load(ctx context.Context) (Settings, error) {
 	if err := rows.Close(); err != nil {
 		return Settings{}, fmt.Errorf("close setting rows: %w", err)
 	}
-	return build(stored)
+	settings, err := build(stored)
+	if err != nil {
+		return Settings{}, err
+	}
+	if settings.BaseDomain == "" {
+		settings.BaseDomain = s.defaultDomain
+	}
+	return settings, nil
 }
 
 func build(stored map[string]string) (Settings, error) {
@@ -118,13 +131,21 @@ func (s *Service) Update(ctx context.Context, patch map[string]json.RawMessage) 
 		if !ok {
 			return Settings{}, validate.Invalid(fmt.Sprintf("Unknown setting %q.", key))
 		}
+		if def.readOnly {
+			return Settings{}, validate.Invalid(fmt.Sprintf("Setting %s is read-only.", key))
+		}
 		stored, err := def.decode(raw)
 		if err != nil {
 			return Settings{}, err
 		}
 		changes[key] = stored
 	}
-	err := store.WithTx(ctx, s.db, func(q store.Querier) error { return s.write(ctx, q, changes) })
+	err := store.WithTx(ctx, s.db, func(q store.Querier) error {
+		if err := s.applyHostingRules(ctx, q, changes); err != nil {
+			return err
+		}
+		return s.write(ctx, q, changes)
+	})
 	s.invalidate()
 	if err != nil {
 		return Settings{}, err

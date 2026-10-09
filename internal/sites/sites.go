@@ -53,6 +53,7 @@ func (s *Service) CreateSite(ctx context.Context, in CreateInput) (Site, error) 
 		return Site{}, err
 	}
 	site.Role = acc.SiteRole(site.ID, site.FolderID)
+	s.changed(site.Slug)
 	return site, nil
 }
 
@@ -150,6 +151,7 @@ func (s *Service) UpdateSite(ctx context.Context, userID, ref string, in UpdateI
 		return Site{}, err
 	}
 	site.Role = acc.SiteRole(site.ID, site.FolderID)
+	s.changed(site.Slug)
 	return site, nil
 }
 
@@ -196,6 +198,7 @@ func (s *Service) DeleteSite(ctx context.Context, userID, ref string) error {
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM sites WHERE id = $1", site.ID); err != nil {
 		return fmt.Errorf("delete site: %w", err)
 	}
+	s.changed(site.Slug)
 	s.removeSiteFiles(site.ID)
 	return nil
 }

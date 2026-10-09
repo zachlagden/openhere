@@ -6,7 +6,9 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It stores published files but does not serve them yet: serving sites by host name or path arrives in the next step. There is no dashboard.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain or by path. There is no dashboard and no access control yet.
+
+**Every site with a live version is public right now.** Anyone who can reach the server and knows or guesses a site's slug can read its files. Password and allow-list access modes arrive in a later step. Do not publish anything private until then.
 
 ## First-time setup
 
@@ -30,7 +32,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 `docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). The server does not serve it yet. Only `GET /api/v1/setup/status`, `POST /api/v1/setup` and `POST /api/v1/auth/login` work without credentials. Every other path returns a JSON 401, or a JSON 404 once signed in.
 
-- Browsers sign in with a session cookie (HttpOnly, SameSite=Lax, Secure over HTTPS, 30 days, renewed on use). State-changing requests that use the cookie must send an `X-Requested-With` header and an `Origin` header that matches the host.
+- Browsers sign in with a session cookie (HttpOnly, SameSite=Lax, 30 days, renewed on use). Over HTTPS it is named `__Host-session`, is Secure, has Path=/ and no Domain attribute, so a sibling subdomain cannot overwrite it. Over plain HTTP (local use) it is named `session`. The server reads only the form that matches the request. State-changing requests that use the cookie must send an `X-Requested-With` header and an `Origin` header that matches the host.
 - Scripts and agents use `Authorization: Bearer <key>` with a key from `POST /api/v1/me/keys`. The response shows the full key once. The server stores only its SHA-256 hash. Each user can hold 50 active keys.
 - Errors are JSON: `{"code": "...", "message": "...", "retry_after": 30}`. `retry_after` appears on 429 responses.
 
@@ -40,7 +42,11 @@ Login and setup are limited per IP address and per email: login allows 30 attemp
 
 ### Running behind a reverse proxy
 
-Set `TRUSTED_PROXIES` to the addresses of your proxy. The server then reads the client address from `X-Forwarded-For` and decides whether to set the Secure cookie flag from `X-Forwarded-Proto`, but only for requests that arrive from those addresses. Without it, every client appears to be the proxy and shares one rate limit. The proxy must pass the original `Host` header, because the CSRF check compares it with `Origin`.
+Set `TRUSTED_PROXIES` to the addresses of your proxy. The server then reads the client address from `X-Forwarded-For` and decides whether a request used HTTPS from `X-Forwarded-Proto`, but only for requests that arrive from those addresses. Without it, every client appears to be the proxy and shares one rate limit. The proxy must pass the original `Host` header, because the CSRF check compares it with `Origin` and the host router needs it to find the site.
+
+Set `PUBLIC_URL` to the address people use for the dashboard and API, for example `https://sites.example.com`. An `https://` value makes the session cookie Secure and `__Host-` prefixed, and tells the wildcard check which scheme to probe.
+
+For subdomain mode the proxy needs two more things. Create a wildcard DNS record, such as `*.sites.example.com`, that points to the server, and obtain a wildcard certificate for `*.sites.example.com` (DNS-01 validation) if the sites use HTTPS. Route every host under the wildcard to this server and keep the `Host` header.
 
 ## Workspaces and sites
 
@@ -78,9 +84,50 @@ Pass `baseVersionId` on `PUT /publish/{slug}` to detect conflicts. If the site's
 
 Paths are relative with `/` separators. The server rejects empty and absolute paths, `.` and `..` segments, empty segments, backslashes, NUL, control and invisible formatting characters, paths over 1024 bytes and segments over 255 bytes. It also rejects two paths that differ only in letter case, and a path that is also the directory of another. Dotfiles such as `.well-known/` are allowed. The server never creates or follows symlinks.
 
-Set a site's `spaMode` when creating it or with `PATCH /api/v1/sites/{slug}`. It records that unknown paths should fall back to `index.html`, which takes effect once serving exists.
+Set a site's `spaMode` when creating it or with `PATCH /api/v1/sites/{slug}`. In SPA mode, a request that matches no file and whose last path segment has no file extension serves `index.html` with status 200.
 
 Several processes must not share one `DATA_DIR`. The upload and finalize locks live in process memory.
+
+## Hosting sites
+
+The server serves each site's live version in two ways. Both need no sign-in.
+
+| Mode | Address | Setting |
+|---|---|---|
+| Subdomain | `https://{slug}.{baseDomain}/` | `hosting.subdomainEnabled`, off until a wildcard check passes |
+| Path | `{PUBLIC_URL}/s/{slug}/` | `hosting.pathEnabled`, on by default |
+
+Every site response and every publish response carries a `url` field with the address the instance serves the site at right now: the subdomain address when subdomain mode is on, else the path address when path mode is on, else `null`.
+
+**Use subdomain mode.** Each site then gets its own browser origin, so its JavaScript can use cookies and `localStorage` and cannot touch the dashboard. Path mode puts sites on the dashboard's origin. To stop hosted JavaScript from acting as a signed-in user, the server sends `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation` on every `/s/` response. The policy omits `allow-same-origin`, so a path-mode page runs in an opaque origin. Its scripts run, but it cannot read cookies or `localStorage`, and it cannot call the API as the signed-in user. Path-mode responses also carry `Access-Control-Allow-Origin: *`, so module scripts and fonts load from the opaque origin. Subdomain-mode sites get no policy, because their owners control their own content. A path-mode site lives under `/s/{slug}/`, so its pages must use relative links. A link such as `/style.css` points at the dashboard host, not at the site.
+
+### Routing
+
+The server normalises the request host (it drops the port and a trailing dot and lower-cases it) and then decides:
+
+- The host of `PUBLIC_URL` is the management host. It serves the API, and `/s/{slug}/...` serves a site in path mode. `/s/{slug}` redirects to `/s/{slug}/`. A site's files are never reachable on the management host except through `/s/`.
+- `{slug}.{baseDomain}` with subdomain mode on serves that site. The slug must be a single DNS label.
+- Every other host serves nothing from the API. Site hosts never run authentication: they ignore session cookies and API keys.
+
+An unknown host, an unknown slug, a disabled mode and a site without a live version all return the same 404 response with the same headers and a one-line body, so a visitor cannot tell them apart. Only `GET` and `HEAD` work on site hosts and under `/s/`. Other methods return 405 with `Allow: GET, HEAD`.
+
+`hosting.baseDomain` defaults to the host name of `PUBLIC_URL`. Changing it to a different value resets the wildcard check and switches subdomain mode off.
+
+### Which file a path serves
+
+For a request path `/p`, the server tries `p`, then `p.html`, then `p/index.html`. `/` serves `index.html`. A path with a trailing slash (`/p/`) tries `p/index.html`, then `p.html`. When only `p/index.html` exists, `/p` redirects once to `/p/`, which keeps relative links working. Next.js static exports (`about.html`, `docs/index.html`, `_next/...`) work as built. When nothing matches, the server serves the site's `404.html` with status 404 if it exists, and the plain 404 otherwise. SPA mode comes before `404.html` for paths without a file extension.
+
+Responses support `Range`, `If-None-Match` and `If-Modified-Since`. The `ETag` is the stored SHA-256. The content type is the one stored at publish time (guessed from the extension when the manifest left it empty), and the server never sniffs it. `X-Content-Type-Options: nosniff` is always set. HTML responses send `Cache-Control: no-cache` and every other file sends `Cache-Control: public, max-age=3600, must-revalidate`. A new version is live as soon as finalize or restore returns. The server never serves a symbolic link or anything outside the version's directory.
+
+### Wildcard check
+
+Subdomain mode needs wildcard DNS, which the server cannot see from inside. The check proves it: the server picks a random label, resolves `{label}.{baseDomain}`, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}` and passes only when the server itself answers. The answer is an HMAC of the one-time token under a secret that never leaves the process, so another server that receives the request cannot fake it. It does not follow redirects, reads at most 256 bytes and gives up after 10 seconds. A pass proves DNS, the wildcard certificate (for HTTPS) and the proxy routing in one step.
+
+The token route is the one unauthenticated path this feature adds. It exists only on site hosts, only while a check is running, accepts each token once for 60 seconds and returns the plain 404 otherwise.
+
+The server runs the check shortly after startup (with up to three attempts) and every 6 hours. The root user can run it at any time with `POST /api/v1/admin/hosting/check`, limited to 6 calls per minute. The result lands in the read-only settings `hosting.wildcardStatus` (`unchecked`, `ok` or `failed`), `hosting.wildcardCheckedAt` and `hosting.wildcardDetail`. A failed check switches `hosting.subdomainEnabled` off. Setting it to true while the status is not `ok` returns 409 `wildcard_not_verified`.
+
+On a local setup with `PUBLIC_URL=http://localhost:8080`, the check fails unless your resolver maps `*.localhost` to the loopback address. Path mode still works.
 
 ## Instance settings
 
@@ -92,9 +139,12 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `limits.maxFilesPerVersion` | 2500 | Files in one version. |
 | `limits.maxVersionBytes` | 1073741824 | Total bytes in one version. |
 | `limits.maxFileBytes` | 268435456 | Bytes in one file. Also caps the upload body. |
-| `hosting.baseDomain` | empty | Bare host name for site subdomains, such as `example.com`. |
-| `hosting.subdomainEnabled` | false | Serve sites at `{slug}.{baseDomain}`. Used by the serving step. |
-| `hosting.pathEnabled` | true | Serve sites at `/s/{slug}/`. Used by the serving step. |
+| `hosting.baseDomain` | host of `PUBLIC_URL` | Bare host name for site subdomains, such as `example.com`. An empty value means the default. |
+| `hosting.subdomainEnabled` | false | Serve sites at `{slug}.{baseDomain}`. Needs a successful wildcard check. Subdomain mode is the recommended way to host sites. |
+| `hosting.pathEnabled` | true | Serve sites at `/s/{slug}/`. Path-mode pages run in a sandbox without cookies or `localStorage`. |
+| `hosting.wildcardStatus` | `unchecked` | Read-only. Outcome of the last wildcard check: `unchecked`, `ok` or `failed`. |
+| `hosting.wildcardCheckedAt` | null | Read-only. When the last check finished. |
+| `hosting.wildcardDetail` | empty | Read-only. Why the last check failed. |
 
 ## Configuration
 
@@ -108,6 +158,7 @@ The server reads these environment variables.
 | `LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error`. Logs are JSON on standard output. |
 | `SENTRY_DSN` | unset | Enables error reporting through the Sentry SDK. A self-hosted GlitchTip works. |
 | `API_KEY_PREFIX` | `sk_` | Constant prefix of generated API keys, 1 to 16 letters, digits or underscores. Changing it invalidates existing keys. |
+| `PUBLIC_URL` | `http://localhost` plus the port of `LISTEN_ADDR` | Address of the dashboard and API, such as `https://sites.example.com`: scheme, host and optional port, no path. The scheme decides whether cookies are Secure and which scheme the wildcard check uses. The host is the management host and the default `hosting.baseDomain`. |
 | `TRUSTED_PROXIES` | unset | Comma-separated IP addresses or CIDR ranges of reverse proxies. The server reads `X-Forwarded-For` and `X-Forwarded-Proto` only from these peers. |
 
 `.env.example` lists the same keys with fake values. The server does not load `.env` files itself, so export the variables or pass them to Docker.

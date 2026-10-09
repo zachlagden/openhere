@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/validate"
 	"github.com/zachlagden/selfhost/internal/workspaces"
@@ -26,6 +27,7 @@ var domainFailures = []domainFailure{
 	{workspaces.ErrPersonalWorkspace, http.StatusConflict, codePersonalWorkspace, "A personal workspace cannot be deleted, shared or have its members changed."},
 	{workspaces.ErrNotEmpty, http.StatusConflict, codeWorkspaceNotEmpty, "Delete or move the workspace's sites first."},
 	{workspaces.ErrMemberExists, http.StatusConflict, codeMemberExists, "That user already has this access."},
+	{settings.ErrWildcardNotVerified, http.StatusConflict, codeWildcardNotVerified, "Subdomain mode needs a successful wildcard check. Run POST /admin/hosting/check first."},
 	{workspaces.ErrUserNotFound, http.StatusNotFound, codeUserNotFound, "No user has that email address."},
 }
 

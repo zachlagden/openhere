@@ -52,9 +52,10 @@ type publishResponse struct {
 	ExpiresAt   time.Time        `json:"expiresAt"`
 	Uploads     []uploadResponse `json:"uploads"`
 	FinalizeURL string           `json:"finalizeUrl"`
+	URL         *string          `json:"url"`
 }
 
-func toPublishResponse(p publish.Pending) publishResponse {
+func toPublishResponse(p publish.Pending, siteURL *string) publishResponse {
 	versionURL := basePath + "/publish/" + p.Site.Slug + "/versions/" + p.Version.ID
 	uploads := make([]uploadResponse, len(p.Files))
 	for i, f := range p.Files {
@@ -65,7 +66,7 @@ func toPublishResponse(p publish.Pending) publishResponse {
 	}
 	return publishResponse{
 		Slug: p.Site.Slug, SiteID: p.Site.ID, VersionID: p.Version.ID, ExpiresAt: p.Version.ExpiresAt(),
-		Uploads: uploads, FinalizeURL: versionURL + "/finalize",
+		Uploads: uploads, FinalizeURL: versionURL + "/finalize", URL: siteURL,
 	}
 }
 
@@ -103,6 +104,7 @@ type versionListResponse struct {
 
 type resultResponse struct {
 	Slug    string          `json:"slug"`
+	URL     *string         `json:"url"`
 	Version versionResponse `json:"version"`
 }
 

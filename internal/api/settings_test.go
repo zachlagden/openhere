@@ -40,6 +40,9 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"hosting.baseDomain":        "",
 			"hosting.subdomainEnabled":  false,
 			"hosting.pathEnabled":       true,
+			"hosting.wildcardStatus":    "unchecked",
+			"hosting.wildcardCheckedAt": nil,
+			"hosting.wildcardDetail":    "",
 		}
 		assertSettings(t, defaults, want)
 
