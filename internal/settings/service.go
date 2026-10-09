@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/validate"
 )
@@ -14,12 +15,14 @@ import (
 type Options struct {
 	Now               func() time.Time
 	DefaultBaseDomain string
+	Secrets           *secrets.Box
 }
 
 type Service struct {
 	db            store.Store
 	now           func() time.Time
 	defaultDomain string
+	box           *secrets.Box
 
 	mu         sync.Mutex
 	cached     *Settings
@@ -35,7 +38,7 @@ func New(db store.Store, opts Options) *Service {
 	if err != nil {
 		defaultDomain = ""
 	}
-	return &Service{db: db, now: now, defaultDomain: defaultDomain}
+	return &Service{db: db, now: now, defaultDomain: defaultDomain, box: opts.Secrets}
 }
 
 func Defaults() Settings {
@@ -51,7 +54,7 @@ func Defaults() Settings {
 func Values(settings Settings) map[string]any {
 	values := make(map[string]any, len(definitions))
 	for _, def := range definitions {
-		values[def.key] = def.value(settings)
+		values[def.outputKey()] = def.value(settings)
 	}
 	return values
 }
@@ -134,7 +137,7 @@ func (s *Service) Update(ctx context.Context, patch map[string]json.RawMessage) 
 		if def.readOnly {
 			return Settings{}, validate.Invalid(fmt.Sprintf("Setting %s is read-only.", key))
 		}
-		stored, err := def.decode(raw)
+		stored, err := s.prepare(def, raw)
 		if err != nil {
 			return Settings{}, err
 		}
@@ -151,6 +154,17 @@ func (s *Service) Update(ctx context.Context, patch map[string]json.RawMessage) 
 		return Settings{}, err
 	}
 	return s.Get(ctx)
+}
+
+func (s *Service) prepare(def definition, raw json.RawMessage) (string, error) {
+	stored, err := def.decode(raw)
+	if err != nil || !def.secret || stored == "" {
+		return stored, err
+	}
+	if s.box == nil {
+		return "", fmt.Errorf("setting %s cannot be stored because no secret key is loaded", def.key)
+	}
+	return s.box.Seal(stored)
 }
 
 func (s *Service) write(ctx context.Context, q store.Querier, changes map[string]string) error {

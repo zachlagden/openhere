@@ -38,6 +38,8 @@ func TestDefaults(t *testing.T) {
 			KeepVersions: 10, MaxFilesPerVer: 2500, MaxVersionBytes: 1 << 30, MaxFileBytes: 256 << 20,
 			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, WildcardStatus: WildcardUnchecked,
 			DefaultAccessMode: AccessPublic,
+			Email:             Email{Provider: ProviderNone, SMTPPort: 587, SMTPSecurity: SecurityStartTLS},
+			WhoCanInvite:      InviteRoot, WhoCanCreate: CreateAny,
 		}
 		if got != want {
 			t.Errorf("defaults = %+v, want %+v", got, want)
