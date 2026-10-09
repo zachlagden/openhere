@@ -99,6 +99,7 @@ type siteResponse struct {
 	CreatedBy        *string         `json:"createdBy"`
 	SpaMode          bool            `json:"spaMode"`
 	CurrentVersionID *string         `json:"currentVersionId"`
+	URL              *string         `json:"url"`
 	Role             workspaces.Role `json:"role"`
 	CreatedAt        time.Time       `json:"createdAt"`
 	UpdatedAt        time.Time       `json:"updatedAt"`
@@ -113,11 +114,11 @@ type siteListResponse struct {
 	NextCursor *string        `json:"nextCursor"`
 }
 
-func toSiteResponse(s sites.Site) siteResponse {
+func toSiteResponse(s sites.Site, siteURL *string) siteResponse {
 	return siteResponse{
 		ID: s.ID, WorkspaceID: s.WorkspaceID, WorkspaceSlug: s.WorkspaceSlug, FolderID: optional(s.FolderID),
 		Slug: s.Slug, DisplayName: s.DisplayName, Description: s.Description, CreatedBy: optional(s.CreatedBy),
-		SpaMode: s.SpaMode, CurrentVersionID: optional(s.CurrentVersionID),
+		SpaMode: s.SpaMode, CurrentVersionID: optional(s.CurrentVersionID), URL: siteURL,
 		Role: s.Role, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }
