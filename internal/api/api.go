@@ -10,6 +10,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
@@ -23,6 +24,7 @@ const basePath = "/api/v1"
 type Rule = ratelimit.Rule
 
 type Limits struct {
+	EmailTest     Rule
 	LoginPerIP    Rule
 	LoginPerEmail Rule
 	SetupPerIP    Rule
@@ -34,6 +36,7 @@ type Limits struct {
 func DefaultLimits() Limits {
 	window := 15 * time.Minute
 	return Limits{
+		EmailTest:     Rule{Max: 5, Window: time.Minute},
 		LoginPerIP:    Rule{Max: 30, Window: window},
 		LoginPerEmail: Rule{Max: 10, Window: window},
 		SetupPerIP:    Rule{Max: 10, Window: window},
@@ -43,6 +46,19 @@ func DefaultLimits() Limits {
 	}
 }
 
+func (l Limits) withDefaults() Limits {
+	defaults := DefaultLimits()
+	fill := func(rule *Rule, fallback Rule) {
+		if *rule == (Rule{}) {
+			*rule = fallback
+		}
+	}
+	fill(&l.EmailTest, defaults.EmailTest)
+	fill(&l.WildcardCheck, defaults.WildcardCheck)
+	fill(&l.Handoff, defaults.Handoff)
+	return l
+}
+
 type Options struct {
 	TrustedProxies []netip.Prefix
 	Limits         Limits
@@ -50,6 +66,7 @@ type Options struct {
 	Logger         *slog.Logger
 	Public         config.PublicURL
 	Wildcard       WildcardChecker
+	Mailer         mail.Sender
 }
 
 type Server struct {
@@ -64,13 +81,15 @@ type Server struct {
 	logger     *slog.Logger
 	public     config.PublicURL
 	wildcard   WildcardChecker
+	mailer     mail.Sender
 
-	wildcardLimit *ratelimit.Limiter
-	handoffLimit  *ratelimit.Limiter
-	loginIP       *ratelimit.Limiter
-	loginEmail    *ratelimit.Limiter
-	setupIP       *ratelimit.Limiter
-	setupEmail    *ratelimit.Limiter
+	emailTestLimit *ratelimit.Limiter
+	wildcardLimit  *ratelimit.Limiter
+	handoffLimit   *ratelimit.Limiter
+	loginIP        *ratelimit.Limiter
+	loginEmail     *ratelimit.Limiter
+	setupIP        *ratelimit.Limiter
+	setupEmail     *ratelimit.Limiter
 }
 
 func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publishSvc *publish.Service, settingsSvc *settings.Service, accessSvc *access.Service, gate *auth.SetupGate, opts Options) *Server {
@@ -82,11 +101,10 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 	if limits == (Limits{}) {
 		limits = DefaultLimits()
 	}
-	if limits.WildcardCheck == (Rule{}) {
-		limits.WildcardCheck = DefaultLimits().WildcardCheck
-	}
-	if limits.Handoff == (Rule{}) {
-		limits.Handoff = DefaultLimits().Handoff
+	limits = limits.withDefaults()
+	mailer := opts.Mailer
+	if mailer == nil {
+		mailer = mail.Unconfigured{}
 	}
 	limiter := func(r Rule) *ratelimit.Limiter { return ratelimit.New(r.Max, r.Window, opts.Now) }
 	return &Server{
@@ -101,13 +119,15 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		logger:     logger,
 		public:     opts.Public,
 		wildcard:   opts.Wildcard,
+		mailer:     mailer,
 
-		wildcardLimit: limiter(limits.WildcardCheck),
-		handoffLimit:  limiter(limits.Handoff),
-		loginIP:       limiter(limits.LoginPerIP),
-		loginEmail:    limiter(limits.LoginPerEmail),
-		setupIP:       limiter(limits.SetupPerIP),
-		setupEmail:    limiter(limits.SetupPerEmail),
+		emailTestLimit: limiter(limits.EmailTest),
+		wildcardLimit:  limiter(limits.WildcardCheck),
+		handoffLimit:   limiter(limits.Handoff),
+		loginIP:        limiter(limits.LoginPerIP),
+		loginEmail:     limiter(limits.LoginPerEmail),
+		setupIP:        limiter(limits.SetupPerIP),
+		setupEmail:     limiter(limits.SetupPerEmail),
 	}
 }
 
@@ -129,6 +149,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerSettingsRoutes(mux)
 	s.registerHostingRoutes(mux)
 	s.registerAccessRoutes(mux)
+	s.registerAdminRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)

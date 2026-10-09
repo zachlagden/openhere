@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -21,6 +22,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/sites"
@@ -66,6 +68,8 @@ type harness struct {
 	access   *access.Service
 	mailer   *mail.Recorder
 	logs     *bytes.Buffer
+	sender   mail.Sender
+	box      *secrets.Box
 }
 
 type harnessOptions struct {
@@ -76,6 +80,13 @@ type harnessOptions struct {
 	wildcard   WildcardChecker
 	logToBuf   bool
 	noMailer   bool
+	liveMail   *liveMailOptions
+}
+
+type liveMailOptions struct {
+	tls     *tls.Config
+	resend  string
+	timeout time.Duration
 }
 
 func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
@@ -108,7 +119,11 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	if err != nil {
 		t.Fatalf("sitefiles.New: %v", err)
 	}
-	settingsSvc := settings.New(db, settings.Options{Now: clock.Now})
+	box, err := secrets.New(bytes.Repeat([]byte{1}, secrets.KeyBytes))
+	if err != nil {
+		t.Fatalf("secrets.New: %v", err)
+	}
+	settingsSvc := settings.New(db, settings.Options{Now: clock.Now, Secrets: box})
 	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now, MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Now: clock.Now, Files: files, Logger: logger,
@@ -122,6 +137,11 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	if opts.noMailer {
 		mailer = mail.Unconfigured{}
 	}
+	if live := opts.liveMail; live != nil {
+		mailer = mail.New(mail.NewSettingsSource(settingsSvc, box), mail.Options{
+			Logger: logger, TLSConfig: live.tls, ResendEndpoint: live.resend, Timeout: live.timeout,
+		})
+	}
 	accessSvc := access.New(db, access.Options{
 		Mailer: mailer, Params: testParams, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() },
 	})
@@ -131,12 +151,12 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 		public = config.PublicURL{Scheme: "http", Host: testHost}
 	}
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard,
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc})
 	return &harness{
 		t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir,
-		settings: settingsSvc, routed: routed, access: accessSvc, mailer: recorder, logs: logs,
+		settings: settingsSvc, routed: routed, access: accessSvc, mailer: recorder, logs: logs, sender: mailer, box: box,
 	}
 }
 

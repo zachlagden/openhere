@@ -32,7 +32,7 @@ func TestOnlyThreeRoutesAreReachableWithoutAuth(t *testing.T) {
 			"/api/v1/sites", "/api/v1/sites/launch", "/api/v1/sites/launch/files", "/api/v1/sites/launch/files/index.html", "/api/v1/sites/launch/files/a/b/c.js",
 			"/api/v1/publish", "/api/v1/publish/launch", "/api/v1/publish/launch/versions", "/api/v1/publish/launch/versions/abc",
 			"/api/v1/publish/launch/versions/abc/files/index.html", "/api/v1/publish/launch/versions/abc/files/a/b.js",
-			"/api/v1/publish/launch/versions/abc/finalize", "/api/v1/publish/launch/versions/abc/restore", "/api/v1/admin/settings", "/api/v1/admin", "/api/v1/../me", "//", "/api//v1/me", "/./", "/s/site/",
+			"/api/v1/publish/launch/versions/abc/finalize", "/api/v1/publish/launch/versions/abc/restore", "/api/v1/admin/settings", "/api/v1/admin/email/test", "/api/v1/admin/users", "/api/v1/admin/users/abc", "/api/v1/admin", "/api/v1/../me", "//", "/api//v1/me", "/./", "/s/site/",
 		}
 		for _, path := range paths {
 			for _, method := range allMethods {
