@@ -39,6 +39,7 @@ func TestDefaults(t *testing.T) {
 			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, CustomDomainsEnabled: true, MaxDomainsPerSite: 10, WildcardStatus: WildcardUnchecked,
 			DefaultAccessMode: AccessPublic,
 			Email:             Email{Provider: ProviderNone, SMTPPort: 587, SMTPSecurity: SecurityStartTLS},
+			TLS:               TLS{DNSProvider: DNSProviderNone},
 			WhoCanInvite:      InviteRoot, WhoCanCreate: CreateAny,
 		}
 		if got != want {
