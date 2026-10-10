@@ -12,8 +12,9 @@ type resetRequest struct {
 }
 
 type resetConfirmRequest struct {
-	Token    string `json:"token"`
-	Password string `json:"password"`
+	Token         string `json:"token"`
+	Password      string `json:"password"`
+	RevokeAPIKeys bool   `json:"revokeApiKeys"`
 }
 
 type genericStatusResponse struct {
@@ -60,7 +61,7 @@ func (s *Server) handleResetConfirm(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.reset.Confirm(r.Context(), req.Token, req.Password); err != nil {
+	if err := s.reset.Confirm(r.Context(), req.Token, req.Password, req.RevokeAPIKeys); err != nil {
 		s.writeDomainError(w, r, err)
 		return
 	}

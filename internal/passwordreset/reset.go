@@ -93,7 +93,7 @@ func (s *Service) deliver(address, token string) {
 	}
 }
 
-func (s *Service) Confirm(ctx context.Context, token, password string) error {
+func (s *Service) Confirm(ctx context.Context, token, password string, revokeAPIKeys bool) error {
 	userID, err := s.lookup(ctx, token)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func (s *Service) Confirm(ctx context.Context, token, password string) error {
 		return err
 	}
 	err = store.WithTx(ctx, s.db, func(q store.Querier) error {
-		return s.apply(ctx, q, token, userID, hash)
+		return s.apply(ctx, q, token, userID, hash, revokeAPIKeys)
 	})
 	if errors.Is(err, auth.ErrUserNotFound) {
 		return ErrInvalidToken
@@ -132,7 +132,7 @@ func (s *Service) lookup(ctx context.Context, token string) (string, error) {
 	return userID, nil
 }
 
-func (s *Service) apply(ctx context.Context, q store.Querier, token, userID, hash string) error {
+func (s *Service) apply(ctx context.Context, q store.Querier, token, userID, hash string, revokeAPIKeys bool) error {
 	claimed, err := q.ExecContext(ctx,
 		"UPDATE password_resets SET used_at = $1 WHERE token_hash = $2 AND used_at IS NULL AND expires_at > $1", s.clock(), auth.HashToken(token))
 	if err != nil {
@@ -147,6 +147,11 @@ func (s *Service) apply(ctx context.Context, q store.Querier, token, userID, has
 	}
 	if err := s.auth.ApplyPasswordHash(ctx, q, userID, hash); err != nil {
 		return err
+	}
+	if revokeAPIKeys {
+		if err := s.auth.RevokeAllAPIKeys(ctx, q, userID); err != nil {
+			return err
+		}
 	}
 	if _, err := q.ExecContext(ctx, "DELETE FROM password_resets WHERE user_id = $1 AND used_at IS NULL", userID); err != nil {
 		return fmt.Errorf("discard other reset links: %w", err)

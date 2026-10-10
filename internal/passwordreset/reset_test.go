@@ -129,6 +129,34 @@ func TestRequestDoesNothingWithoutEmail(t *testing.T) {
 	})
 }
 
+func TestConfirmCanAlsoRevokeAPIKeys(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		f := newFixture(t, db, nil)
+		ctx := context.Background()
+		key, _, err := f.auth.CreateAPIKey(ctx, f.sam.ID, "laptop")
+		if err != nil {
+			t.Fatal(err)
+		}
+		other, _, err := f.auth.CreateAPIKey(ctx, f.root.ID, "roots laptop")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.svc.Request(ctx, "sam@example.com"); err != nil {
+			t.Fatal(err)
+		}
+		token := tokenFrom(t, f.mailer.Messages()[0].Text)
+		if err := f.svc.Confirm(ctx, token, newPassword, true); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := f.auth.AuthenticateAPIKey(ctx, key); !errors.Is(err, auth.ErrAPIKeyInvalid) {
+			t.Errorf("the key survived a reset that asked to revoke keys: %v", err)
+		}
+		if _, _, err := f.auth.AuthenticateAPIKey(ctx, other); err != nil {
+			t.Errorf("another user's key was revoked: %v", err)
+		}
+	})
+}
+
 func TestConfirmChangesThePasswordOnceAndEndsSessionsButKeepsKeys(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		f := newFixture(t, db, nil)
@@ -145,7 +173,7 @@ func TestConfirmChangesThePasswordOnceAndEndsSessionsButKeepsKeys(t *testing.T) 
 			t.Fatal(err)
 		}
 		token := tokenFrom(t, f.mailer.Messages()[0].Text)
-		if err := f.svc.Confirm(ctx, token, newPassword); err != nil {
+		if err := f.svc.Confirm(ctx, token, newPassword, false); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.auth.Authenticate(ctx, "sam@example.com", newPassword); err != nil {
@@ -160,7 +188,7 @@ func TestConfirmChangesThePasswordOnceAndEndsSessionsButKeepsKeys(t *testing.T) 
 		if _, _, err := f.auth.AuthenticateAPIKey(ctx, key); err != nil {
 			t.Errorf("the API key was revoked by a password reset: %v", err)
 		}
-		if err := f.svc.Confirm(ctx, token, "yet another long password"); !errors.Is(err, ErrInvalidToken) {
+		if err := f.svc.Confirm(ctx, token, "yet another long password", false); !errors.Is(err, ErrInvalidToken) {
 			t.Errorf("reusing the link got %v, want ErrInvalidToken", err)
 		}
 	})
@@ -178,16 +206,16 @@ func TestConfirmRejectsExpiredUnknownAndSupersededLinks(t *testing.T) {
 			t.Fatal(err)
 		}
 		second := tokenFrom(t, f.mailer.Messages()[1].Text)
-		if err := f.svc.Confirm(ctx, first, newPassword); !errors.Is(err, ErrInvalidToken) {
+		if err := f.svc.Confirm(ctx, first, newPassword, false); !errors.Is(err, ErrInvalidToken) {
 			t.Errorf("a superseded link got %v, want ErrInvalidToken", err)
 		}
 		for _, token := range []string{"", "short", strings.Repeat("A", auth.TokenLength)} {
-			if err := f.svc.Confirm(ctx, token, newPassword); !errors.Is(err, ErrInvalidToken) {
+			if err := f.svc.Confirm(ctx, token, newPassword, false); !errors.Is(err, ErrInvalidToken) {
 				t.Errorf("Confirm(%q) = %v, want ErrInvalidToken", token, err)
 			}
 		}
 		f.clock.Advance(Lifetime + time.Second)
-		if err := f.svc.Confirm(ctx, second, newPassword); !errors.Is(err, ErrInvalidToken) {
+		if err := f.svc.Confirm(ctx, second, newPassword, false); !errors.Is(err, ErrInvalidToken) {
 			t.Errorf("an expired link got %v, want ErrInvalidToken", err)
 		}
 	})
@@ -202,10 +230,10 @@ func TestConfirmKeepsTheLinkWhenThePasswordIsRejected(t *testing.T) {
 		}
 		token := tokenFrom(t, f.mailer.Messages()[0].Text)
 		var invalid *auth.ValidationError
-		if err := f.svc.Confirm(ctx, token, "short"); !errors.As(err, &invalid) {
+		if err := f.svc.Confirm(ctx, token, "short", false); !errors.As(err, &invalid) {
 			t.Fatalf("short password error = %v", err)
 		}
-		if err := f.svc.Confirm(ctx, token, newPassword); err != nil {
+		if err := f.svc.Confirm(ctx, token, newPassword, false); err != nil {
 			t.Fatalf("the link was spent by a rejected password: %v", err)
 		}
 	})
@@ -222,7 +250,7 @@ func TestConfirmFailsForADisabledUser(t *testing.T) {
 		if _, err := f.auth.SetDisabled(ctx, f.root.ID, f.sam.ID, true); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.svc.Confirm(ctx, token, newPassword); !errors.Is(err, ErrInvalidToken) {
+		if err := f.svc.Confirm(ctx, token, newPassword, false); !errors.Is(err, ErrInvalidToken) {
 			t.Fatalf("error = %v, want ErrInvalidToken", err)
 		}
 	})
@@ -238,7 +266,7 @@ func TestConcurrentConfirmHasOneWinner(t *testing.T) {
 		token := tokenFrom(t, f.mailer.Messages()[0].Text)
 		results := make(chan error, 4)
 		for range 4 {
-			go func() { results <- f.svc.Confirm(ctx, token, newPassword) }()
+			go func() { results <- f.svc.Confirm(ctx, token, newPassword, false) }()
 		}
 		wins := 0
 		for range 4 {
@@ -264,7 +292,7 @@ func TestAdminLinkWorksWithoutEmail(t *testing.T) {
 			t.Errorf("expiry = %v", expires)
 		}
 		token := tokenFrom(t, link)
-		if err := f.svc.Confirm(ctx, token, newPassword); err != nil {
+		if err := f.svc.Confirm(ctx, token, newPassword, false); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.auth.Authenticate(ctx, "sam@example.com", newPassword); err != nil {

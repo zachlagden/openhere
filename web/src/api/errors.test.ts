@@ -21,6 +21,12 @@ describe("describeError", () => {
     expect(describeError(new ApiError(429, "rate_limited", "x", null)).message).toBe("Too many attempts. Try again later.");
   });
 
+  it("explains a busy server with the wait", () => {
+    const result = describeError(new ApiError(503, "server_busy", "The server is busy. Try again in a moment.", 5));
+    expect(result).toEqual({ kind: "busy", message: "The server is busy. Try again in 5 seconds.", retryAfter: 5 });
+    expect(describeError(new ApiError(503, "server_busy", "x", null)).message).toBe("The server is busy. Try again in a moment.");
+  });
+
   it("maps network failures", () => {
     expect(describeError(new NetworkError(new Error("down"))).kind).toBe("network");
   });

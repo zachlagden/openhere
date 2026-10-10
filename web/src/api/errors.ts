@@ -1,6 +1,6 @@
 import { isApiError, isNetworkError } from "./client";
 
-export type ErrorKind = "network" | "rate_limited" | "unauthenticated" | "forbidden" | "not_found" | "other";
+export type ErrorKind = "network" | "rate_limited" | "busy" | "unauthenticated" | "forbidden" | "not_found" | "other";
 
 export interface ErrorDescription {
   kind: ErrorKind;
@@ -41,6 +41,11 @@ export function describeError(error: unknown): ErrorDescription {
     const wait = error.retryAfter;
     const message = wait === null ? "Too many attempts. Try again later." : `Too many attempts. Try again in ${formatWait(wait)}.`;
     return { kind: "rate_limited", message, retryAfter: wait };
+  }
+  if (error.code === "server_busy") {
+    const wait = error.retryAfter;
+    const message = wait === null ? "The server is busy. Try again in a moment." : `The server is busy. Try again in ${formatWait(wait)}.`;
+    return { kind: "busy", message, retryAfter: wait };
   }
   const message = CODE_MESSAGES[error.code] ?? error.message;
   return { kind: kindFor(error.status), message, retryAfter: null };

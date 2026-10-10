@@ -175,3 +175,18 @@ func TestAdminCanGenerateAResetLinkWithoutEmail(t *testing.T) {
 		root.expectError(http.StatusConflict, codeUserDisabled, "POST", path, nil)
 	})
 }
+
+func TestPasswordResetCanRevokeAPIKeys(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		sam := h.bearerActor("sam@example.com")
+		kim := h.bearerActor("kim@example.com")
+		expectStatus(t, h.requestReset("sam@example.com"), http.StatusOK)
+		token := resetTokenFrom(t, h.mailer.Messages()[0].Text)
+
+		rec := h.do("POST", "/api/v1/auth/password-reset/confirm", map[string]any{"token": token, "password": newPassword, "revokeApiKeys": true})
+		expectStatus(t, rec, http.StatusNoContent)
+		expectError(t, h.do("GET", "/api/v1/me", nil, withBearer(sam.key)), http.StatusUnauthorized, codeUnauthenticated)
+		kim.expect(http.StatusOK, "GET", "/api/v1/me", nil)
+	})
+}

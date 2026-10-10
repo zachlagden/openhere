@@ -25,7 +25,7 @@ Every other path under `/api/` returns a JSON 401, or a JSON 404 once signed in.
 
 ## Authentication
 
-- Browsers sign in with a session cookie: `HttpOnly`, `SameSite=Lax`, 30 days, renewed on use. Over HTTPS it is `__Host-session` with `Secure`, `Path=/` and no `Domain`, so a sibling subdomain cannot overwrite it. Over plain HTTP, meant for local use, it is `session`. The server reads only the form that matches the request.
+- Browsers sign in with a session cookie: `HttpOnly`, `SameSite=Lax`, 30 days, renewed on use, and never longer than 90 days after sign-in. Over HTTPS it is `__Host-session` with `Secure`, `Path=/` and no `Domain`, so a sibling subdomain cannot overwrite it. Over plain HTTP, meant for local use, it is `session`. The server reads only the form that matches the request.
 - A state-changing request that uses the cookie must carry an `X-Requested-With` header and an `Origin` header whose host equals the request host. Requests with a bearer key skip this check because the browser does not attach a bearer key by itself.
 - Scripts and agents send `Authorization: Bearer <key>`. The server stores only the SHA-256 hash of a key, and shows the full key once. Each user can hold 50 active keys. A key has the full access of its user.
 - Passwords need 12 to 128 characters and are stored as argon2id hashes. Site passwords need 8 to 128 characters, and the same hash applies. Each hash takes 64 MiB, so the server computes at most `ARGON2_CONCURRENCY` (default 2) at once. A request that waits more than 5 seconds for a slot gets 503 `server_busy`.

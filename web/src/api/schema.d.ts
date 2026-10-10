@@ -53,7 +53,7 @@ export interface paths {
         put?: never;
         /**
          * Sign in with email and password
-         * @description Sets the session cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
+         * @description Sets the session cookie. Sessions last 30 days and renew on use, up to 90 days after sign-in. A wrong password, an unknown
          *     email and a malformed email all return the same response. Rate limited per IP address, and by failed attempts per IP address and email pair.
          */
         post: operations["login"];
@@ -97,7 +97,7 @@ export interface paths {
         put?: never;
         /**
          * Set a new password with a reset link
-         * @description A link works once and for one hour. Success ends every session of the user and keeps their API keys.
+         * @description A link works once and for one hour. Success ends every session of the user and keeps their API keys, unless the request sets `revokeApiKeys`.
          *     It does not sign anyone in. A short password returns 400 `validation_failed` and leaves the link usable.
          *     Rate limited per IP address (10 in 15 minutes).
          */
@@ -2237,6 +2237,11 @@ export interface components {
             /** @description The token from the reset link. */
             token: string;
             password: string;
+            /**
+             * @description Also revoke every API key of the user. Use it when the keys may be in someone else's hands.
+             * @default false
+             */
+            revokeApiKeys: boolean;
         };
         GenericStatus: {
             /** @enum {string} */
