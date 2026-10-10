@@ -149,14 +149,16 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /auth/login:
     post:
       tags: [Auth]
       operationId: login
       summary: Sign in with email and password
       description: |
-        Sets the session cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
-        email and a malformed email all return the same response. Rate limited per IP address and per email.
+        Sets the session cookie. Sessions last 30 days and renew on use, up to 90 days after sign-in. A wrong password, an unknown
+        email and a malformed email all return the same response. Rate limited per IP address, and by failed attempts per IP address and email pair.
       security: []
       requestBody:
         required: true
@@ -194,6 +196,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /auth/password-reset/request:
     post:
       tags: [Auth]
@@ -232,7 +236,7 @@ paths:
       operationId: confirmPasswordReset
       summary: Set a new password with a reset link
       description: |
-        A link works once and for one hour. Success ends every session of the user and keeps their API keys.
+        A link works once and for one hour. Success ends every session of the user and keeps their API keys, unless the request sets `revokeApiKeys`.
         It does not sign anyone in. A short password returns 400 `validation_failed` and leaves the link usable.
         Rate limited per IP address (10 in 15 minutes).
       security: []
@@ -259,6 +263,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /auth/agent/request-code:
     post:
       tags: [Auth]
@@ -829,7 +835,7 @@ paths:
       tags: [Folders]
       operationId: renameFolder
       summary: Rename a folder
-      description: Needs write on the folder, from a workspace-wide grant or a grant on that folder.
+      description: Needs a workspace-wide write or admin role. A grant limited to the folder is not enough.
       requestBody:
         required: true
         content:
@@ -866,8 +872,18 @@ paths:
       operationId: deleteFolder
       summary: Delete a folder
       description: |
-        Needs write on the folder. The folder's sites stay in the workspace as unfiled sites. Grants limited to
-        the folder are removed with it.
+        Needs a workspace-wide admin role. A grant limited to the folder is not enough, whatever its role. The
+        folder's sites stay in the workspace as unfiled sites. Grants limited to the folder are removed with it,
+        so the call fails with 409 `folder_has_grants` while any exist. Pass `force=true` to delete the folder
+        and those grants anyway.
+      parameters:
+        - name: force
+          in: query
+          required: false
+          description: Delete the folder even when grants limited to it exist.
+          schema:
+            type: boolean
+            default: false
       responses:
         "204":
           description: Folder deleted.
@@ -877,6 +893,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Grants limited to the folder still exist (`folder_has_grants`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /workspaces/{workspace}/sites:
     parameters:
       - $ref: "#/components/parameters/Workspace"
@@ -1091,6 +1113,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "413":
           $ref: "#/components/responses/PublishTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyPending"
         "415":
           $ref: "#/components/responses/BadRequest"
   /publish/{slug}:
@@ -1131,6 +1155,8 @@ paths:
           $ref: "#/components/responses/VersionConflict"
         "413":
           $ref: "#/components/responses/PublishTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyPending"
         "415":
           $ref: "#/components/responses/BadRequest"
   /publish/{slug}/versions:
@@ -1394,6 +1420,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "415":
           $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /access/handoff:
     get:
       tags: [Access]
@@ -1541,10 +1569,12 @@ paths:
         with 400 `validation_failed`.
 
         The new domain is `pending_verification` and serves nothing. Publish the `challenge` TXT record, then call
-        `POST /sites/{slug}/domains/{id}/verify`. A claim blocks every other site from the same name even while
-        it is pending. A pending claim that is not verified within 7 days is released.
+        `POST /sites/{slug}/domains/{id}/verify`. Other sites can claim the same name while it is pending, so a pending claim
+        cannot block the real owner. The first site whose TXT record verifies takes the name, and the server deletes
+        every competing pending claim. A pending claim that is not verified within 7 days is released.
 
-        A name another site already holds returns 409 `domain_taken`, whether that claim is pending or verified.
+        A name that a site has already verified returns 409 `domain_taken`, and so does a second claim of the same
+        name by the same site. The response does not say which site holds the name.
         A site that already holds `hosting.maxDomainsPerSite` domains gets 409 `domain_limit_reached`.
       requestBody:
         required: true
@@ -1853,6 +1883,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /invites/{invite}/resend:
     post:
       tags: [Invites]
@@ -2392,6 +2424,27 @@ components:
             $ref: "#/components/schemas/Error"
     RateLimited:
       description: Too many attempts (`rate_limited`). Limits are held in memory, per process, and reset on restart.
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyPending:
+      description: |
+        Too many unfinished versions (`too_many_pending`). A site may hold 3 pending versions, a user 10, and
+        all pending versions together may declare at most `limits.maxPendingBytes`. Finalize or delete a pending
+        version, or wait for it to expire after 24 hours. The message names the limit in plain words and does not
+        name other users or sites.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerBusy:
+      description: Password hashing is saturated (`server_busy`). The request waited 5 seconds for a free slot. Retry after the interval in `Retry-After`.
       headers:
         Retry-After:
           description: Seconds to wait.
@@ -3448,6 +3501,23 @@ components:
           minimum: 1
           default: 268435456
           description: Size of one file in bytes. Also caps the upload request body.
+        limits.maxPendingBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          default: 4294967296
+          description: |
+            Total bytes that all pending versions of all sites may declare. A manifest that would pass this total is
+            refused with 429 `too_many_pending`. 0 turns the limit off.
+        limits.maxGateCodeMailsPerHour:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          default: 100
+          description: |
+            Most sign-in code emails the instance sends for gated sites in one hour, counted in a fixed
+            window. Past it, a code request gets the same answer as before and no email goes out. 0 turns the
+            limit off. The per-site and per-address limits still apply.
         hosting.baseDomain:
           type: string
           description: |
@@ -3764,6 +3834,10 @@ components:
           type: string
           minLength: 12
           maxLength: 128
+        revokeApiKeys:
+          type: boolean
+          default: false
+          description: Also revoke every API key of the user. Use it when the keys may be in someone else's hands.
     GenericStatus:
       type: object
       required: [status, message]

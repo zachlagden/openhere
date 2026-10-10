@@ -147,6 +147,8 @@ export function makeSettings(overrides: Partial<Settings> = {}): Settings {
     "limits.maxFilesPerVersion": 2500,
     "limits.maxVersionBytes": 1_073_741_824,
     "limits.maxFileBytes": 268_435_456,
+    "limits.maxPendingBytes": 4_294_967_296,
+    "limits.maxGateCodeMailsPerHour": 100,
     "hosting.baseDomain": "example.com",
     "hosting.subdomainEnabled": false,
     "hosting.pathEnabled": true,

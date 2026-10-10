@@ -11,7 +11,7 @@ import (
 func generousLimits() Limits {
 	generous := Rule{Max: 1000, Window: time.Hour}
 	return Limits{
-		LoginPerIP: generous, LoginPerEmail: generous, SetupPerIP: generous, SetupPerEmail: generous,
+		LoginPerIP: generous, LoginPerPair: generous, LoginPerEmail: generous, SetupPerIP: generous, SetupPerEmail: generous,
 		EmailTest: generous, InviteSend: generous, InviteLookup: generous, InviteAccept: generous,
 		ResetRequestIP: generous, ResetRequestEmail: generous, ResetConfirm: generous,
 		AgentRequestIP: generous, AgentRequestEmail: generous, AgentRequestAll: generous, AgentVerifyIP: generous, AgentVerifyEmail: generous, DomainVerify: generous, DomainChange: generous,

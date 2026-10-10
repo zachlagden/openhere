@@ -28,6 +28,7 @@ var domainFailures = []domainFailure{
 	{workspaces.ErrForbidden, http.StatusForbidden, codeForbidden, "Your role does not allow this."},
 	{workspaces.ErrSlugTaken, http.StatusConflict, codeSlugTaken, "That slug is already taken."},
 	{sites.ErrSlugTaken, http.StatusConflict, codeSlugTaken, "That slug is already taken."},
+	{sites.ErrFolderHasGrants, http.StatusConflict, codeFolderHasGrants, "People still have access to this folder. Remove their access first, or delete the folder anyway."},
 	{sites.ErrFolderNameTaken, http.StatusConflict, codeFolderNameTaken, "A folder with that name already exists in this workspace."},
 	{workspaces.ErrLastAdmin, http.StatusConflict, codeLastAdmin, "A shared workspace needs at least one workspace-wide admin."},
 	{workspaces.ErrPersonalWorkspace, http.StatusConflict, codePersonalWorkspace, "A personal workspace cannot be deleted, shared or have its members changed."},

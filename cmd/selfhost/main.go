@@ -20,7 +20,10 @@ import (
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/selfhost/internal/fsperm"
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
@@ -37,9 +40,9 @@ import (
 )
 
 const (
-	shutdownTimeout   = 15 * time.Second
-	readHeaderTimeout = 10 * time.Second
-	startupTimeout    = 30 * time.Second
+	shutdownTimeout = 15 * time.Second
+	maxHeaderBytes  = 1 << 16
+	startupTimeout  = 30 * time.Second
 
 	maintenanceInterval   = time.Hour
 	wildcardCheckInterval = 6 * time.Hour
@@ -87,6 +90,9 @@ func serve(cfg config.Config, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	if err := fsperm.EnsureDir(cfg.DataDir, logger); err != nil {
+		return err
+	}
 	db, err := openStore(ctx, cfg, logger)
 	if err != nil {
 		return err
@@ -103,6 +109,7 @@ func serve(cfg config.Config, logger *slog.Logger) error {
 }
 
 func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *slog.Logger) (*application, error) {
+	hashlimit.SetDefault(hashlimit.New(cfg.Argon2Concurrency, hashlimit.DefaultWait))
 	svc, err := auth.New(db, auth.Options{KeyPrefix: cfg.APIKeyPrefix, Logger: logger})
 	if err != nil {
 		return nil, err
@@ -132,7 +139,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	}
 	mailer := mail.New(mail.NewSettingsSource(settingsSvc, box), mail.Options{Logger: logger})
 	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
-	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger})
+	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger, Secrets: box, MaxCodeMailsPerHour: gateMailCap(settingsSvc)})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc), AnalyticsDefault: analyticsDefault(settingsSvc),
 	})
@@ -145,6 +152,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	checker := hosting.NewChecker(settingsSvc, probes, hosting.CheckerOptions{Public: cfg.PublicURL, Logger: logger})
 	geoDir := filepath.Join(cfg.DataDir, geoDirName)
 	locator := geo.NewLookup(filepath.Join(geoDir, geo.FileName), logger)
+	timeouts := httptimeouts.Defaults()
 	recorder := analytics.NewRecorder(db, analytics.RecorderOptions{
 		Hasher: analytics.NewHasher(db, box, logger), Locator: locator, Logger: logger,
 	})
@@ -154,7 +162,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
 		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
-		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version,
+		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version, Timeouts: timeouts,
 	})
 	dashboard, err := newDashboard(logger)
 	if err != nil {
@@ -163,7 +171,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	router := hosting.New(dashboard.Wrap(server.Handler()), settingsSvc, db, files,
 		hosting.Options{
 			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
-			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder,
+			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder, Timeouts: timeouts,
 		})
 
 	stop := startBackground(ctx, svc, checker, geoUpdater,
@@ -174,7 +182,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 		auth.MaintenanceTask{Name: "agent codes", Run: agentSvc.Purge},
 		auth.MaintenanceTask{Name: "analytics", Run: analyticsSvc.Maintain})
 	closeAnalytics := func() { shutdownAnalytics(recorder, locator, logger) }
-	return &application{handler: router, certs: certManager, stopBackground: stop, closeAnalytics: closeAnalytics}, nil
+	return &application{handler: router, certs: certManager, stopBackground: stop, closeAnalytics: closeAnalytics, timeouts: timeouts}, nil
 }
 
 func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Checker, geoUpdater *geo.Updater, tasks ...auth.MaintenanceTask) func() {
@@ -196,6 +204,16 @@ func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Ch
 	return func() {
 		cancel()
 		running.Wait()
+	}
+}
+
+func gateMailCap(settingsSvc *settings.Service) func(ctx context.Context) (int, error) {
+	return func(ctx context.Context) (int, error) {
+		cfg, err := settingsSvc.Get(ctx)
+		if err != nil {
+			return 0, err
+		}
+		return cfg.MaxGateMails, nil
 	}
 }
 

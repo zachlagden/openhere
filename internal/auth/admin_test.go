@@ -136,7 +136,7 @@ func TestInsertMemberStoresTheDisplayName(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		ctx := context.Background()
 		svc := newTestService(t, db, newFakeClock())
-		creds, err := svc.PrepareCredentials("kim@example.com", testPassword)
+		creds, err := svc.PrepareCredentials(context.Background(), "kim@example.com", testPassword)
 		if err != nil {
 			t.Fatal(err)
 		}

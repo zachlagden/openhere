@@ -12,6 +12,8 @@ const KEYS = [
   "limits.maxFilesPerVersion",
   "limits.maxVersionBytes",
   "limits.maxFileBytes",
+  "limits.maxPendingBytes",
+  "limits.maxGateCodeMailsPerHour",
 ] as const;
 
 export function PolicySection(): JSX.Element {
@@ -52,6 +54,15 @@ export function PolicySection(): JSX.Element {
               <SettingNumber name="limits.maxFilesPerVersion" label="Files per version" min={1} max={1000000} />
               <SettingBytes name="limits.maxVersionBytes" label="Size of one version" hint="1 GB is 1024 MB." />
               <SettingBytes name="limits.maxFileBytes" label="Size of one file" hint="Also the largest upload request the server accepts." />
+              <SettingBytes name="limits.maxPendingBytes" label="Unfinished uploads in total" allowZero hint="All unfinished versions together. 0 turns the limit off. Each site can hold 3 and each user 10." />
+              <h3 className="mt-2 font-display text-lg font-medium">Email sign-in for gated sites</h3>
+              <SettingNumber
+                name="limits.maxGateCodeMailsPerHour"
+                label="Sign-in code emails per hour"
+                min={0}
+                max={1000000}
+                hint="Counts all gated sites together. Past the limit visitors see the usual page and no email is sent. 0 turns the limit off."
+              />
             </SettingsForm>
           </Section>
         </div>

@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { describeError } from "@/api/errors";
 import { cn } from "@/lib/cn";
 import { UNFILED_FOLDER, writeSitesParams } from "@/lib/query-state";
-import { canWrite, canWriteWholeWorkspace } from "@/lib/roles";
+import { canDeleteFolders, canRenameFolders, canWriteWholeWorkspace } from "@/lib/roles";
 import { useFolders } from "@/queries/folders";
 import { CreateFolderDialog, DeleteFolderDialog, RenameFolderDialog } from "./folder-dialogs";
 
@@ -79,7 +79,7 @@ export function FolderNav({ workspace, activeFolder }: { workspace: Workspace; a
           <NavItem active={activeFolder === folder.id} to={target(folder.id)} icon={<FolderIcon aria-hidden="true" />}>
             {folder.name}
           </NavItem>
-          {canWrite(folder.role) ? (
+          {canRenameFolders(workspace) || canDeleteFolders(workspace) ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`Options for folder ${folder.name}`}>
@@ -87,12 +87,16 @@ export function FolderNav({ workspace, activeFolder }: { workspace: Workspace; a
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setDialog({ kind: "rename", folder })}>
-                  <Pencil /> Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog({ kind: "delete", folder })}>
-                  <Trash2 /> Delete
-                </DropdownMenuItem>
+                {canRenameFolders(workspace) ? (
+                  <DropdownMenuItem onSelect={() => setDialog({ kind: "rename", folder })}>
+                    <Pencil /> Rename
+                  </DropdownMenuItem>
+                ) : null}
+                {canDeleteFolders(workspace) ? (
+                  <DropdownMenuItem onSelect={() => setDialog({ kind: "delete", folder })}>
+                    <Trash2 /> Delete
+                  </DropdownMenuItem>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}

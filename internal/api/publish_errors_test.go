@@ -189,3 +189,21 @@ func TestPublishRequestFormat(t *testing.T) {
 		alex.expectError(http.StatusNotFound, codeNotFound, "GET", "/api/v1/sites/ghost/files/index.html", nil)
 	})
 }
+
+func TestPendingVersionLimitsReturnTooManyPending(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		alex := h.rootActor()
+		alex.createWorkspace("Acme Ltd", "acme")
+		live := alex.publishLive("busy", siteFiles{"index.html": "ok"})
+		for range publish.MaxPendingPerSite {
+			alex.expect(http.StatusCreated, "PUT", "/api/v1/publish/busy", republishRequest{BaseVersionID: live.ID, Files: manifestOf(siteFiles{"index.html": "next"})})
+		}
+		alex.expectError(http.StatusTooManyRequests, codeTooManyPending, "PUT", "/api/v1/publish/busy",
+			republishRequest{BaseVersionID: live.ID, Files: manifestOf(siteFiles{"index.html": "next"})})
+
+		alex.setSettings(`{"settings":{"limits.maxPendingBytes":4}}`)
+		alex.expectError(http.StatusTooManyRequests, codeTooManyPending, "POST", "/api/v1/publish",
+			publishRequest{Workspace: "acme", Files: manifestOf(siteFiles{"a": "12345"})})
+	})
+}

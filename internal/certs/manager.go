@@ -115,7 +115,7 @@ func (m *Manager) build(tlsConfig config.TLS, roots *x509.CertPool) {
 	onDemandTemplate.OnDemand = &certmagic.OnDemandConfig{DecisionFunc: m.policy.Allow}
 	m.onDemand = certmagic.New(m.cache, onDemandTemplate)
 	m.httpIssuer = certmagic.NewACMEIssuer(m.onDemand, issuer)
-	m.onDemand.Issuers = []certmagic.Issuer{m.httpIssuer}
+	m.onDemand.Issuers = []certmagic.Issuer{limitedIssuer{inner: m.httpIssuer, policy: m.policy}}
 
 	m.static = certmagic.New(m.cache, template)
 	m.static.Issuers = []certmagic.Issuer{certmagic.NewACMEIssuer(m.static, issuer)}

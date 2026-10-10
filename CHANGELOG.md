@@ -22,3 +22,23 @@ The first release has not been cut. This section describes what the software doe
 - A dashboard for sites, versions, access, domains, analytics, workspaces, members, invites, API keys and instance administration.
 - A multi-architecture `Dockerfile`, and a release workflow that builds archives, a container image and a GitHub release from an annotated `vX.Y.Z` tag.
 - Optional error reporting through the Sentry SDK when `SENTRY_DSN` is set, and structured JSON logs.
+
+### Security
+
+- Password hashing is limited to 2 hashes at once (`ARGON2_CONCURRENCY`, 1 to 16). A burst of sign-in requests can no longer exhaust memory. A request that waits more than 5 seconds gets 503 `server_busy`.
+- The server no longer stores the signing secret for viewer cookies of gated sites. It derives the keys from the sealing key, and a migration deletes the old stored secret. Every viewer of a gated site has to sign in again after the upgrade.
+- Pending versions are capped at 3 per site, 10 per user and `limits.maxPendingBytes` (4 GiB) in total. A manifest over a cap gets 429 `too_many_pending`.
+- Analytics count a view only for a page that exists in the live version. Unknown paths share one bucket, each site stores at most 1000 distinct paths a day, and one visitor can add at most 120 views a minute.
+- Only a workspace-wide `admin` deletes a folder, and only a workspace-wide `write` or `admin` renames one. A grant limited to a folder no longer allows either. Deleting a folder that still has folder grants returns 409 `folder_has_grants` unless the request adds `force=true`.
+- Every listener now closes slow or idle connections: 10 seconds for headers, 30 seconds for the request, 60 seconds for the response and 90 seconds idle. Uploads and file downloads get more time in proportion to their size.
+- The build uses Go 1.26.9, which fixes the standard library vulnerabilities that `govulncheck` reported for 1.26.4. CI now runs `govulncheck`.
+- Failed sign-ins count per address and email pair, so a stranger can no longer lock someone out by guessing their email address. A flood of failures for one email slows only the addresses that already failed for it.
+- A site that verifies a custom domain with its TXT record displaces other sites' unverified claims on the same name. Claiming a name no longer shows who holds it.
+- Certificate issuance on demand counts only requests that reach the certificate authority, and one site may use at most 10 of the 50 hourly requests.
+- Sign-in code emails for gated sites have an instance-wide limit of 100 per hour (`limits.maxGateCodeMailsPerHour`).
+- The data directory is created with mode 0700 and the SQLite files with mode 0600. The server tightens existing ones at start.
+- The rate limiter drops the oldest windows first when its key table is full.
+- Sessions end 90 days after sign-in at the latest. A password reset can also revoke API keys with `revokeApiKeys`.
+- Server error logs name the route pattern and no longer include the request path, which could hold an invite token. The server refuses to send an SMTP password over an unencrypted connection to a host other than `localhost` or a loopback address.
+- The Docker build context leaves out `.env` files, data directories, databases, keys and certificates.
+- New sites cannot use more infrastructure names such as `mta-sts`, `autodiscover` and `vpn`, or a slug that starts with `xn--`.

@@ -8,8 +8,10 @@ import (
 	"net/netip"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/secrets"
 )
 
@@ -34,6 +36,8 @@ type Config struct {
 	PublicURL      PublicURL
 	SecretKey      []byte
 	TLS            TLS
+
+	Argon2Concurrency int
 }
 
 type Lookup func(key string) (string, bool)
@@ -73,6 +77,10 @@ func Load(lookup Lookup) (Config, error) {
 	tlsConfig, err := parseTLS(values, cfg.DataDir, rawPublicURL, public)
 	problems = appendIf(problems, err)
 	cfg.TLS = tlsConfig
+
+	concurrency, err := parseArgon2Concurrency(values.get("ARGON2_CONCURRENCY", ""))
+	problems = appendIf(problems, err)
+	cfg.Argon2Concurrency = concurrency
 
 	secretKey, err := parseSecretKey(values.get("SECRET_KEY", ""))
 	problems = appendIf(problems, err)
@@ -154,6 +162,17 @@ func parseSecretKey(raw string) ([]byte, error) {
 		return nil, fmt.Errorf("SECRET_KEY: %w", err)
 	}
 	return key, nil
+}
+
+func parseArgon2Concurrency(raw string) (int, error) {
+	if raw == "" {
+		return hashlimit.DefaultConcurrency, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < hashlimit.MinConcurrency || n > hashlimit.MaxConcurrency {
+		return 0, fmt.Errorf("ARGON2_CONCURRENCY %q must be a whole number from %d to %d", raw, hashlimit.MinConcurrency, hashlimit.MaxConcurrency)
+	}
+	return n, nil
 }
 
 func validateKeyPrefix(prefix string) error {

@@ -2,11 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 )
 
 const (
@@ -20,11 +23,13 @@ const (
 	codeSetupComplete       = "setup_complete"
 	codeCSRFRejected        = "csrf_rejected"
 	codeRateLimited         = "rate_limited"
+	codeServerBusy          = "server_busy"
 	codeNotFound            = "not_found"
 	codeKeyLimitReached     = "api_key_limit_reached"
 	codeForbidden           = "forbidden"
 	codeSlugTaken           = "slug_taken"
 	codeFolderNameTaken     = "folder_name_taken"
+	codeFolderHasGrants     = "folder_has_grants"
 	codeLastAdmin           = "last_admin"
 	codePersonalWorkspace   = "personal_workspace"
 	codeWorkspaceNotEmpty   = "workspace_not_empty"
@@ -40,6 +45,7 @@ const (
 	codeInvalidResetToken   = "invalid_reset_token"
 	codeInvalidCode         = "invalid_code"
 	codeVersionConflict     = "version_conflict"
+	codeTooManyPending      = "too_many_pending"
 	codeTooManyFiles        = "too_many_files"
 	codeVersionTooLarge     = "version_too_large"
 	codeFileTooLarge        = "file_too_large"
@@ -94,7 +100,31 @@ func writeRateLimited(w http.ResponseWriter, wait time.Duration) {
 	})
 }
 
+func writeServerBusy(w http.ResponseWriter) {
+	seconds := int(math.Ceil(hashlimit.Default().RetryAfter().Seconds()))
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+	writeJSON(w, http.StatusServiceUnavailable, errorBody{
+		Code:       codeServerBusy,
+		Message:    "The server is busy. Try again in a moment.",
+		RetryAfter: &seconds,
+	})
+}
+
+func routeLabel(r *http.Request) string {
+	if r.Pattern == "" {
+		return "unmatched"
+	}
+	return r.Pattern
+}
+
 func (s *Server) writeInternal(w http.ResponseWriter, r *http.Request, err error) {
-	s.logger.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
+	if errors.Is(err, hashlimit.ErrBusy) {
+		writeServerBusy(w)
+		return
+	}
+	s.logger.Error("request failed", "method", r.Method, "route", routeLabel(r), "error", err)
 	writeError(w, http.StatusInternalServerError, codeInternal, "Something went wrong.")
 }

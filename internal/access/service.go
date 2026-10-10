@@ -3,20 +3,25 @@ package access
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/ratelimit"
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/store"
 )
 
 type Options struct {
-	Mailer mail.Sender
-	Params auth.Params
-	Now    func() time.Time
-	Logger *slog.Logger
-	Spawn  func(task func())
+	Mailer              mail.Sender
+	Params              auth.Params
+	Now                 func() time.Time
+	Logger              *slog.Logger
+	Spawn               func(task func())
+	Secrets             *secrets.Box
+	MaxCodeMailsPerHour func(ctx context.Context) (int, error)
 }
 
 type Service struct {
@@ -27,12 +32,15 @@ type Service struct {
 	logger *slog.Logger
 	spawn  func(task func())
 
-	secretMu sync.Mutex
-	secret   []byte
+	box *secrets.Box
 
-	dummyOnce sync.Once
+	mailCap   func(ctx context.Context) (int, error)
+	mailMu    sync.Mutex
+	mailCount *ratelimit.Limiter
+	capLogged time.Time
+
+	dummyMu   sync.Mutex
 	dummyHash string
-	dummyErr  error
 }
 
 func New(db store.Store, opts Options) *Service {
@@ -56,7 +64,14 @@ func New(db store.Store, opts Options) *Service {
 	if spawn == nil {
 		spawn = func(task func()) { go task() }
 	}
-	return &Service{db: db, mailer: mailer, params: params, now: now, logger: logger, spawn: spawn}
+	box := opts.Secrets
+	if box == nil {
+		box = ephemeralBox(logger)
+	}
+	return &Service{
+		db: db, mailer: mailer, params: params, now: now, logger: logger, spawn: spawn, box: box,
+		mailCap: opts.MaxCodeMailsPerHour, mailCount: ratelimit.New(math.MaxInt, time.Hour, now),
+	}
 }
 
 func (s *Service) clock() time.Time {

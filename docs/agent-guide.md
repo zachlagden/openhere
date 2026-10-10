@@ -103,7 +103,7 @@ Every user has a personal workspace. Shared workspaces have members with the rol
 | List folders | `GET /api/v1/workspaces/{workspace}/folders` |
 | Create a folder | `POST /api/v1/workspaces/{workspace}/folders` with `{"name": "Reports"}` |
 | Rename a folder | `PATCH /api/v1/workspaces/{workspace}/folders/{folder}` with `{"name": "..."}` |
-| Delete a folder | `DELETE /api/v1/workspaces/{workspace}/folders/{folder}` (its sites become unfiled) |
+| Delete a folder | `DELETE /api/v1/workspaces/{workspace}/folders/{folder}`, workspace admin only (its sites become unfiled). It fails with 409 `folder_has_grants` while grants limited to the folder exist. Add `?force=true` to delete those too |
 
 Folders are flat and belong to one workspace. Names are unique per workspace regardless of case.
 

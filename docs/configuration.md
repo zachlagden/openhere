@@ -19,6 +19,7 @@ An empty value counts as unset. The server refuses to start, and names every pro
 | `PUBLIC_URL` | `http://localhost` plus the port of `LISTEN_ADDR` | Address people use for the dashboard and API: scheme, host and optional port, no path. Its host is the management host and the default `hosting.baseDomain`. An `https://` scheme makes cookies `Secure` and `__Host-` prefixed. Every link in an email starts with it. |
 | `SECRET_KEY` | unset | 32 random bytes encoded as base64. Encrypts stored secrets. When unset, the server uses `DATA_DIR/secret.key` and creates it on first start. Generate one with `openssl rand -base64 32`. |
 | `TRUSTED_PROXIES` | unset | Comma-separated IP addresses or CIDR ranges of reverse proxies. The server reads `X-Forwarded-For` and `X-Forwarded-Proto` only from these peers. See [Reverse proxy](reverse-proxy.md). |
+| `ARGON2_CONCURRENCY` | `2` | Password hashes the server computes at once, 1 to 16. Each hash uses 64 MiB of memory while it runs. Further sign-ins, password changes and site password checks wait up to 5 seconds for a free slot, then get a 503 `server_busy` response with a `retry_after` value. Raise it on a server with spare memory and many simultaneous sign-ins. |
 | `TLS_ENABLED` | `false` | Switches built-in HTTPS on. Accepts `true` or `false`. See [Built-in HTTPS](built-in-https.md). |
 | `TLS_HTTP_ADDR` | `:80` | Challenge and redirect listener. Read only when `TLS_ENABLED` is true. |
 | `TLS_HTTPS_ADDR` | `:443` | HTTPS listener. Read only when `TLS_ENABLED` is true. Must differ from `TLS_HTTP_ADDR`. |
@@ -53,6 +54,8 @@ Changes apply on the next request. No setting needs a restart.
 | `limits.maxFilesPerVersion` | 2500 | 1 to 1000000 | Files in one version. |
 | `limits.maxVersionBytes` | 1073741824 | 1 to 2^50 | Total bytes in one version. |
 | `limits.maxFileBytes` | 268435456 | 1 to 2^50 | Bytes in one file. Also caps the upload body. |
+| `limits.maxGateCodeMailsPerHour` | 100 | 0 to 1000000 | Sign-in code emails that gated sites may send together in one hour. Past the limit a code request gets the same answer and no email goes out. 0 turns the limit off. Per-site and per-address limits still apply. |
+| `limits.maxPendingBytes` | 4294967296 | 0 to 2^50 | Bytes that all unfinished versions on the instance may declare together. A manifest that would pass the total gets 429 `too_many_pending`. 0 turns the limit off. A site can also hold at most 3 unfinished versions and a user 10. Unfinished versions expire after 24 hours. |
 
 ### Hosting
 
@@ -88,7 +91,7 @@ At least one of `hosting.subdomainEnabled` and `hosting.pathEnabled` must stay o
 | `email.fromName` | empty | Up to 100 characters | Sender name. |
 | `email.smtp.host` | empty | Host name or IP address | SMTP server. |
 | `email.smtp.port` | 587 | 1 to 65535 | SMTP port. |
-| `email.smtp.security` | `starttls` | `tls`, `starttls`, `none` | `tls` is implicit TLS, usually port 465. |
+| `email.smtp.security` | `starttls` | `tls`, `starttls`, `none` | `tls` is implicit TLS, usually port 465. `none` sends mail without encryption, and the server then refuses to log in with a user name and password unless the host is `localhost` or a loopback address. |
 | `email.smtp.username` | empty | Up to 255 characters | Leave empty for a server without authentication. |
 | `email.smtp.password` | write-only | Up to 1024 characters | Reads return `email.smtp.passwordSet`. An empty string clears it. |
 | `email.resend.apiKey` | write-only | Up to 1024 characters | Reads return `email.resend.apiKeySet`. An empty string clears it. |

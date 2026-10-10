@@ -166,3 +166,35 @@ func TestDeletingUserCascades(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionsEndAtTheAbsoluteLifetimeEvenWhenUsedConstantly(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		ctx := context.Background()
+		clock := newFakeClock()
+		svc := newTestService(t, db, clock)
+		user := setupUser(t, svc)
+		token, session, err := svc.CreateSession(ctx, user.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		limit := session.CreatedAt.Add(SessionMaxAge)
+		for day := 1; day < 90; day++ {
+			clock.Advance(24 * time.Hour)
+			info, err := svc.ValidateSession(ctx, token)
+			if err != nil {
+				t.Fatalf("day %d: %v", day, err)
+			}
+			if info.Session.ExpiresAt.After(limit) {
+				t.Fatalf("day %d: the session expires at %v, after the absolute limit %v", day, info.Session.ExpiresAt, limit)
+			}
+		}
+		clock.Advance(24*time.Hour + time.Minute)
+		if _, err := svc.ValidateSession(ctx, token); !errors.Is(err, ErrSessionInvalid) {
+			t.Errorf("a session older than %v was accepted: %v", SessionMaxAge, err)
+		}
+		var remaining int
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&remaining); err != nil || remaining != 0 {
+			t.Errorf("the expired session was kept: %d rows, %v", remaining, err)
+		}
+	})
+}

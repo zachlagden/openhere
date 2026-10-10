@@ -129,8 +129,8 @@ func TestFolderScopedWriter(t *testing.T) {
 		if _, err := s.svc.CreateFolder(ctx, s.sam, s.acme.Slug, "New"); !errors.Is(err, workspaces.ErrForbidden) {
 			t.Errorf("scoped writer CreateFolder = %v, want ErrForbidden", err)
 		}
-		if _, err := s.svc.RenameFolder(ctx, s.sam, s.acme.Slug, s.reports.ID, "Reports 2026"); err != nil {
-			t.Errorf("scoped writer renames its folder: %v", err)
+		if _, err := s.svc.RenameFolder(ctx, s.sam, s.acme.Slug, s.reports.ID, "Reports 2026"); !errors.Is(err, workspaces.ErrForbidden) {
+			t.Errorf("scoped writer RenameFolder = %v, want ErrForbidden", err)
 		}
 		if got := s.slugs(s.sam, Filter{}); !sameSet(got, []string{"q1-report", "q2-report"}) {
 			t.Errorf("sam sees %v", got)
@@ -213,7 +213,7 @@ func TestReadersCannotWriteAndStrangersSeeNothing(t *testing.T) {
 		if _, err := s.svc.CreateFolder(ctx, s.sam, s.acme.Slug, "Nope"); !errors.Is(err, workspaces.ErrForbidden) {
 			t.Errorf("reader CreateFolder = %v, want ErrForbidden", err)
 		}
-		if err := s.svc.DeleteFolder(ctx, s.sam, s.acme.Slug, s.reports.ID); !errors.Is(err, workspaces.ErrForbidden) {
+		if err := s.svc.DeleteFolder(ctx, s.sam, s.acme.Slug, s.reports.ID, false); !errors.Is(err, workspaces.ErrForbidden) {
 			t.Errorf("reader DeleteFolder = %v, want ErrForbidden", err)
 		}
 		if got := s.slugs(s.kim, Filter{}); len(got) != 0 {

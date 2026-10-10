@@ -2,6 +2,7 @@ package hosting
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -27,6 +28,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/sites"
@@ -55,6 +57,7 @@ type env struct {
 	probes     *Probes
 	router     *Router
 	access     *access.Service
+	box        *secrets.Box
 	domains    *domains.Service
 	dns        *fakeDNS
 	mailer     *mail.Recorder
@@ -111,8 +114,9 @@ func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	e.clock = &testClock{now: time.Now().UTC().Truncate(time.Second)}
 	e.mailer = mail.NewRecorder()
 	e.views = &viewLog{}
+	e.box = newTestBox(t)
 	e.access = access.New(db, access.Options{
-		Mailer: e.mailer, Params: fastParams, Now: e.clock.Now, Logger: logger, Spawn: func(task func()) { task() },
+		Mailer: e.mailer, Params: fastParams, Now: e.clock.Now, Logger: logger, Spawn: func(task func()) { task() }, Secrets: e.box,
 	})
 	e.resolver = NewResolver(db, nil)
 	e.settings = settings.New(db, settings.Options{DefaultBaseDomain: managementHost})
@@ -328,4 +332,13 @@ func newRecorder() *httptest.ResponseRecorder {
 
 func analyticsUpdate(enabled *bool) sites.UpdateInput {
 	return sites.UpdateInput{Analytics: enabled}
+}
+
+func newTestBox(t *testing.T) *secrets.Box {
+	t.Helper()
+	box, err := secrets.New(bytes.Repeat([]byte{3}, secrets.KeyBytes))
+	if err != nil {
+		t.Fatalf("secrets.New: %v", err)
+	}
+	return box
 }

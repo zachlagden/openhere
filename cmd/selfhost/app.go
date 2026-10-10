@@ -9,6 +9,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/certs"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/ui"
@@ -34,6 +35,7 @@ type application struct {
 	certs          *certs.Manager
 	stopBackground func()
 	closeAnalytics func()
+	timeouts       httptimeouts.Timeouts
 }
 
 func newCertManager(cfg config.Config, settingsSvc *settings.Service, box *secrets.Box, domainSvc *domains.Service, logger *slog.Logger) (*certs.Manager, error) {
@@ -54,15 +56,13 @@ func tlsReporter(manager *certs.Manager) api.TLSReporter {
 
 func (a *application) servers(cfg config.Config) []*http.Server {
 	if a.certs == nil {
-		return []*http.Server{{
-			Addr:              cfg.ListenAddr,
-			Handler:           a.handler,
-			ReadHeaderTimeout: readHeaderTimeout,
-		}}
+		srv := a.timeouts.NewServer(cfg.ListenAddr, a.handler)
+		srv.MaxHeaderBytes = maxHeaderBytes
+		return []*http.Server{srv}
 	}
 	return []*http.Server{
 		a.certs.HTTPServer(cfg.TLS.HTTPAddr),
-		a.certs.HTTPSServer(cfg.TLS.HTTPSAddr, a.handler),
+		a.certs.HTTPSServer(cfg.TLS.HTTPSAddr, a.handler, a.timeouts),
 	}
 }
 

@@ -1,34 +1,35 @@
 package auth
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
 
 func TestHashAndVerify(t *testing.T) {
-	hash, err := HashPassword(testPassword, testParams)
+	hash, err := HashPassword(context.Background(), testPassword, testParams)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
 	if !strings.HasPrefix(hash, "$argon2id$v=19$m=8,t=1,p=1$") {
 		t.Errorf("hash %q does not carry its parameters", hash)
 	}
-	ok, err := VerifyPassword(testPassword, hash)
+	ok, err := VerifyPassword(context.Background(), testPassword, hash)
 	if err != nil || !ok {
 		t.Errorf("VerifyPassword(correct) = %v, %v; want true, nil", ok, err)
 	}
-	ok, err = VerifyPassword("wrong password!!", hash)
+	ok, err = VerifyPassword(context.Background(), "wrong password!!", hash)
 	if err != nil || ok {
 		t.Errorf("VerifyPassword(wrong) = %v, %v; want false, nil", ok, err)
 	}
 }
 
 func TestHashesAreSalted(t *testing.T) {
-	a, err := HashPassword(testPassword, testParams)
+	a, err := HashPassword(context.Background(), testPassword, testParams)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	b, err := HashPassword(testPassword, testParams)
+	b, err := HashPassword(context.Background(), testPassword, testParams)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
@@ -48,14 +49,14 @@ func TestVerifyRejectsMalformedHashes(t *testing.T) {
 		"$argon2id$v=19$m=8,t=1,p=1$!!$aGFzaGhhc2hoYXNoaGFzaA",
 	}
 	for _, encoded := range cases {
-		if ok, err := VerifyPassword(testPassword, encoded); err == nil || ok {
+		if ok, err := VerifyPassword(context.Background(), testPassword, encoded); err == nil || ok {
 			t.Errorf("VerifyPassword(%q) = %v, %v; want an error", encoded, ok, err)
 		}
 	}
 }
 
 func TestNeedsRehash(t *testing.T) {
-	hash, err := HashPassword(testPassword, testParams)
+	hash, err := HashPassword(context.Background(), testPassword, testParams)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}

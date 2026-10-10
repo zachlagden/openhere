@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/domains"
@@ -33,12 +34,14 @@ type DomainLookup interface {
 type Limits struct {
 	Total   ratelimit.Rule
 	PerName ratelimit.Rule
+	PerSite ratelimit.Rule
 }
 
 func DefaultLimits() Limits {
 	return Limits{
 		Total:   ratelimit.Rule{Max: 50, Window: time.Hour},
 		PerName: ratelimit.Rule{Max: 5, Window: time.Hour},
+		PerSite: ratelimit.Rule{Max: 10, Window: time.Hour},
 	}
 }
 
@@ -55,6 +58,8 @@ type Policy struct {
 	host     string
 	total    *ratelimit.Limiter
 	perName  *ratelimit.Limiter
+	perSite  *ratelimit.Limiter
+	reserve  sync.Mutex
 	refusals *refusalCounter
 }
 
@@ -77,6 +82,7 @@ func NewPolicy(settingsReader SettingsReader, lookup DomainLookup, opts PolicyOp
 		host:     normaliseName(opts.ManagementHost),
 		total:    ratelimit.New(limits.Total.Max, limits.Total.Window, now),
 		perName:  ratelimit.New(limits.PerName.Max, limits.PerName.Window, now),
+		perSite:  ratelimit.New(limits.PerSite.Max, limits.PerSite.Window, now),
 		refusals: newRefusalCounter(logger, now),
 	}
 }
@@ -109,16 +115,6 @@ func (p *Policy) decide(ctx context.Context, name string) error {
 	}
 	if !serves {
 		return errNotVerified
-	}
-	return p.withinLimits(name)
-}
-
-func (p *Policy) withinLimits(name string) error {
-	if allowed, _ := p.perName.Allow(name); !allowed {
-		return errRateLimited
-	}
-	if allowed, _ := p.total.Allow("all"); !allowed {
-		return errRateLimited
 	}
 	return nil
 }

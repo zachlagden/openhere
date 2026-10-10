@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/zachlagden/selfhost/internal/publish"
@@ -30,6 +31,11 @@ func writePublishFailure(w http.ResponseWriter, err error) bool {
 		})
 		return true
 	}
+	var pending *publish.PendingLimitError
+	if errors.As(err, &pending) {
+		writeError(w, http.StatusTooManyRequests, codeTooManyPending, pendingMessage(pending.Limit))
+		return true
+	}
 	var missing *publish.MissingFilesError
 	if errors.As(err, &missing) {
 		writeJSON(w, http.StatusConflict, errorBody{
@@ -52,6 +58,17 @@ func writePublishFailure(w http.ResponseWriter, err error) bool {
 		}
 	}
 	return false
+}
+
+func pendingMessage(limit publish.PendingLimit) string {
+	switch limit {
+	case publish.LimitSite:
+		return fmt.Sprintf("This site already has %d unfinished versions. Finalize or delete one, or wait for them to expire.", publish.MaxPendingPerSite)
+	case publish.LimitUser:
+		return fmt.Sprintf("You already have %d unfinished versions. Finalize or delete one, or wait for them to expire.", publish.MaxPendingPerUser)
+	default:
+		return "The instance has too much unfinished upload data. Try again after other publishes finish or expire."
+	}
 }
 
 func isMaxBytes(err error) bool {

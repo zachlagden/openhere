@@ -2,6 +2,7 @@ package domains
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/zachlagden/selfhost/internal/ids"
@@ -27,7 +28,7 @@ func (s *Service) Claim(ctx context.Context, siteID, raw string) (Domain, error)
 	err = store.WithTx(ctx, s.db, func(q store.Querier) error {
 		return insertWithinLimit(ctx, q, domain, cfg.MaxDomainsPerSite)
 	})
-	if store.IsUniqueViolation(err) {
+	if store.IsUniqueViolation(err) || errors.Is(err, ErrTaken) {
 		return Domain{}, ErrTaken
 	}
 	if err != nil {
@@ -60,7 +61,15 @@ func insertWithinLimit(ctx context.Context, q store.Querier, d Domain, limit int
 	if count >= limit {
 		return ErrLimitReached
 	}
-	_, err := q.ExecContext(ctx,
+	var held int
+	err := q.QueryRowContext(ctx, "SELECT COUNT(*) FROM site_domains WHERE domain = $1 AND verified_at IS NOT NULL", d.Name).Scan(&held)
+	if err != nil {
+		return fmt.Errorf("check verified domain: %w", err)
+	}
+	if held > 0 {
+		return ErrTaken
+	}
+	_, err = q.ExecContext(ctx,
 		`INSERT INTO site_domains (id, site_id, domain, challenge_token, last_check_result, missing_checks, is_primary, created_at, claim_started_at)
 		VALUES ($1, $2, $3, $4, '', 0, FALSE, $5, $5)`,
 		d.ID, d.SiteID, d.Name, d.Token, d.CreatedAt)

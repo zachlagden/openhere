@@ -9,11 +9,12 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+
+	"github.com/zachlagden/selfhost/internal/fsperm"
 )
 
 const (
 	KeyFileName = "secret.key"
-	dirMode     = 0o700
 	fileMode    = 0o600
 )
 
@@ -40,7 +41,7 @@ func Resolve(envKey []byte, dataDir string) (*Box, error) {
 	if len(envKey) > 0 {
 		return New(envKey)
 	}
-	if err := os.MkdirAll(dataDir, dirMode); err != nil {
+	if err := fsperm.EnsureDir(dataDir, nil); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
 	root, err := os.OpenRoot(dataDir)

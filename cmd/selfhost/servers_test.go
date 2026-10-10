@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 )
 
 func quietLogger() *slog.Logger {
@@ -121,4 +124,19 @@ func listen(t *testing.T) (net.Listener, error) {
 	t.Helper()
 	var listenConfig net.ListenConfig
 	return listenConfig.Listen(t.Context(), "tcp", "127.0.0.1:0")
+}
+
+func TestThePlainListenerCarriesEveryTimeout(t *testing.T) {
+	app := &application{handler: http.NotFoundHandler(), timeouts: httptimeouts.Defaults()}
+	servers := app.servers(config.Config{ListenAddr: ":8080"})
+	if len(servers) != 1 {
+		t.Fatalf("servers = %d, want 1", len(servers))
+	}
+	srv := servers[0]
+	if srv.ReadHeaderTimeout != 10*time.Second || srv.ReadTimeout != 30*time.Second || srv.WriteTimeout != 60*time.Second || srv.IdleTimeout != 90*time.Second {
+		t.Errorf("timeouts = %v %v %v %v", srv.ReadHeaderTimeout, srv.ReadTimeout, srv.WriteTimeout, srv.IdleTimeout)
+	}
+	if srv.MaxHeaderBytes != maxHeaderBytes || srv.Addr != ":8080" {
+		t.Errorf("server = %+v", srv)
+	}
 }

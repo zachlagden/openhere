@@ -24,19 +24,16 @@ type Claims struct {
 	Subject string
 }
 
-func (s *Service) IssueCookie(ctx context.Context, siteID string, epoch int64, method Method, subject string) (string, time.Time, error) {
+func (s *Service) IssueCookie(_ context.Context, siteID string, epoch int64, method Method, subject string) (string, time.Time, error) {
 	expires := s.clock().Add(CookieLifetime)
 	payload := strings.Join([]string{siteID, strconv.FormatInt(epoch, 10), strconv.FormatInt(expires.Unix(), 10), string(method), subject}, "|")
-	mac, err := s.sign(ctx, cookiePurpose, payload)
-	if err != nil {
-		return "", time.Time{}, err
-	}
+	mac := s.sign(cookiePurpose, payload)
 	encoding := base64.RawURLEncoding
 	value := cookiePrefix + "." + encoding.EncodeToString([]byte(payload)) + "." + encoding.EncodeToString(mac)
 	return value, expires, nil
 }
 
-func (s *Service) ParseCookie(ctx context.Context, value string) (Claims, bool, error) {
+func (s *Service) ParseCookie(_ context.Context, value string) (Claims, bool, error) {
 	parts := strings.Split(value, ".")
 	if len(value) > maxCookieLength || len(parts) != 3 || parts[0] != cookiePrefix {
 		return Claims{}, false, nil
@@ -47,10 +44,7 @@ func (s *Service) ParseCookie(ctx context.Context, value string) (Claims, bool, 
 	if payloadErr != nil || macErr != nil {
 		return Claims{}, false, nil
 	}
-	want, err := s.sign(ctx, cookiePurpose, string(payload))
-	if err != nil {
-		return Claims{}, false, err
-	}
+	want := s.sign(cookiePurpose, string(payload))
 	if !hmac.Equal(given, want) {
 		return Claims{}, false, nil
 	}

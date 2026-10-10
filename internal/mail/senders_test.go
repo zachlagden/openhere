@@ -315,3 +315,43 @@ func TestUnreadableSettingsMakeTheSenderUnconfigured(t *testing.T) {
 		t.Errorf("error = %v", err)
 	}
 }
+
+func TestSMTPRefusesPasswordsOverAnUnencryptedConnection(t *testing.T) {
+	cfg := Config{
+		Provider: settings.ProviderSMTP, FromAddress: "noreply@example.com",
+		SMTP: SMTPConfig{Host: "mail.example.com", Port: 25, Security: settings.SecurityNone, Username: "alex", Password: "a-password"},
+	}
+	sender := New(&staticSource{cfg: cfg}, Options{Timeout: 3 * time.Second})
+	err := sendOne(t, sender)
+	if err == nil {
+		t.Fatal("credentials were sent over an unencrypted connection")
+	}
+	reason := Reason(err)
+	if !strings.Contains(reason, "not encrypted") || strings.Contains(reason, "a-password") || strings.Contains(reason, "connection failed") {
+		t.Errorf("reason = %q, want the refusal and no attempt to connect", reason)
+	}
+}
+
+func TestEncryptedAuthRule(t *testing.T) {
+	cases := map[string]struct {
+		cfg     SMTPConfig
+		refused bool
+	}{
+		"remote none with login":     {SMTPConfig{Host: "mail.example.com", Security: settings.SecurityNone, Username: "alex"}, true},
+		"remote none with ip":        {SMTPConfig{Host: "203.0.113.5", Security: settings.SecurityNone, Username: "alex"}, true},
+		"remote none without login":  {SMTPConfig{Host: "mail.example.com", Security: settings.SecurityNone}, false},
+		"remote starttls with login": {SMTPConfig{Host: "mail.example.com", Security: settings.SecurityStartTLS, Username: "alex"}, false},
+		"remote tls with login":      {SMTPConfig{Host: "mail.example.com", Security: settings.SecurityTLS, Username: "alex"}, false},
+		"localhost none with login":  {SMTPConfig{Host: "localhost", Security: settings.SecurityNone, Username: "alex"}, false},
+		"loopback v4 none":           {SMTPConfig{Host: "127.0.0.1", Security: settings.SecurityNone, Username: "alex"}, false},
+		"loopback v6 none":           {SMTPConfig{Host: "::1", Security: settings.SecurityNone, Username: "alex"}, false},
+		"lookalike host":             {SMTPConfig{Host: "localhost.example.com", Security: settings.SecurityNone, Username: "alex"}, true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := requireEncryptedAuth(tc.cfg) != nil; got != tc.refused {
+				t.Errorf("refused = %v, want %v", got, tc.refused)
+			}
+		})
+	}
+}

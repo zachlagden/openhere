@@ -2,6 +2,7 @@ package hosting
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"sync"
 	"testing"
@@ -79,14 +80,14 @@ func TestPathModeAndCustomDomainsRecordViews(t *testing.T) {
 	})
 }
 
-func TestSPAFallbackRecordsTheRequestedPath(t *testing.T) {
+func TestSPAFallbackRecordsTheRootPath(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		e := newEnv(t, db)
 		e.publishSite("spa-demo", siteSpec{files: map[string]string{"index.html": "shell"}, spa: true})
 		e.enableSubdomains()
 		expectBody(t, e.get("spa-demo.sites.example.com", "/dashboard/settings?tab=1"), 200, "shell")
 		hits := e.views.all()
-		if len(hits) != 1 || hits[0].Path != "/dashboard/settings" || hits[0].Status != 200 {
+		if len(hits) != 1 || hits[0].Path != "/" || hits[0].Status != 200 {
 			t.Errorf("hits = %+v", hits)
 		}
 	})
@@ -99,7 +100,7 @@ func TestCustomNotFoundPageRecordsA404(t *testing.T) {
 		e.enableSubdomains()
 		expectBody(t, e.site("/nope"), 404, "custom missing")
 		hits := e.views.all()
-		if len(hits) != 1 || hits[0].Path != "/nope" || hits[0].Status != 404 {
+		if len(hits) != 1 || hits[0].Path != "/(not found)" || hits[0].Status != 404 {
 			t.Errorf("hits = %+v", hits)
 		}
 	})
@@ -212,6 +213,26 @@ func TestTheRecordedAddressFollowsTheTrustedProxyRules(t *testing.T) {
 		}
 		if got := send("198.51.100.9:4000", "192.0.2.44").Addr; got != netip.MustParseAddr("198.51.100.9") {
 			t.Errorf("a forged header from an untrusted client gave %v", got)
+		}
+	})
+}
+
+func TestDistinctMissingPathsShareOneRecordedPath(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		e.publishSite("demo", nextExport)
+		e.publishSite("spa-demo", siteSpec{files: map[string]string{"index.html": "shell"}, spa: true})
+		e.enableSubdomains()
+		for i := range 600 {
+			e.site(fmt.Sprintf("/missing-%d", i))
+			e.get("spa-demo.sites.example.com", fmt.Sprintf("/app/route-%d", i))
+		}
+		paths := map[string]int{}
+		for _, hit := range e.views.all() {
+			paths[hit.Path]++
+		}
+		if len(paths) != 2 || paths["/(not found)"] != 600 || paths["/"] != 600 {
+			t.Errorf("recorded paths = %v, want 600 hits each under /(not found) and /", paths)
 		}
 	})
 }

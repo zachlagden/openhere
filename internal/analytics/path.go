@@ -5,7 +5,12 @@ import (
 	"unicode/utf8"
 )
 
-const MaxPathLength = 200
+const (
+	MaxPathLength = 200
+	PathRoot      = "/"
+	PathNotFound  = "/(not found)"
+	PathOther     = "/(other)"
+)
 
 func NormalisePath(requestPath string) string {
 	if cut := strings.IndexAny(requestPath, "?#"); cut >= 0 {

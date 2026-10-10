@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/ratelimit"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/store/storetest"
@@ -397,6 +399,28 @@ func TestUnlockAttemptsAreRateLimited(t *testing.T) {
 		e.clock.Advance(time.Hour)
 		if got := right("203.0.113.1:1000").Code; got != http.StatusSeeOther {
 			t.Errorf("the limit never lifted (%d)", got)
+		}
+	})
+}
+
+func TestUnlockReportsBusyWhenHashingIsSaturated(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		e.gatedDemo(passwordMode())
+		previous := hashlimit.Default()
+		limiter := hashlimit.New(1, 20*time.Millisecond)
+		hashlimit.SetDefault(limiter)
+		release, err := limiter.Acquire(context.Background())
+		if err != nil {
+			t.Fatalf("Acquire: %v", err)
+		}
+		t.Cleanup(func() {
+			release()
+			hashlimit.SetDefault(previous)
+		})
+		rec := e.unlock(siteHost, "", sharedSecret)
+		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" || viewerCookieOf(rec) != nil {
+			t.Errorf("unlock = %d, Retry-After %q, cookie %v", rec.Code, rec.Header().Get("Retry-After"), viewerCookieOf(rec))
 		}
 	})
 }

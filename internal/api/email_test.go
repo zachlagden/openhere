@@ -105,7 +105,7 @@ func TestEmailTestIsRootOnlyAndRateLimited(t *testing.T) {
 		h := newHarness(t, db, harnessOptions{
 			liveMail: &liveMailOptions{timeout: 2 * time.Second},
 			limits: &Limits{
-				LoginPerIP: Rule{Max: 1000, Window: time.Hour}, LoginPerEmail: Rule{Max: 1000, Window: time.Hour},
+				LoginPerIP: Rule{Max: 1000, Window: time.Hour}, LoginPerPair: Rule{Max: 1000, Window: time.Hour}, LoginPerEmail: Rule{Max: 1000, Window: time.Hour},
 				SetupPerIP: Rule{Max: 1000, Window: time.Hour}, SetupPerEmail: Rule{Max: 1000, Window: time.Hour},
 				EmailTest: Rule{Max: 2, Window: time.Hour},
 			},

@@ -72,4 +72,11 @@ describe("LoginPage", () => {
     renderLogin();
     await waitFor(() => expect(screen.getByText("Setup page")).toBeInTheDocument());
   });
+
+  it("says so when the server is busy hashing passwords", async () => {
+    mockApi({ ...signedOut, "POST /api/v1/auth/login": apiError(503, "server_busy", "The server is busy. Try again in a moment.", { retry_after: 5 }) });
+    renderLogin();
+    await fillAndSubmit();
+    expect(await screen.findByRole("alert")).toHaveTextContent("The server is busy. Try again in 5 seconds.");
+  });
 });

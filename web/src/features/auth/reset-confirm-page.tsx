@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import { isApiError } from "@/api/client";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SwitchField } from "@/components/ui/switch";
 import { useConfirmPasswordReset } from "@/queries/account";
 import { AuthLayout } from "./auth-layout";
 import { FormError, useRateLimit } from "./form-error";
@@ -35,7 +36,7 @@ export function ResetConfirmPage(): JSX.Element {
       return;
     }
     setMismatch(false);
-    confirm.mutate({ token, password });
+    confirm.mutate({ token, password, revokeApiKeys: form.get("revokeApiKeys") === "on" });
   }
 
   return (
@@ -51,6 +52,11 @@ export function ResetConfirmPage(): JSX.Element {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <PasswordField label="New password" name="password" autoComplete="new-password" required minLength={12} maxLength={128} hint="12 to 128 characters." autoFocus />
           <PasswordField label="Repeat the new password" name="confirm" autoComplete="new-password" required />
+          <SwitchField
+            name="revokeApiKeys"
+            label="Also revoke my API keys"
+            description="Turn this on if someone else may have a key. Scripts and agents that use your keys will stop working."
+          />
           {mismatch ? <Alert tone="error">The two passwords do not match.</Alert> : null}
           <FormError error={confirm.error} remaining={remaining} />
           <Button type="submit" variant="primary" disabled={confirm.isPending || remaining > 0}>

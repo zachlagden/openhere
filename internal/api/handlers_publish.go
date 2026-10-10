@@ -66,6 +66,11 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 		s.writeInternal(w, r, err)
 		return
 	}
+	declared := r.ContentLength
+	if declared < 0 || declared > cfg.MaxFileBytes {
+		declared = cfg.MaxFileBytes
+	}
+	s.timeouts.ExtendUpload(w, declared)
 	r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxFileBytes)
 	spec, err := s.publish.Upload(r.Context(), p.user.ID, r.PathValue("slug"), r.PathValue("versionId"), r.PathValue("path"), r.Body)
 	if err != nil {
@@ -144,6 +149,7 @@ func (s *Server) handleLiveFile(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error("close live file", "error", err)
 		}
 	}()
+	s.timeouts.ExtendDownload(w, live.Spec.Size)
 	h := w.Header()
 	h.Set("Content-Type", "application/octet-stream")
 	h.Set("Content-Disposition", "attachment")

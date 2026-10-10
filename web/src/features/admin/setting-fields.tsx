@@ -96,7 +96,7 @@ export function SettingNumber({ name, label, hint, disabled, min, max }: FieldPr
 
 const UNITS: ByteUnit[] = ["MB", "GB"];
 
-export function SettingBytes({ name, label, hint, disabled }: FieldProps): JSX.Element {
+export function SettingBytes({ name, label, hint, disabled, allowZero }: FieldProps & { allowZero?: boolean }): JSX.Element {
   const { draft, set, failure } = useSettingsFormApi();
   const value = draft[name];
   const initial = splitBytes(typeof value === "number" ? value : 0);
@@ -107,7 +107,7 @@ export function SettingBytes({ name, label, hint, disabled }: FieldProps): JSX.E
 
   function commit(nextAmount: string, nextUnit: ByteUnit): void {
     const parsed = Number(nextAmount);
-    set(name, nextAmount.trim() !== "" && Number.isFinite(parsed) && parsed > 0 ? toBytes(parsed, nextUnit) : Number.NaN);
+    set(name, nextAmount.trim() !== "" && Number.isFinite(parsed) && (parsed > 0 || (allowZero === true && parsed === 0)) ? toBytes(parsed, nextUnit) : Number.NaN);
   }
 
   return (

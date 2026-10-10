@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"testing"
 	"time"
 
@@ -87,6 +88,7 @@ func TestLoginRateLimitPerIP(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		limits := Limits{
 			LoginPerIP:    Rule{Max: 3, Window: time.Minute},
+			LoginPerPair:  Rule{Max: 1000, Window: time.Minute},
 			LoginPerEmail: Rule{Max: 1000, Window: time.Minute},
 			SetupPerIP:    Rule{Max: 1000, Window: time.Minute},
 			SetupPerEmail: Rule{Max: 1000, Window: time.Minute},
@@ -111,36 +113,91 @@ func TestLoginRateLimitPerIP(t *testing.T) {
 	})
 }
 
-func TestLoginRateLimitPerEmail(t *testing.T) {
+func loginLimits(change func(*Limits)) *Limits {
+	limits := Limits{
+		LoginPerIP:    Rule{Max: 1000, Window: time.Minute},
+		LoginPerPair:  Rule{Max: 1000, Window: time.Minute},
+		LoginPerEmail: Rule{Max: 1000, Window: time.Minute},
+		SetupPerIP:    Rule{Max: 1000, Window: time.Minute},
+		SetupPerEmail: Rule{Max: 1000, Window: time.Minute},
+	}
+	change(&limits)
+	return &limits
+}
+
+func TestLoginFailuresAreLimitedPerAddressAndEmailPair(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
-		limits := Limits{
-			LoginPerIP:    Rule{Max: 1000, Window: time.Minute},
-			LoginPerEmail: Rule{Max: 2, Window: time.Minute},
-			SetupPerIP:    Rule{Max: 1000, Window: time.Minute},
-			SetupPerEmail: Rule{Max: 1000, Window: time.Minute},
-		}
-		h := newHarness(t, db, harnessOptions{limits: &limits})
+		limits := loginLimits(func(l *Limits) { l.LoginPerPair = Rule{Max: 2, Window: time.Minute} })
+		h := newHarness(t, db, harnessOptions{limits: limits})
 		h.completeSetup()
 		bad := loginRequest{Email: "alex@example.com", Password: "not the password"}
 		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
-		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.2:1")), http.StatusUnauthorized, codeInvalidLogin)
-		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.3:1")), http.StatusTooManyRequests, codeRateLimited)
-		expectError(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.4:1")), http.StatusTooManyRequests, codeRateLimited)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusTooManyRequests, codeRateLimited)
+		expectError(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.1:1")), http.StatusTooManyRequests, codeRateLimited)
+
+		expectStatus(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.2:1")), http.StatusOK)
 
 		other := loginRequest{Email: "sam@example.com", Password: "not the password"}
 		expectError(t, h.do("POST", "/api/v1/auth/login", other, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
+
+		h.clock.Advance(61 * time.Second)
+		expectStatus(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.1:1")), http.StatusOK)
 	})
 }
 
-func TestSuccessfulLoginResetsEmailLimit(t *testing.T) {
+func TestAnAttackerCannotLockTheRealUserOut(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
-		limits := Limits{
-			LoginPerIP:    Rule{Max: 1000, Window: time.Minute},
-			LoginPerEmail: Rule{Max: 2, Window: time.Minute},
-			SetupPerIP:    Rule{Max: 1000, Window: time.Minute},
-			SetupPerEmail: Rule{Max: 1000, Window: time.Minute},
+		limits := loginLimits(func(l *Limits) {
+			l.LoginPerPair = Rule{Max: 3, Window: time.Minute}
+			l.LoginPerEmail = Rule{Max: 6, Window: time.Minute}
+		})
+		h := newHarness(t, db, harnessOptions{limits: limits})
+		h.completeSetup()
+		bad := loginRequest{Email: "alex@example.com", Password: "not the password"}
+		for i := range 30 {
+			addr := fromAddr("198.51.100." + strconv.Itoa(i%250+1) + ":1")
+			h.do("POST", "/api/v1/auth/login", bad, addr)
 		}
-		h := newHarness(t, db, harnessOptions{limits: &limits})
+		expectStatus(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.50:1")), http.StatusOK)
+	})
+}
+
+func TestEmailWideFailuresSlowOnlyAddressesThatAlreadyFailed(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		limits := loginLimits(func(l *Limits) {
+			l.LoginPerPair = Rule{Max: 100, Window: time.Minute}
+			l.LoginPerEmail = Rule{Max: 4, Window: time.Minute}
+		})
+		h := newHarness(t, db, harnessOptions{limits: limits})
+		h.completeSetup()
+		bad := loginRequest{Email: "alex@example.com", Password: "not the password"}
+		for i := range 4 {
+			addr := fromAddr("198.51.100." + strconv.Itoa(i+1) + ":1")
+			expectError(t, h.do("POST", "/api/v1/auth/login", bad, addr), http.StatusUnauthorized, codeInvalidLogin)
+		}
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("198.51.100.1:1")), http.StatusTooManyRequests, codeRateLimited)
+		expectError(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("198.51.100.2:1")), http.StatusTooManyRequests, codeRateLimited)
+		expectStatus(t, h.do("POST", "/api/v1/auth/login", loginBody(), fromAddr("203.0.113.77:1")), http.StatusOK)
+	})
+}
+
+func TestUnknownEmailsAreLimitedLikeKnownOnes(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		limits := loginLimits(func(l *Limits) { l.LoginPerPair = Rule{Max: 2, Window: time.Minute} })
+		h := newHarness(t, db, harnessOptions{limits: limits})
+		h.completeSetup()
+		bad := loginRequest{Email: "nobody@example.com", Password: "not the password"}
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusUnauthorized, codeInvalidLogin)
+		expectError(t, h.do("POST", "/api/v1/auth/login", bad, fromAddr("203.0.113.1:1")), http.StatusTooManyRequests, codeRateLimited)
+	})
+}
+
+func TestSuccessfulLoginResetsThePairCounter(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		limits := loginLimits(func(l *Limits) { l.LoginPerPair = Rule{Max: 2, Window: time.Minute} })
+		h := newHarness(t, db, harnessOptions{limits: limits})
 		h.completeSetup()
 		bad := loginRequest{Email: "alex@example.com", Password: "not the password"}
 		for range 5 {
@@ -154,6 +211,7 @@ func TestSetupRateLimit(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		limits := Limits{
 			LoginPerIP:    Rule{Max: 1000, Window: time.Minute},
+			LoginPerPair:  Rule{Max: 1000, Window: time.Minute},
 			LoginPerEmail: Rule{Max: 1000, Window: time.Minute},
 			SetupPerIP:    Rule{Max: 2, Window: time.Minute},
 			SetupPerEmail: Rule{Max: 1000, Window: time.Minute},

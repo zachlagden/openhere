@@ -80,6 +80,9 @@ func TestPermissionMatrix(t *testing.T) {
 				pending := e.next(slug, live.Version.ID, site{"index.html": "x"})
 				e.upload(e.alex, pending, site{"index.html": "x"})
 				err := tc.run(e, userID, publishTarget{slug: slug, pending: pending, live: live})
+				if _, execErr := db.ExecContext(context.Background(), "DELETE FROM versions WHERE site_id = $1 AND status = 'pending'", pending.Site.ID); execErr != nil {
+					t.Fatalf("clear pending versions: %v", execErr)
+				}
 				switch {
 				case role == "stranger":
 					if !errors.Is(err, workspaces.ErrNotFound) {

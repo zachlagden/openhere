@@ -25,12 +25,12 @@ Every other path under `/api/` returns a JSON 401, or a JSON 404 once signed in.
 
 ## Authentication
 
-- Browsers sign in with a session cookie: `HttpOnly`, `SameSite=Lax`, 30 days, renewed on use. Over HTTPS it is `__Host-session` with `Secure`, `Path=/` and no `Domain`, so a sibling subdomain cannot overwrite it. Over plain HTTP, meant for local use, it is `session`. The server reads only the form that matches the request.
+- Browsers sign in with a session cookie: `HttpOnly`, `SameSite=Lax`, 30 days, renewed on use, and never longer than 90 days after sign-in. Over HTTPS it is `__Host-session` with `Secure`, `Path=/` and no `Domain`, so a sibling subdomain cannot overwrite it. Over plain HTTP, meant for local use, it is `session`. The server reads only the form that matches the request.
 - A state-changing request that uses the cookie must carry an `X-Requested-With` header and an `Origin` header whose host equals the request host. Requests with a bearer key skip this check because the browser does not attach a bearer key by itself.
 - Scripts and agents send `Authorization: Bearer <key>`. The server stores only the SHA-256 hash of a key, and shows the full key once. Each user can hold 50 active keys. A key has the full access of its user.
-- Passwords need 12 to 128 characters and are stored as argon2id hashes. Site passwords need 8 to 128 characters, and the same hash applies.
+- Passwords need 12 to 128 characters and are stored as argon2id hashes. Site passwords need 8 to 128 characters, and the same hash applies. Each hash takes 64 MiB, so the server computes at most `ARGON2_CONCURRENCY` (default 2) at once. A request that waits more than 5 seconds for a slot gets 503 `server_busy`.
 - A disabled user fails every session and key lookup immediately.
-- Tokens for invites, password resets and sign-in handoffs are stored as hashes. Email codes are stored as HMACs.
+- The server sends SMTP credentials only over TLS or STARTTLS, or to a loopback host. Tokens for invites, password resets and sign-in handoffs are stored as hashes. Email codes are stored as HMACs.
 
 ## Rate limits
 
@@ -38,7 +38,7 @@ The limits below count in process memory. A restart resets every counter, and tw
 
 | Route | Limit |
 |---|---|
-| Login | 30 per IP and 10 per email in 15 minutes. A successful login resets the email counter. |
+| Login | 30 attempts per IP in 15 minutes. 10 failed attempts per IP and email pair in 15 minutes, reset by a successful login. After 100 failed attempts for one email in 15 minutes from any addresses, only addresses that already failed for that email get 429. A first attempt from a new address still reaches the password check. |
 | Setup | 10 per IP and 5 per email in 15 minutes |
 | Invite lookup | 60 per minute per IP |
 | Invite accept | 10 per 15 minutes per IP |
@@ -54,12 +54,19 @@ The limits below count in process memory. A restart resets every counter, and tw
 | Email test (root) | 5 per minute |
 | Site password unlock | 10 per IP and 100 per site in 15 minutes |
 | Site email code request | 3 per address in 10 minutes, 10 per IP in 15 minutes, 60 per site per hour |
+| Site email code emails | 100 per hour for the whole instance (`limits.maxGateCodeMailsPerHour`), on top of the limits above. A capped request gets the usual answer and no email goes out. |
 | Site email code check | 10 per address, 20 per IP and 200 per site in 15 minutes |
-| Certificates on demand | 5 per name and 50 in total per hour |
+| Certificates on demand | 5 per name, 10 per site and 50 in total per hour, counting only requests that reach the certificate authority |
+
+Publishing is limited by quota instead of rate. A site may hold 3 pending versions, a user 10, and all pending versions together may declare `limits.maxPendingBytes` (4 GiB by default). A manifest over a limit gets 429 `too_many_pending`. Pending versions expire after 24 hours.
 
 Authenticated API calls outside this table, such as publishing and listing, have no rate limit. Put a limit on the proxy if you need one.
 
-The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.
+The server tracks up to 50,000 limit keys at a time. When that many are in use, it first drops expired ones, then the 5% with the oldest windows. A flood of unique keys can therefore reset the oldest counters but never a newer one. The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.
+
+## Connection timeouts
+
+Every listener, including the built-in HTTPS ones and the port 80 redirect, closes a connection that sends its request headers slower than 10 seconds, its body slower than 30 seconds in total, or sits idle longer than 90 seconds. A response must finish within 60 seconds. Uploads and file downloads get more time in proportion to their size: 1 minute plus 1 second per 2 MiB, up to 30 minutes. A reverse proxy in front of the server needs timeouts at least this long for large uploads.
 
 ## Site isolation
 
@@ -80,7 +87,7 @@ Use subdomain or custom domain mode for gated sites. In path mode the viewer coo
 
 ## Secrets at rest
 
-The SMTP password, the Resend API key, the Cloudflare API token and the MaxMind licence key are write-only: the settings API never returns them. The server encrypts them with AES-256-GCM before it stores them in the database. The analytics visitor secret is sealed the same way. The viewer signing secret is stored in `instance_settings` under a key that the settings API neither returns nor accepts. The agent sign-in code hashes derive from the sealing key, so a changed key invalidates codes in flight.
+The SMTP password, the Resend API key, the Cloudflare API token and the MaxMind licence key are write-only: the settings API never returns them. The server encrypts them with AES-256-GCM before it stores them in the database. The analytics visitor secret is sealed the same way. The server stores no viewer signing secret. It derives the keys for viewer cookies, gate form tokens and site email codes from the sealing key, so a copy of the database alone cannot forge a viewer cookie. The agent sign-in code hashes derive from the sealing key too. A changed sealing key therefore invalidates codes in flight and signs every gate viewer out.
 
 The sealing key comes from `SECRET_KEY` when set. Otherwise the server creates `DATA_DIR/secret.key` with mode 0600 on first start.
 
@@ -88,13 +95,13 @@ The sealing key comes from `SECRET_KEY` when set. Otherwise the server creates `
 
 With PostgreSQL the database and `DATA_DIR` are separate, so a database dump alone does not carry `secret.key` unless it is in the same backup set.
 
-Certificate private keys live in `TLS_STORAGE` (default `DATA_DIR/certs`) with mode 0600, unencrypted. The setup token appears once in the server log at startup, while the instance has no users. Treat the log as sensitive until setup is complete. Never log a code, token, reset link, invite link, API key or password: the server does not.
+The server creates `DATA_DIR` and its subdirectories with mode 0700 and the SQLite database, its `-wal` and `-shm` files and `secret.key` with mode 0600. At every start it tightens the modes of existing ones and logs a warning if it cannot. A backup job that runs as another user needs its own access to the directory, for example through a group-readable copy that the job makes. Certificate private keys live in `TLS_STORAGE` (default `DATA_DIR/certs`) with mode 0600, unencrypted. The setup token appears once in the server log at startup, while the instance has no users. That is the bootstrap design: whoever can read the log can finish setup. Treat the log as sensitive until setup is complete. Server error lines name the route pattern, such as `GET /api/v1/invites/{token}`, and never the request path or query, so invite and reset tokens stay out of the log. Never log a code, token, reset link, invite link, API key or password: the server does not.
 
 ## Analytics privacy
 
 The server stores coarse values derived from each request, a keyed daily visitor hash and, only when you configure GeoLite2, a country and city. It never stores the IP address. See [Analytics](analytics.md) for the exact list.
 
-## Known limits
+## Known limits and trade-offs
 
 - Rate limit counters and the upload and finalize locks live in process memory. Run one server process per `DATA_DIR`. Horizontal scaling is unsupported: two processes on one data directory break the locks, and two processes with separate directories would each hold different files.
 - A process restart resets rate limits.
@@ -103,3 +110,7 @@ The server stores coarse values derived from each request, a keyed daily visitor
 - A path-mode site runs with the dashboard's origin as its parent, protected only by the sandbox policy.
 - The gate page of a gated site reveals that the slug exists.
 - Built-in HTTPS accepts the certificate authority's terms of service on your behalf.
+- A gated site in path mode sets its viewer cookie with `SameSite=None`, because the sandboxed page has an opaque origin. A page on another site that a signed-in viewer visits can therefore load that site's gated scripts and styles with the viewer's cookie attached. Use subdomain or custom domain mode for gated sites that hold anything private.
+- Tenant sites on subdomains of the dashboard host are siblings of the dashboard. JavaScript on one of them can set cookies for the parent domain. The `__Host-` prefix keeps the session cookie safe, but other cookies on that domain are not. Use a separate registrable base domain for sites, for example `example.net` for sites and `example.com` for the dashboard.
+- The response time of a code request differs slightly between an address on the allowlist and one that is not, because the server sends mail for the first. The bodies, status codes and rate limits are identical, so a caller needs many timed requests to learn anything, and the per-address and per-IP limits cap those.
+- A person who creates an invite sees the invite link, so they can accept it themselves and set the password of the new account. The invitee can recover the account with a password reset. Invite errors such as `email_registered` and `user_not_found` also tell the people allowed to invite which addresses already have an account.

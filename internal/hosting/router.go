@@ -10,6 +10,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -34,6 +35,7 @@ type Options struct {
 	Proxies  proxy.Trust
 	Limits   *GateLimits
 	Views    ViewRecorder
+	Timeouts httptimeouts.Timeouts
 	HSTS     bool
 	Now      func() time.Time
 }
@@ -65,7 +67,7 @@ func New(management http.Handler, settingsSvc *settings.Service, db store.Store,
 		management: management,
 		settings:   settingsSvc,
 		resolver:   resolver,
-		server:     siteServer{files: files, index: fileIndex{db: db}, logger: logger, views: opts.Views, proxies: opts.Proxies},
+		server:     siteServer{files: files, index: fileIndex{db: db}, logger: logger, views: opts.Views, proxies: opts.Proxies, timeouts: opts.Timeouts.OrDefaults()},
 		probes:     opts.Probes,
 		domains:    opts.Domains,
 		host:       opts.Public.Host,

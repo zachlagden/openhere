@@ -119,6 +119,14 @@ func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]APIKey, err
 	return keys, nil
 }
 
+func (s *Service) RevokeAllAPIKeys(ctx context.Context, q store.Querier, userID string) error {
+	_, err := q.ExecContext(ctx, "UPDATE api_keys SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL", s.clock(), userID)
+	if err != nil {
+		return fmt.Errorf("revoke api keys: %w", err)
+	}
+	return nil
+}
+
 func (s *Service) RevokeAPIKey(ctx context.Context, userID, keyID string) error {
 	result, err := s.db.ExecContext(ctx,
 		"UPDATE api_keys SET revoked_at = $1 WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL", s.clock(), keyID, userID)

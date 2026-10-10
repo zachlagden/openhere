@@ -24,24 +24,36 @@ func (s *Service) CheckPassword(ctx context.Context, siteID, password string) (S
 	}
 	state.Mode = Mode(mode)
 	if state.Mode != ModePassword || !hash.Valid {
-		return state, false, s.spendVerifyTime(password)
+		return state, false, s.spendVerifyTime(ctx, password)
 	}
-	ok, err := auth.VerifyPassword(password, hash.String)
+	ok, err := auth.VerifyPassword(ctx, password, hash.String)
 	if err != nil {
 		return state, false, wrap("verify site password", err)
 	}
 	return state, ok, nil
 }
 
-func (s *Service) spendVerifyTime(password string) error {
-	s.dummyOnce.Do(func() {
-		s.dummyHash, s.dummyErr = auth.HashPassword(timingEqualiserPassword, s.params)
-	})
-	if s.dummyErr != nil {
-		return wrap("equalise verify time", s.dummyErr)
+func (s *Service) spendVerifyTime(ctx context.Context, password string) error {
+	hash, err := s.timingEqualiser(ctx)
+	if err != nil {
+		return wrap("equalise verify time", err)
 	}
-	if _, err := auth.VerifyPassword(password, s.dummyHash); err != nil {
+	if _, err := auth.VerifyPassword(ctx, password, hash); err != nil {
 		return wrap("equalise verify time", err)
 	}
 	return nil
+}
+
+func (s *Service) timingEqualiser(ctx context.Context) (string, error) {
+	s.dummyMu.Lock()
+	defer s.dummyMu.Unlock()
+	if s.dummyHash != "" {
+		return s.dummyHash, nil
+	}
+	hash, err := auth.HashPassword(ctx, timingEqualiserPassword, s.params)
+	if err != nil {
+		return "", err
+	}
+	s.dummyHash = hash
+	return hash, nil
 }

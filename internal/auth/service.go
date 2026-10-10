@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -40,7 +41,7 @@ func New(db store.Store, opts Options) (*Service, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	dummy, err := HashPassword("timing-equaliser-not-a-real-password", params)
+	dummy, err := HashPassword(context.Background(), "timing-equaliser-not-a-real-password", params)
 	if err != nil {
 		return nil, fmt.Errorf("new auth service: %w", err)
 	}

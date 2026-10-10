@@ -34,14 +34,15 @@ func (s *Service) RequestCode(ctx context.Context, in CodeRequest) error {
 	if err != nil || !allowed || !s.mailer.Configured() {
 		return err
 	}
+	withinCap, err := s.reserveCodeMail(ctx)
+	if err != nil || !withinCap {
+		return err
+	}
 	code, err := otp.New(CodeDigits)
 	if err != nil {
 		return err
 	}
-	hash, err := s.codeHash(ctx, in.SiteID, email, code)
-	if err != nil {
-		return err
-	}
+	hash := s.codeHash(in.SiteID, email, code)
 	now := s.clock()
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO viewer_codes (site_id, email, code_hash, attempts, created_at, expires_at) VALUES ($1, $2, $3, 0, $4, $5)
@@ -109,10 +110,7 @@ func (s *Service) consumeAttempt(ctx context.Context, siteID, email, code string
 	if err != nil {
 		return false, wrap("load sign-in code", err)
 	}
-	given, err := s.codeHash(ctx, siteID, email, code)
-	if err != nil {
-		return false, err
-	}
+	given := s.codeHash(siteID, email, code)
 	if !hmac.Equal([]byte(given), []byte(stored)) {
 		return false, s.dropIfSpent(ctx, siteID, email, attempts)
 	}
@@ -157,10 +155,6 @@ func (s *Service) spendCode(ctx context.Context, siteID, email, hash string) (bo
 	return rows == 1, nil
 }
 
-func (s *Service) codeHash(ctx context.Context, siteID, email, code string) (string, error) {
-	mac, err := s.sign(ctx, codePurpose, siteID+"|"+email+"|"+code)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(mac), nil
+func (s *Service) codeHash(siteID, email, code string) string {
+	return hex.EncodeToString(s.sign(codePurpose, siteID+"|"+email+"|"+code))
 }

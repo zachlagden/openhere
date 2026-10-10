@@ -1,6 +1,7 @@
-import type { FormEvent, JSX } from "react";
+import { useState, type FormEvent, type JSX } from "react";
 import type { Folder } from "@/api/types";
 import { describeError } from "@/api/errors";
+import { isApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
@@ -93,24 +94,35 @@ export function RenameFolderDialog({ workspace, folder, open, onOpenChange }: Di
 export function DeleteFolderDialog({ workspace, folder, open, onOpenChange, onDeleted }: DialogBase & { folder: Folder; onDeleted: () => void }): JSX.Element {
   const remove = useDeleteFolder(workspace);
   const toast = useToast();
+  const [force, setForce] = useState(false);
+
+  function confirm(): void {
+    remove.mutate(
+      { id: folder.id, force },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          toast.success("Folder deleted. Its sites are now unfiled.");
+          onDeleted();
+        },
+        onError: (error) => {
+          if (isApiError(error) && error.code === "folder_has_grants") {
+            setForce(true);
+          }
+        },
+      },
+    );
+  }
 
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
       title={`Delete ${folder.name}?`}
-      confirmLabel="Delete folder"
+      confirmLabel={force ? "Delete anyway" : "Delete folder"}
       pending={remove.isPending}
       error={remove.error ? describeError(remove.error).message : null}
-      onConfirm={() =>
-        remove.mutate(folder.id, {
-          onSuccess: () => {
-            onOpenChange(false);
-            toast.success("Folder deleted. Its sites are now unfiled.");
-            onDeleted();
-          },
-        })
-      }
+      onConfirm={confirm}
     >
       <p>The sites in this folder stay in the workspace and become unfiled. This cannot be undone.</p>
     </ConfirmDialog>

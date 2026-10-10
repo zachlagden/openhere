@@ -11,6 +11,7 @@ import (
 
 const (
 	SessionTTL           = 30 * 24 * time.Hour
+	SessionMaxAge        = 90 * 24 * time.Hour
 	sessionTouchInterval = time.Hour
 )
 
@@ -69,7 +70,7 @@ func (s *Service) ValidateSession(ctx context.Context, token string) (SessionInf
 	info.Session.ID = storedID
 
 	now := s.clock()
-	if !info.Session.ExpiresAt.After(now) {
+	if !info.Session.ExpiresAt.After(now) || !info.Session.CreatedAt.Add(SessionMaxAge).After(now) {
 		if err := s.deleteSessionByID(ctx, id); err != nil {
 			return SessionInfo{}, err
 		}
@@ -82,7 +83,7 @@ func (s *Service) ValidateSession(ctx context.Context, token string) (SessionInf
 }
 
 func (s *Service) extendSession(ctx context.Context, info SessionInfo, now time.Time) (SessionInfo, error) {
-	expires := now.Add(SessionTTL)
+	expires := earliest(now.Add(SessionTTL), info.Session.CreatedAt.Add(SessionMaxAge))
 	_, err := s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = $1, expires_at = $2 WHERE id = $3", now, expires, info.Session.ID)
 	if err != nil {
 		return SessionInfo{}, fmt.Errorf("extend session: %w", err)
@@ -91,6 +92,13 @@ func (s *Service) extendSession(ctx context.Context, info SessionInfo, now time.
 	info.Session.ExpiresAt = expires
 	info.Extended = true
 	return info, nil
+}
+
+func earliest(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
 }
 
 func (s *Service) DeleteSession(ctx context.Context, token string) error {

@@ -21,6 +21,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/settings"
 )
 
@@ -156,7 +157,7 @@ func tuneDNS(t *testing.T, manager *Manager, resolver string) {
 func (e *pebbleEnv) serve(t *testing.T) {
 	t.Helper()
 	plain := e.manager.HTTPServer(":5002")
-	secure := e.manager.HTTPSServer(":5001", http.NotFoundHandler())
+	secure := e.manager.HTTPSServer(":5001", http.NotFoundHandler(), httptimeouts.Defaults())
 	go func() { _ = plain.ListenAndServe() }()
 	go func() { _ = secure.ListenAndServeTLS("", "") }()
 	t.Cleanup(func() {

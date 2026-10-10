@@ -55,7 +55,7 @@ func (s *Service) SetupNeeded(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) CreateUser(ctx context.Context, email, password string) (User, error) {
-	prepared, err := s.PrepareCredentials(email, password)
+	prepared, err := s.PrepareCredentials(ctx, email, password)
 	if err != nil {
 		return User{}, err
 	}
@@ -78,7 +78,7 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (User,
 }
 
 func (s *Service) Setup(ctx context.Context, email, password string) (User, error) {
-	prepared, err := s.PrepareCredentials(email, password)
+	prepared, err := s.PrepareCredentials(ctx, email, password)
 	if err != nil {
 		return User{}, err
 	}
@@ -122,18 +122,18 @@ func (s *Service) UserByID(ctx context.Context, id string) (User, error) {
 func (s *Service) Authenticate(ctx context.Context, email, password string) (User, error) {
 	normalized, err := NormalizeEmail(email)
 	if err != nil {
-		return User{}, s.rejectUnknownUser(password)
+		return User{}, s.rejectUnknownUser(ctx, password)
 	}
 	var hash string
 	row := s.db.QueryRowContext(ctx, "SELECT "+userColumns+", password_hash FROM users WHERE email = $1", normalized)
 	user, err := scanUserFrom(row, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		return User{}, s.rejectUnknownUser(password)
+		return User{}, s.rejectUnknownUser(ctx, password)
 	}
 	if err != nil {
 		return User{}, fmt.Errorf("load user for login: %w", err)
 	}
-	ok, err := VerifyPassword(password, hash)
+	ok, err := VerifyPassword(ctx, password, hash)
 	if err != nil {
 		return User{}, fmt.Errorf("verify password: %w", err)
 	}
@@ -154,7 +154,7 @@ type Credentials struct {
 	hash  string
 }
 
-func (s *Service) PrepareCredentials(email, password string) (Credentials, error) {
+func (s *Service) PrepareCredentials(ctx context.Context, email, password string) (Credentials, error) {
 	normalized, err := NormalizeEmail(email)
 	if err != nil {
 		return Credentials{}, err
@@ -162,7 +162,7 @@ func (s *Service) PrepareCredentials(email, password string) (Credentials, error
 	if err := ValidatePassword(password); err != nil {
 		return Credentials{}, err
 	}
-	hash, err := HashPassword(password, s.params)
+	hash, err := HashPassword(ctx, password, s.params)
 	if err != nil {
 		return Credentials{}, fmt.Errorf("hash password: %w", err)
 	}
@@ -191,15 +191,15 @@ func (s *Service) insertUser(ctx context.Context, q store.Querier, c Credentials
 	return User{ID: id, Email: c.email, DisplayName: displayName, IsRoot: isRoot, CreatedAt: now, UpdatedAt: now}, nil
 }
 
-func (s *Service) rejectUnknownUser(password string) error {
-	if _, err := VerifyPassword(password, s.dummyHash); err != nil {
+func (s *Service) rejectUnknownUser(ctx context.Context, password string) error {
+	if _, err := VerifyPassword(ctx, password, s.dummyHash); err != nil {
 		return fmt.Errorf("verify placeholder hash: %w", err)
 	}
 	return ErrInvalidCredentials
 }
 
 func (s *Service) upgradeHash(ctx context.Context, userID, password string) {
-	hash, err := HashPassword(password, s.params)
+	hash, err := HashPassword(ctx, password, s.params)
 	if err != nil {
 		s.logger.Warn("rehash password", "error", err)
 		return

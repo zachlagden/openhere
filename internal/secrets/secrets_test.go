@@ -149,3 +149,16 @@ func TestResolveRejectsACorruptKeyFile(t *testing.T) {
 		t.Fatal("a corrupt key file was accepted")
 	}
 }
+
+func TestResolveTightensAnExistingDataDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(nil, dir); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+		t.Errorf("data directory mode = %v, err %v; want 0700", info.Mode().Perm(), err)
+	}
+}

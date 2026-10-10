@@ -76,7 +76,7 @@ func (s *Service) CreateFolder(ctx context.Context, userID, workspaceRef, name s
 }
 
 func (s *Service) RenameFolder(ctx context.Context, userID, workspaceRef, folderID, name string) (Folder, error) {
-	folder, err := s.writableFolder(ctx, userID, workspaceRef, folderID)
+	folder, err := s.managedFolder(ctx, userID, workspaceRef, folderID, workspaces.RoleWrite)
 	if err != nil {
 		return Folder{}, err
 	}
@@ -97,12 +97,17 @@ func (s *Service) RenameFolder(ctx context.Context, userID, workspaceRef, folder
 	return folder, nil
 }
 
-func (s *Service) DeleteFolder(ctx context.Context, userID, workspaceRef, folderID string) error {
-	folder, err := s.writableFolder(ctx, userID, workspaceRef, folderID)
+func (s *Service) DeleteFolder(ctx context.Context, userID, workspaceRef, folderID string, force bool) error {
+	folder, err := s.managedFolder(ctx, userID, workspaceRef, folderID, workspaces.RoleAdmin)
 	if err != nil {
 		return err
 	}
 	return store.WithTx(ctx, s.db, func(q store.Querier) error {
+		if !force {
+			if err := refuseWhenGranted(ctx, q, folder.ID); err != nil {
+				return err
+			}
+		}
 		if _, err := q.ExecContext(ctx, "UPDATE sites SET folder_id = NULL, updated_at = $1 WHERE folder_id = $2", s.clock(), folder.ID); err != nil {
 			return fmt.Errorf("unfile sites: %w", err)
 		}
@@ -113,7 +118,19 @@ func (s *Service) DeleteFolder(ctx context.Context, userID, workspaceRef, folder
 	})
 }
 
-func (s *Service) writableFolder(ctx context.Context, userID, workspaceRef, folderID string) (Folder, error) {
+func refuseWhenGranted(ctx context.Context, q store.Querier, folderID string) error {
+	var grants int
+	err := q.QueryRowContext(ctx, "SELECT COUNT(*) FROM workspace_access WHERE folder_id = $1", folderID).Scan(&grants)
+	if err != nil {
+		return fmt.Errorf("count folder grants: %w", err)
+	}
+	if grants > 0 {
+		return ErrFolderHasGrants
+	}
+	return nil
+}
+
+func (s *Service) managedFolder(ctx context.Context, userID, workspaceRef, folderID string, need workspaces.Role) (Folder, error) {
 	acc, err := s.ws.Access(ctx, userID, workspaceRef)
 	if err != nil {
 		return Folder{}, err
@@ -123,7 +140,10 @@ func (s *Service) writableFolder(ctx context.Context, userID, workspaceRef, fold
 		return Folder{}, err
 	}
 	folder.Role = acc.FolderRole(folder.ID)
-	if err := workspaces.Require(folder.Role, workspaces.RoleWrite); err != nil {
+	if folder.Role == workspaces.RoleNone {
+		return Folder{}, workspaces.ErrNotFound
+	}
+	if err := workspaces.Require(acc.WorkspaceRole(), need); err != nil {
 		return Folder{}, err
 	}
 	return folder, nil

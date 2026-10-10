@@ -53,8 +53,8 @@ export interface paths {
         put?: never;
         /**
          * Sign in with email and password
-         * @description Sets the session cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
-         *     email and a malformed email all return the same response. Rate limited per IP address and per email.
+         * @description Sets the session cookie. Sessions last 30 days and renew on use, up to 90 days after sign-in. A wrong password, an unknown
+         *     email and a malformed email all return the same response. Rate limited per IP address, and by failed attempts per IP address and email pair.
          */
         post: operations["login"];
         delete?: never;
@@ -97,7 +97,7 @@ export interface paths {
         put?: never;
         /**
          * Set a new password with a reset link
-         * @description A link works once and for one hour. Success ends every session of the user and keeps their API keys.
+         * @description A link works once and for one hour. Success ends every session of the user and keeps their API keys, unless the request sets `revokeApiKeys`.
          *     It does not sign anyone in. A short password returns 400 `validation_failed` and leaves the link usable.
          *     Rate limited per IP address (10 in 15 minutes).
          */
@@ -463,15 +463,17 @@ export interface paths {
         post?: never;
         /**
          * Delete a folder
-         * @description Needs write on the folder. The folder's sites stay in the workspace as unfiled sites. Grants limited to
-         *     the folder are removed with it.
+         * @description Needs a workspace-wide admin role. A grant limited to the folder is not enough, whatever its role. The
+         *     folder's sites stay in the workspace as unfiled sites. Grants limited to the folder are removed with it,
+         *     so the call fails with 409 `folder_has_grants` while any exist. Pass `force=true` to delete the folder
+         *     and those grants anyway.
          */
         delete: operations["deleteFolder"];
         options?: never;
         head?: never;
         /**
          * Rename a folder
-         * @description Needs write on the folder, from a workspace-wide grant or a grant on that folder.
+         * @description Needs a workspace-wide write or admin role. A grant limited to the folder is not enough.
          */
         patch: operations["renameFolder"];
         trace?: never;
@@ -898,10 +900,12 @@ export interface paths {
          *     with 400 `validation_failed`.
          *
          *     The new domain is `pending_verification` and serves nothing. Publish the `challenge` TXT record, then call
-         *     `POST /sites/{slug}/domains/{id}/verify`. A claim blocks every other site from the same name even while
-         *     it is pending. A pending claim that is not verified within 7 days is released.
+         *     `POST /sites/{slug}/domains/{id}/verify`. Other sites can claim the same name while it is pending, so a pending claim
+         *     cannot block the real owner. The first site whose TXT record verifies takes the name, and the server deletes
+         *     every competing pending claim. A pending claim that is not verified within 7 days is released.
          *
-         *     A name another site already holds returns 409 `domain_taken`, whether that claim is pending or verified.
+         *     A name that a site has already verified returns 409 `domain_taken`, and so does a second claim of the same
+         *     name by the same site. The response does not say which site holds the name.
          *     A site that already holds `hosting.maxDomainsPerSite` domains gets 409 `domain_limit_reached`.
          */
         post: operations["createDomain"];
@@ -1981,6 +1985,20 @@ export interface components {
              */
             "limits.maxFileBytes": number;
             /**
+             * Format: int64
+             * @description Total bytes that all pending versions of all sites may declare. A manifest that would pass this total is
+             *     refused with 429 `too_many_pending`. 0 turns the limit off.
+             * @default 4294967296
+             */
+            "limits.maxPendingBytes": number;
+            /**
+             * @description Most sign-in code emails the instance sends for gated sites in one hour, counted in a fixed
+             *     window. Past it, a code request gets the same answer as before and no email goes out. 0 turns the
+             *     limit off. The per-site and per-address limits still apply.
+             * @default 100
+             */
+            "limits.maxGateCodeMailsPerHour": number;
+            /**
              * @description A bare host name such as `example.com`. Stored in lower case. Sites are served at `{slug}.{baseDomain}`.
              *     An empty value means the host name of the server's `PUBLIC_URL`, which is also what a new instance
              *     reports. A change is refused with 409 `base_domain_in_use` while a custom domain equals the new base
@@ -2219,6 +2237,11 @@ export interface components {
             /** @description The token from the reset link. */
             token: string;
             password: string;
+            /**
+             * @description Also revoke every API key of the user. Use it when the keys may be in someone else's hands.
+             * @default false
+             */
+            revokeApiKeys: boolean;
         };
         GenericStatus: {
             /** @enum {string} */
@@ -2464,6 +2487,31 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description Too many unfinished versions (`too_many_pending`). A site may hold 3 pending versions, a user 10, and
+         *     all pending versions together may declare at most `limits.maxPendingBytes`. Finalize or delete a pending
+         *     version, or wait for it to expire after 24 hours. The message names the limit in plain words and does not
+         *     name other users or sites.
+         */
+        TooManyPending: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Password hashing is saturated (`server_busy`). The request waited 5 seconds for a free slot. Retry after the interval in `Retry-After`. */
+        ServerBusy: {
+            headers: {
+                /** @description Seconds to wait. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         /** @description The site slug or id. */
@@ -2563,6 +2611,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     login: {
@@ -2610,6 +2659,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     requestPasswordReset: {
@@ -2675,6 +2725,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     requestAgentCode: {
@@ -3339,7 +3390,10 @@ export interface operations {
     };
     deleteFolder: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Delete the folder even when grants limited to it exist. */
+                force?: boolean;
+            };
             header?: never;
             path: {
                 /** @description The workspace slug or id. */
@@ -3361,6 +3415,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Grants limited to the folder still exist (`folder_has_grants`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     renameFolder: {
@@ -3603,6 +3666,7 @@ export interface operations {
             };
             413: components["responses"]["PublishTooLarge"];
             415: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyPending"];
         };
     };
     publishNewVersion: {
@@ -3637,6 +3701,7 @@ export interface operations {
             409: components["responses"]["VersionConflict"];
             413: components["responses"]["PublishTooLarge"];
             415: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyPending"];
         };
     };
     listVersions: {
@@ -3926,6 +3991,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     accessHandoff: {
@@ -4373,6 +4439,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     resendInvite: {

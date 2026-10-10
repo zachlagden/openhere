@@ -14,6 +14,14 @@ export function canWriteWholeWorkspace(workspace: Workspace): boolean {
   return !workspace.scopedOnly && (workspace.role === "admin" || workspace.role === "write");
 }
 
+export function canRenameFolders(workspace: Workspace): boolean {
+  return canWriteWholeWorkspace(workspace);
+}
+
+export function canDeleteFolders(workspace: Workspace): boolean {
+  return !workspace.scopedOnly && workspace.role === "admin";
+}
+
 export function canWrite(role: Role): boolean {
   return role === "admin" || role === "write";
 }

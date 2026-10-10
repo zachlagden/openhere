@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/fsperm"
 	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/settings"
 )
@@ -23,7 +24,6 @@ const (
 	refreshAfter   = 7 * 24 * time.Hour
 	retryAfter     = 6 * time.Hour
 	downloadWindow = 15 * time.Minute
-	dirMode        = 0o750
 )
 
 type State interface {
@@ -172,7 +172,7 @@ func (u *Updater) hasFile() bool {
 
 func (u *Updater) refresh(ctx context.Context, account, key string) error {
 	u.fingerprint = account + ":" + key
-	if err := os.MkdirAll(u.dir, dirMode); err != nil {
+	if err := fsperm.EnsureDir(u.dir, u.logger); err != nil {
 		return u.fail(ctx, fmt.Errorf("create the geo directory: %w", err))
 	}
 	checksumNote, err := u.download(ctx, account, key)

@@ -2,6 +2,7 @@ package publish
 
 import (
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/settings"
@@ -31,7 +32,9 @@ type Service struct {
 	now      func() time.Time
 	logger   *slog.Logger
 	locks    keyedLocker
-	changed  func(slug string)
+
+	pendingMu sync.Mutex
+	changed   func(slug string)
 }
 
 func New(db store.Store, siteSvc *sites.Service, ws *workspaces.Service, cfg *settings.Service, files *sitefiles.Store, opts Options) *Service {

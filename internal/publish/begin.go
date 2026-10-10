@@ -57,7 +57,7 @@ func (s *Service) Begin(ctx context.Context, in BeginInput) (Pending, error) {
 	if err != nil {
 		return Pending{}, err
 	}
-	version, err := s.createVersion(ctx, site, in.UserID, "", files)
+	version, err := s.createVersion(ctx, site, in.UserID, "", files, cfg.MaxPendingBytes)
 	if err != nil {
 		s.discardShell(ctx, in.UserID, site)
 		return Pending{}, err
@@ -105,14 +105,14 @@ func (s *Service) NewVersion(ctx context.Context, in NewVersionInput) (Pending, 
 	if in.BaseVersionID != "" && in.BaseVersionID != site.CurrentVersionID {
 		return Pending{}, &ConflictError{CurrentVersionID: site.CurrentVersionID}
 	}
-	version, err := s.createVersion(ctx, site, in.UserID, in.BaseVersionID, files)
+	version, err := s.createVersion(ctx, site, in.UserID, in.BaseVersionID, files, cfg.MaxPendingBytes)
 	if err != nil {
 		return Pending{}, err
 	}
 	return Pending{Site: site, Version: version, Files: files}, nil
 }
 
-func (s *Service) createVersion(ctx context.Context, site sites.Site, userID, base string, files []FileSpec) (Version, error) {
+func (s *Service) createVersion(ctx context.Context, site sites.Site, userID, base string, files []FileSpec, maxPendingBytes int64) (Version, error) {
 	id, err := ids.New()
 	if err != nil {
 		return Version{}, err
@@ -124,6 +124,11 @@ func (s *Service) createVersion(ctx context.Context, site sites.Site, userID, ba
 	version := Version{
 		ID: id, SiteID: site.ID, Status: StatusPending, CreatedBy: userID, CreatedAt: s.clock(),
 		FileCount: len(files), TotalBytes: total, BaseVersionID: base,
+	}
+	s.pendingMu.Lock()
+	defer s.pendingMu.Unlock()
+	if err := s.reservePending(ctx, site.ID, userID, total, maxPendingBytes); err != nil {
+		return Version{}, err
 	}
 	if err := insertVersion(ctx, s.db, version, files); err != nil {
 		return Version{}, fmt.Errorf("create version: %w", err)
