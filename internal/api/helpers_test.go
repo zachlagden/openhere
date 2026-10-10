@@ -184,7 +184,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	})
 	analyticsSvc := analytics.New(db, siteSvc, workspaceSvc, settingsSvc, analytics.Options{Now: clock.Now, Recorder: viewRecorder})
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc,
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3",
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc, Views: viewRecorder, Resolver: resolver})
 	return &harness{

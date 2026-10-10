@@ -154,7 +154,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
 		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
-		TLS: tlsReporter(certManager), Analytics: analyticsSvc,
+		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version,
 	})
 	router := hosting.New(server.Handler(), settingsSvc, db, files,
 		hosting.Options{

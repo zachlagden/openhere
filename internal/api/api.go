@@ -121,6 +121,7 @@ type Options struct {
 	Domains        *domains.Service
 	TLS            TLSReporter
 	Analytics      *analytics.Service
+	Version        string
 }
 
 type Server struct {
@@ -142,6 +143,7 @@ type Server struct {
 	domains    *domains.Service
 	tls        TLSReporter
 	analytics  *analytics.Service
+	version    string
 	now        func() time.Time
 
 	agentReqIP     *ratelimit.Limiter
@@ -204,6 +206,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		domains:    opts.Domains,
 		tls:        opts.TLS,
 		analytics:  opts.Analytics,
+		version:    opts.Version,
 		now:        now,
 
 		agentReqIP:     limiter(limits.AgentRequestIP),
@@ -253,6 +256,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerInviteRoutes(mux)
 	s.registerPasswordResetRoutes(mux)
 	s.registerAgentRoutes(mux)
+	s.registerInstanceRoutes(mux)
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)
