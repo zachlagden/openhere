@@ -12,6 +12,9 @@ import { OverviewTab } from "@/features/site-detail/overview-tab";
 import { SiteLayout } from "@/features/site-detail/site-layout";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { SitesPage } from "@/features/sites/sites-page";
+import { MembersTab } from "@/features/workspaces/members-tab";
+import { WorkspaceLayout } from "@/features/workspaces/workspace-layout";
+import { WorkspaceSitesTab } from "@/features/workspaces/workspace-sites-tab";
 import { AppShell } from "@/layout/app-shell";
 import { NotFoundPage } from "@/layout/not-found-page";
 import { RequireAuth } from "@/layout/require-auth";
@@ -31,7 +34,10 @@ export function App(): JSX.Element {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route index element={<SitesPage />} />
-          <Route path="workspaces/:workspace" element={<SitesPage />} />
+          <Route path="workspaces/:workspace" element={<WorkspaceLayout />}>
+            <Route index element={<WorkspaceSitesTab />} />
+            <Route path="members" element={<MembersTab />} />
+          </Route>
           <Route path="sites/:slug" element={<SiteLayout />}>
             <Route index element={<OverviewTab />} />
             <Route path="access" element={<AccessTab />} />

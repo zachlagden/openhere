@@ -1,4 +1,4 @@
-import type { Analytics, Domain, Folder, Instance, Site, User, Workspace } from "@/api/types";
+import type { Analytics, Domain, Folder, Instance, Member, Site, User, Workspace } from "@/api/types";
 
 export const alex: User = {
   id: "u1",
@@ -112,6 +112,31 @@ export function makeReport(overrides: Partial<Analytics> = {}): Analytics {
     statuses: [{ value: "2xx", views: 30, uniques: 18 }],
     locationAvailable: false,
     generatedAt: "2026-03-03T12:00:00Z",
+    ...overrides,
+  };
+}
+
+export const acme: Workspace = {
+  id: "w2",
+  slug: "acme",
+  name: "Acme Ltd",
+  kind: "shared",
+  role: "admin",
+  scopedOnly: false,
+  createdAt: "2026-03-01T10:00:00Z",
+  updatedAt: "2026-03-01T10:00:00Z",
+};
+
+export function makeMember(overrides: Partial<Member> = {}): Member {
+  return {
+    id: "g1",
+    userId: "u1",
+    email: "alex@example.com",
+    role: "admin",
+    scopeType: "workspace",
+    scopeId: null,
+    scopeName: null,
+    createdAt: "2026-03-01T10:00:00Z",
     ...overrides,
   };
 }

@@ -2,10 +2,12 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
   type InfiniteData,
   type UseInfiniteQueryResult,
   type UseMutationResult,
+  type UseQueryResult,
 } from "@tanstack/react-query";
 import * as api from "@/api/endpoints";
 import type { Site, SiteList } from "@/api/types";
@@ -38,5 +40,13 @@ export function useMoveSite(): UseMutationResult<Site, Error, { slug: string; fo
   return useMutation({
     mutationFn: ({ slug, folderId }) => api.updateSite(slug, { folderId }),
     onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.sites }),
+  });
+}
+
+export function useWorkspaceSiteChoices(workspace: string, enabled: boolean): UseQueryResult<Site[]> {
+  return useQuery({
+    queryKey: [...queryKeys.sites, "choices", workspace],
+    enabled,
+    queryFn: async ({ signal }) => (await api.listSites({ workspace, limit: 200 }, { signal })).sites,
   });
 }
