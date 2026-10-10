@@ -66,7 +66,7 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	notices := make([]noticeResponse, 0, len(outcome.Notices))
 	for _, notice := range outcome.Notices {
-		notices = append(notices, noticeResponse{Code: notice.Code, Message: notice.Message})
+		notices = append(notices, noticeResponse(notice))
 	}
 	writeJSON(w, http.StatusOK, updateSettingsEnvelope{Settings: settings.Values(outcome.Settings), Notices: notices})
 }

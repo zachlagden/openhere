@@ -43,14 +43,14 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	urlFor, err := s.siteURLs(r.Context())
+	hostingFor, err := s.siteHosting(r.Context())
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return
 	}
 	response := siteListResponse{Sites: make([]siteResponse, 0, len(page.Sites)), NextCursor: optional(page.NextCursor)}
 	for _, site := range page.Sites {
-		response.Sites = append(response.Sites, toSiteResponse(site, urlFor(site.Slug)))
+		response.Sites = append(response.Sites, toSiteResponse(site, hostingFor(site)))
 	}
 	writeJSON(w, http.StatusOK, response)
 }
@@ -131,10 +131,10 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeSite(w http.ResponseWriter, r *http.Request, status int, site sites.Site) {
-	urlFor, err := s.siteURLs(r.Context())
+	hostingFor, err := s.siteHosting(r.Context())
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return
 	}
-	writeJSON(w, status, siteEnvelope{Site: toSiteResponse(site, urlFor(site.Slug))})
+	writeJSON(w, status, siteEnvelope{Site: toSiteResponse(site, hostingFor(site))})
 }

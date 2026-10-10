@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/publish"
 )
 
@@ -46,16 +47,17 @@ type uploadResponse struct {
 }
 
 type publishResponse struct {
-	Slug        string           `json:"slug"`
-	SiteID      string           `json:"siteId"`
-	VersionID   string           `json:"versionId"`
-	ExpiresAt   time.Time        `json:"expiresAt"`
-	Uploads     []uploadResponse `json:"uploads"`
-	FinalizeURL string           `json:"finalizeUrl"`
-	URL         *string          `json:"url"`
+	Slug        string              `json:"slug"`
+	SiteID      string              `json:"siteId"`
+	VersionID   string              `json:"versionId"`
+	ExpiresAt   time.Time           `json:"expiresAt"`
+	Uploads     []uploadResponse    `json:"uploads"`
+	FinalizeURL string              `json:"finalizeUrl"`
+	URL         *string             `json:"url"`
+	Hosting     siteHostingResponse `json:"hosting"`
 }
 
-func toPublishResponse(p publish.Pending, siteURL *string) publishResponse {
+func toPublishResponse(p publish.Pending, availability hosting.SiteAvailability) publishResponse {
 	versionURL := basePath + "/publish/" + p.Site.Slug + "/versions/" + p.Version.ID
 	uploads := make([]uploadResponse, len(p.Files))
 	for i, f := range p.Files {
@@ -66,7 +68,7 @@ func toPublishResponse(p publish.Pending, siteURL *string) publishResponse {
 	}
 	return publishResponse{
 		Slug: p.Site.Slug, SiteID: p.Site.ID, VersionID: p.Version.ID, ExpiresAt: p.Version.ExpiresAt(),
-		Uploads: uploads, FinalizeURL: versionURL + "/finalize", URL: siteURL,
+		Uploads: uploads, FinalizeURL: versionURL + "/finalize", URL: optional(availability.URL), Hosting: toSiteHostingResponse(availability),
 	}
 }
 
@@ -103,9 +105,16 @@ type versionListResponse struct {
 }
 
 type resultResponse struct {
-	Slug    string          `json:"slug"`
-	URL     *string         `json:"url"`
-	Version versionResponse `json:"version"`
+	Slug    string              `json:"slug"`
+	URL     *string             `json:"url"`
+	Hosting siteHostingResponse `json:"hosting"`
+	Version versionResponse     `json:"version"`
+}
+
+func toResultResponse(r publish.Result, availability hosting.SiteAvailability) resultResponse {
+	return resultResponse{
+		Slug: r.Site.Slug, URL: optional(availability.URL), Hosting: toSiteHostingResponse(availability), Version: toVersionResponse(r.Version),
+	}
 }
 
 type fileResponse struct {
