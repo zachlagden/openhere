@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/netip"
 	"testing"
@@ -111,5 +112,21 @@ func TestRenewedSessionKeepsTheHostPrefix(t *testing.T) {
 		if renewed == nil || renewed.Name != "__Host-session" || !renewed.Secure || renewed.Value != setup.cookie.Value {
 			t.Errorf("renewed cookie = %+v", renewed)
 		}
+	})
+}
+
+func TestCookieFormFollowsTheRequestsOwnTLSState(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		h.completeSetup()
+		overTLS := func(r *http.Request) { r.TLS = &tls.ConnectionState{} }
+
+		login := h.do("POST", "/api/v1/auth/login", loginBody(), overTLS)
+		expectStatus(t, login, http.StatusOK)
+		cookie := sessionCookie(login)
+		if cookie == nil || cookie.Name != "__Host-session" || !cookie.Secure {
+			t.Fatalf("cookie over TLS = %+v", cookie)
+		}
+		expectStatus(t, h.do("GET", "/api/v1/me", nil, withCookie(cookie), overTLS), http.StatusOK)
 	})
 }

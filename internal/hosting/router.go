@@ -33,6 +33,7 @@ type Options struct {
 	Domains  DomainLookup
 	Proxies  proxy.Trust
 	Limits   *GateLimits
+	HSTS     bool
 	Now      func() time.Time
 }
 
@@ -45,6 +46,7 @@ type Router struct {
 	domains    DomainLookup
 	gate       *gate
 	host       string
+	hsts       bool
 	logger     *slog.Logger
 }
 
@@ -66,6 +68,7 @@ func New(management http.Handler, settingsSvc *settings.Service, db store.Store,
 		probes:     opts.Probes,
 		domains:    opts.Domains,
 		host:       opts.Public.Host,
+		hsts:       opts.HSTS,
 		logger:     logger,
 	}
 }
@@ -75,6 +78,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rt.serveSiteHost(w, r)
 		return
 	}
+	rt.setHSTS(w, r)
 	if r.URL.Path == "/s" || strings.HasPrefix(r.URL.Path, pathModePrefix) {
 		rt.servePathMode(w, r)
 		return
@@ -126,6 +130,7 @@ func (rt *Router) serveSiteHost(w http.ResponseWriter, r *http.Request) {
 			writeNotFound(w, r)
 			return
 		}
+		rt.setHSTS(w, r)
 		rt.serveSite(w, r, siteTarget{slug: slugPart, path: r.URL.Path})
 		return
 	}
@@ -146,6 +151,7 @@ func (rt *Router) serveCustomDomain(w http.ResponseWriter, r *http.Request, host
 		writeNotFound(w, r)
 		return
 	}
+	rt.setHSTS(w, r)
 	rt.serveSite(w, r, siteTarget{slug: target.Slug, path: r.URL.Path, customHost: host})
 }
 
