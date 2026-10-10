@@ -77,7 +77,7 @@ func TestConcurrentFinalisationsWithTheSameBaseHaveOneWinner(t *testing.T) {
 		ctx := context.Background()
 		base := e.publishNew("contended", site{"index.html": "base"})
 
-		const contenders = 8
+		const contenders = MaxPendingPerSite
 		pendings := make([]Pending, contenders)
 		for i := range pendings {
 			files := site{"index.html": "contender-" + string(rune('a'+i))}

@@ -1981,6 +1981,13 @@ export interface components {
              */
             "limits.maxFileBytes": number;
             /**
+             * Format: int64
+             * @description Total bytes that all pending versions of all sites may declare. A manifest that would pass this total is
+             *     refused with 429 `too_many_pending`. 0 turns the limit off.
+             * @default 4294967296
+             */
+            "limits.maxPendingBytes": number;
+            /**
              * @description A bare host name such as `example.com`. Stored in lower case. Sites are served at `{slug}.{baseDomain}`.
              *     An empty value means the host name of the server's `PUBLIC_URL`, which is also what a new instance
              *     reports. A change is refused with 409 `base_domain_in_use` while a custom domain equals the new base
@@ -2464,6 +2471,31 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description Too many unfinished versions (`too_many_pending`). A site may hold 3 pending versions, a user 10, and
+         *     all pending versions together may declare at most `limits.maxPendingBytes`. Finalize or delete a pending
+         *     version, or wait for it to expire after 24 hours. The message names the limit in plain words and does not
+         *     name other users or sites.
+         */
+        TooManyPending: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Password hashing is saturated (`server_busy`). The request waited 5 seconds for a free slot. Retry after the interval in `Retry-After`. */
+        ServerBusy: {
+            headers: {
+                /** @description Seconds to wait. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         /** @description The site slug or id. */
@@ -2563,6 +2595,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     login: {
@@ -2610,6 +2643,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     requestPasswordReset: {
@@ -2675,6 +2709,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     requestAgentCode: {
@@ -3603,6 +3638,7 @@ export interface operations {
             };
             413: components["responses"]["PublishTooLarge"];
             415: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyPending"];
         };
     };
     publishNewVersion: {
@@ -3637,6 +3673,7 @@ export interface operations {
             409: components["responses"]["VersionConflict"];
             413: components["responses"]["PublishTooLarge"];
             415: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyPending"];
         };
     };
     listVersions: {
@@ -3926,6 +3963,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     accessHandoff: {
@@ -4373,6 +4411,7 @@ export interface operations {
             413: components["responses"]["BadRequest"];
             415: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServerBusy"];
         };
     };
     resendInvite: {

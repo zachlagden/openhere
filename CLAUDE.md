@@ -38,6 +38,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 
 - Every file path from a client passes `sitepath.Validate`, and every manifest passes `sitepath.CheckSet`. `sitefiles` is the only code that touches `DATA_DIR/sites`, builds paths from validated ids and paths, and opens files through `os.Root`. Never follow or create a symlink.
 - A version is `pending` or `finalized`. Whether it is live comes from `sites.current_version_id`, never from a stored flag. Only `publish` changes that pointer, in one transaction that also re-checks the base version.
+- Every new pending version goes through `publish.Service.createVersion`, which holds `pendingMu` while it checks the caps (3 pending per site, 10 per user, `limits.maxPendingBytes` in total) and inserts. A breach returns `*PendingLimitError`, which the API maps to 429 `too_many_pending`. Expired pending versions are removed before the refusal is final.
 - A finalized version directory never changes. Upload and finalize take a per-version lock, so a file cannot land after finalize.
 - Return stored files only as `application/octet-stream` with `Content-Disposition: attachment` from the API. Only `hosting` serves them with their real type.
 - Add an instance setting by adding a field to `settings.Settings` and one entry to `definitions` in `internal/settings/definitions.go`, then document it in `docs/openapi.yaml` and `docs/configuration.md`.

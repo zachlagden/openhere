@@ -1097,6 +1097,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "413":
           $ref: "#/components/responses/PublishTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyPending"
         "415":
           $ref: "#/components/responses/BadRequest"
   /publish/{slug}:
@@ -1137,6 +1139,8 @@ paths:
           $ref: "#/components/responses/VersionConflict"
         "413":
           $ref: "#/components/responses/PublishTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyPending"
         "415":
           $ref: "#/components/responses/BadRequest"
   /publish/{slug}/versions:
@@ -2411,6 +2415,16 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    TooManyPending:
+      description: |
+        Too many unfinished versions (`too_many_pending`). A site may hold 3 pending versions, a user 10, and
+        all pending versions together may declare at most `limits.maxPendingBytes`. Finalize or delete a pending
+        version, or wait for it to expire after 24 hours. The message names the limit in plain words and does not
+        name other users or sites.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     ServerBusy:
       description: Password hashing is saturated (`server_busy`). The request waited 5 seconds for a free slot. Retry after the interval in `Retry-After`.
       headers:
@@ -3469,6 +3483,14 @@ components:
           minimum: 1
           default: 268435456
           description: Size of one file in bytes. Also caps the upload request body.
+        limits.maxPendingBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          default: 4294967296
+          description: |
+            Total bytes that all pending versions of all sites may declare. A manifest that would pass this total is
+            refused with 429 `too_many_pending`. 0 turns the limit off.
         hosting.baseDomain:
           type: string
           description: |

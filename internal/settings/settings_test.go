@@ -35,7 +35,7 @@ func TestDefaults(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := Settings{
-			KeepVersions: 10, MaxFilesPerVer: 2500, MaxVersionBytes: 1 << 30, MaxFileBytes: 256 << 20,
+			KeepVersions: 10, MaxFilesPerVer: 2500, MaxVersionBytes: 1 << 30, MaxFileBytes: 256 << 20, MaxPendingBytes: 4 << 30,
 			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, CustomDomainsEnabled: true, MaxDomainsPerSite: 10, WildcardStatus: WildcardUnchecked,
 			DefaultAccessMode: AccessPublic,
 			Email:             Email{Provider: ProviderNone, SMTPPort: 587, SMTPSecurity: SecurityStartTLS},

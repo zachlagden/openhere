@@ -225,6 +225,17 @@ describe("policy", () => {
     await waitFor(() => expect(patchBodies(fetchMock)).toEqual([{ settings: { "limits.maxFileBytes": 536_870_912 } }]));
   });
 
+  it("lets the unfinished upload limit be turned off with zero", async () => {
+    const fetchMock = setup("/admin/policy");
+    const pending = await screen.findByLabelText("Unfinished uploads in total");
+    expect(pending).toHaveValue(4);
+    expect(screen.getByLabelText("Unfinished uploads in total unit")).toHaveValue("GB");
+    await userEvent.clear(pending);
+    await userEvent.type(pending, "0");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patchBodies(fetchMock)).toEqual([{ settings: { "limits.maxPendingBytes": 0 } }]));
+  });
+
   it("changes who can invite", async () => {
     const fetchMock = setup("/admin/policy");
     await userEvent.selectOptions(await screen.findByLabelText("Who can invite new people"), "workspaceAdmins");

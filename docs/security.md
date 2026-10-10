@@ -57,6 +57,8 @@ The limits below count in process memory. A restart resets every counter, and tw
 | Site email code check | 10 per address, 20 per IP and 200 per site in 15 minutes |
 | Certificates on demand | 5 per name and 50 in total per hour |
 
+Publishing is limited by quota instead of rate. A site may hold 3 pending versions, a user 10, and all pending versions together may declare `limits.maxPendingBytes` (4 GiB by default). A manifest over a limit gets 429 `too_many_pending`. Pending versions expire after 24 hours.
+
 Authenticated API calls outside this table, such as publishing and listing, have no rate limit. Put a limit on the proxy if you need one.
 
 The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.

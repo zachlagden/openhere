@@ -17,6 +17,7 @@ const (
 	KeyMaxFilesPerVer   = "limits.maxFilesPerVersion"
 	KeyMaxVersionBytes  = "limits.maxVersionBytes"
 	KeyMaxFileBytes     = "limits.maxFileBytes"
+	KeyMaxPendingBytes  = "limits.maxPendingBytes"
 	KeyBaseDomain       = "hosting.baseDomain"
 	KeySubdomainEnabled = "hosting.subdomainEnabled"
 	KeyPathEnabled      = "hosting.pathEnabled"
@@ -60,6 +61,7 @@ type Settings struct {
 	MaxFilesPerVer   int
 	MaxVersionBytes  int64
 	MaxFileBytes     int64
+	MaxPendingBytes  int64
 	BaseDomain       string
 	SubdomainEnabled bool
 	PathEnabled      bool
@@ -117,6 +119,9 @@ var definitions = []definition{
 	intDefinition(KeyMaxFileBytes, 256<<20, maxBytesLimit,
 		func(s *Settings, v int64) { s.MaxFileBytes = v },
 		func(s Settings) int64 { return s.MaxFileBytes }),
+	boundedIntDefinition(KeyMaxPendingBytes, 4<<30, true, minimumInt, maxBytesLimit,
+		func(s *Settings, v int64) { s.MaxPendingBytes = v },
+		func(s Settings) int64 { return s.MaxPendingBytes }),
 	stringDefinition(KeyBaseDomain, "", normaliseBaseDomain,
 		func(s *Settings, v string) { s.BaseDomain = v },
 		func(s Settings) string { return s.BaseDomain }),

@@ -44,6 +44,7 @@ const (
 	codeInvalidResetToken   = "invalid_reset_token"
 	codeInvalidCode         = "invalid_code"
 	codeVersionConflict     = "version_conflict"
+	codeTooManyPending      = "too_many_pending"
 	codeTooManyFiles        = "too_many_files"
 	codeVersionTooLarge     = "version_too_large"
 	codeFileTooLarge        = "file_too_large"

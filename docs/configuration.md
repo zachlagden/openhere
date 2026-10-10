@@ -54,6 +54,7 @@ Changes apply on the next request. No setting needs a restart.
 | `limits.maxFilesPerVersion` | 2500 | 1 to 1000000 | Files in one version. |
 | `limits.maxVersionBytes` | 1073741824 | 1 to 2^50 | Total bytes in one version. |
 | `limits.maxFileBytes` | 268435456 | 1 to 2^50 | Bytes in one file. Also caps the upload body. |
+| `limits.maxPendingBytes` | 4294967296 | 0 to 2^50 | Bytes that all unfinished versions on the instance may declare together. A manifest that would pass the total gets 429 `too_many_pending`. 0 turns the limit off. A site can also hold at most 3 unfinished versions and a user 10. Unfinished versions expire after 24 hours. |
 
 ### Hosting
 
