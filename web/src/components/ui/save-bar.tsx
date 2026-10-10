@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 import { Button } from "./button";
 
 interface SaveBarProps {
@@ -9,6 +10,7 @@ interface SaveBarProps {
 }
 
 export function SaveBar({ dirty, pending, onDiscard, saveLabel = "Save changes" }: SaveBarProps): JSX.Element {
+  useUnsavedWarning(dirty);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button type="submit" variant="primary" disabled={!dirty || pending}>
