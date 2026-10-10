@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/settings"
 )
 
@@ -79,5 +80,31 @@ func TestSiteURL(t *testing.T) {
 		if got := SiteURL(tc.public, tc.cfg, "demo"); got != tc.want {
 			t.Errorf("%s: SiteURL = %q, want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestPreferredURLOrder(t *testing.T) {
+	public := config.PublicURL{Scheme: "https", Host: "sites.example.com", Port: "8443"}
+	cfg := settings.Defaults()
+	cfg.BaseDomain = "sites.example.com"
+	cfg.SubdomainEnabled = true
+	primary := domains.Summary{Total: 2, Verified: 2, Primary: "www.example.org", Fallback: "a.example.org"}
+	if got := PreferredURL(public, cfg, "demo", primary); got != "https://www.example.org/" {
+		t.Errorf("primary = %q", got)
+	}
+	if got := PreferredURL(public, cfg, "demo", domains.Summary{Total: 1, Verified: 1, Fallback: "a.example.org"}); got != "https://demo.sites.example.com:8443/" {
+		t.Errorf("subdomain = %q", got)
+	}
+	cfg.SubdomainEnabled = false
+	if got := PreferredURL(public, cfg, "demo", domains.Summary{}); got != "https://sites.example.com:8443/s/demo/" {
+		t.Errorf("path = %q", got)
+	}
+	cfg.PathEnabled = false
+	if got := PreferredURL(public, cfg, "demo", domains.Summary{Total: 1, Verified: 1, Fallback: "a.example.org"}); got != "https://a.example.org/" {
+		t.Errorf("fallback = %q", got)
+	}
+	cfg.CustomDomainsEnabled = false
+	if got := PreferredURL(public, cfg, "demo", primary); got != "" {
+		t.Errorf("disabled = %q", got)
 	}
 }

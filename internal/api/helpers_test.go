@@ -19,6 +19,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/agentcode"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
@@ -73,6 +74,8 @@ type harness struct {
 	logs     *bytes.Buffer
 	sender   mail.Sender
 	box      *secrets.Box
+	domains  *domains.Service
+	dns      *fakeDNS
 }
 
 type harnessOptions struct {
@@ -123,8 +126,10 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	}
 	settingsSvc := settings.New(db, settings.Options{Now: clock.Now, Secrets: box})
 	workspaceSvc := workspaces.New(db, workspaces.Options{Now: clock.Now, MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
+	dns := &fakeDNS{answers: map[string][]string{}}
+	domainSvc := domains.New(db, settingsSvc, domains.Options{ManagementHost: testHost, Resolver: dns, Now: clock.Now, Logger: logger})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
-		Now: clock.Now, Files: files, Logger: logger,
+		Now: clock.Now, Files: files, Logger: logger, OnSiteChange: func(string) { domainSvc.Invalidate() },
 		DefaultAccessMode: func(ctx context.Context) (string, error) {
 			cfg, err := settingsSvc.Get(ctx)
 			return cfg.DefaultAccessMode, err
@@ -152,18 +157,18 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	agentSvc := agentcode.New(db, svc, box, agentcode.Options{
 		BaseURL: "http://" + testHost, Mailer: mailer, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() },
 	})
-	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger})
+	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Now: clock.Now, Logger: logger, OnSiteChange: func(string) { domainSvc.Invalidate() }})
 	public := opts.public
 	if public == (config.PublicURL{}) {
 		public = config.PublicURL{Scheme: "http", Host: testHost}
 	}
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc,
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
 	})
-	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc})
+	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc})
 	return &harness{
 		t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir,
-		settings: settingsSvc, routed: routed, access: accessSvc, mailer: recorder, logs: logs, sender: mailer, box: box,
+		settings: settingsSvc, routed: routed, access: accessSvc, mailer: recorder, logs: logs, sender: mailer, box: box, domains: domainSvc, dns: dns,
 	}
 }
 

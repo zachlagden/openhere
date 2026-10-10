@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
@@ -18,12 +20,17 @@ type ProbeConsumer interface {
 	Consume(token string) (string, bool)
 }
 
+type DomainLookup interface {
+	Lookup(ctx context.Context, host string) (domains.Target, bool, error)
+}
+
 type Options struct {
 	Public   config.PublicURL
 	Probes   ProbeConsumer
 	Resolver *Resolver
 	Logger   *slog.Logger
 	Access   *access.Service
+	Domains  DomainLookup
 	Proxies  proxy.Trust
 	Limits   *GateLimits
 	Now      func() time.Time
@@ -35,6 +42,7 @@ type Router struct {
 	resolver   *Resolver
 	server     siteServer
 	probes     ProbeConsumer
+	domains    DomainLookup
 	gate       *gate
 	host       string
 	logger     *slog.Logger
@@ -56,6 +64,7 @@ func New(management http.Handler, settingsSvc *settings.Service, db store.Store,
 		resolver:   resolver,
 		server:     siteServer{files: files, index: fileIndex{db: db}, logger: logger},
 		probes:     opts.Probes,
+		domains:    opts.Domains,
 		host:       opts.Public.Host,
 		logger:     logger,
 	}
@@ -94,7 +103,7 @@ func (rt *Router) servePathMode(w http.ResponseWriter, r *http.Request) {
 		redirectToDirectory(w, r, r.URL.Path+"/")
 		return
 	}
-	rt.serveSite(w, r, slugPart, "/"+tail, pathModePrefix+slugPart)
+	rt.serveSite(w, r, siteTarget{slug: slugPart, path: "/" + tail, prefix: pathModePrefix + slugPart})
 }
 
 func (rt *Router) serveSiteHost(w http.ResponseWriter, r *http.Request) {
@@ -111,20 +120,48 @@ func (rt *Router) serveSiteHost(w http.ResponseWriter, r *http.Request) {
 		rt.fail(w, err)
 		return
 	}
-	slugPart, ok := SubdomainSlug(NormaliseHost(r.Host), cfg.BaseDomain)
-	if !cfg.SubdomainEnabled || !ok {
+	host := NormaliseHost(r.Host)
+	if slugPart, ok := SubdomainSlug(host, cfg.BaseDomain); ok {
+		if !cfg.SubdomainEnabled {
+			writeNotFound(w, r)
+			return
+		}
+		rt.serveSite(w, r, siteTarget{slug: slugPart, path: r.URL.Path})
+		return
+	}
+	rt.serveCustomDomain(w, r, host, cfg)
+}
+
+func (rt *Router) serveCustomDomain(w http.ResponseWriter, r *http.Request, host string, cfg settings.Settings) {
+	if !cfg.CustomDomainsEnabled || rt.domains == nil {
 		writeNotFound(w, r)
 		return
 	}
-	rt.serveSite(w, r, slugPart, r.URL.Path, "")
+	target, serves, err := rt.domains.Lookup(r.Context(), host)
+	if err != nil {
+		rt.fail(w, err)
+		return
+	}
+	if !serves {
+		writeNotFound(w, r)
+		return
+	}
+	rt.serveSite(w, r, siteTarget{slug: target.Slug, path: r.URL.Path, customHost: host})
 }
 
 func methodAllowed(r *http.Request, requestPath string) bool {
 	return isReadMethod(r.Method) || (r.Method == http.MethodPost && isGatePost(requestPath))
 }
 
-func (rt *Router) serveSite(w http.ResponseWriter, r *http.Request, slugPart, requestPath, prefix string) {
-	site, live, err := rt.resolver.Lookup(r.Context(), slugPart)
+type siteTarget struct {
+	slug       string
+	path       string
+	prefix     string
+	customHost string
+}
+
+func (rt *Router) serveSite(w http.ResponseWriter, r *http.Request, target siteTarget) {
+	site, live, err := rt.resolver.Lookup(r.Context(), target.slug)
 	if err != nil {
 		rt.fail(w, err)
 		return
@@ -133,7 +170,7 @@ func (rt *Router) serveSite(w http.ResponseWriter, r *http.Request, slugPart, re
 		writeNotFound(w, r)
 		return
 	}
-	verdict := rt.gate.evaluate(siteRequest{w: w, r: r, site: site, path: requestPath, prefix: prefix})
+	verdict := rt.gate.evaluate(siteRequest{w: w, r: r, site: site, path: target.path, prefix: target.prefix, customHost: target.customHost})
 	if verdict == outcomeHandled {
 		return
 	}
@@ -141,7 +178,7 @@ func (rt *Router) serveSite(w http.ResponseWriter, r *http.Request, slugPart, re
 		writeMethodNotAllowed(w)
 		return
 	}
-	rt.server.serve(w, r, site, requestPath, serveTarget{prefix: prefix, private: verdict == outcomeOpenPrivate})
+	rt.server.serve(w, r, site, target.path, serveTarget{prefix: target.prefix, private: verdict == outcomeOpenPrivate})
 }
 
 func (rt *Router) answerProbe(w http.ResponseWriter, r *http.Request) bool {

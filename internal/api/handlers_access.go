@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/validate"
 	"github.com/zachlagden/selfhost/internal/workspaces"
@@ -112,7 +114,12 @@ func (s *Server) handleHandoff(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	target, err := s.handoffTarget(r, site, p.user.ID, returnPath)
+	customHost, err := s.handoffHost(r, site, query.Get("host"))
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	target, err := s.handoffTarget(r, site, p.user.ID, returnPath, customHost)
 	if err != nil {
 		s.writeDomainError(w, r, err)
 		return
@@ -127,12 +134,37 @@ func handoffReturn(raw string) (string, bool) {
 	return access.SafeReturnPath(raw)
 }
 
-func (s *Server) handoffTarget(r *http.Request, site sites.Site, userID, returnPath string) (string, error) {
+func (s *Server) handoffHost(r *http.Request, site sites.Site, raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	invalid := validate.Invalid("Host must be one of this site's verified custom domains.")
+	if s.domains == nil {
+		return "", invalid
+	}
+	host, err := domains.Normalise(raw)
+	if err != nil {
+		return "", invalid
+	}
+	serves, err := s.domains.ServesSite(r.Context(), site.ID, host)
+	if err != nil {
+		return "", err
+	}
+	if !serves {
+		return "", invalid
+	}
+	return host, nil
+}
+
+func (s *Server) handoffTarget(r *http.Request, site sites.Site, userID, returnPath, customHost string) (string, error) {
 	cfg, err := s.settings.Get(r.Context())
 	if err != nil {
 		return "", err
 	}
-	base := hosting.SiteURL(s.public, cfg, site.Slug)
+	base, err := s.handoffBase(r, cfg, site, customHost)
+	if err != nil {
+		return "", err
+	}
 	if base == "" {
 		return "", workspaces.ErrNotFound
 	}
@@ -145,6 +177,19 @@ func (s *Server) handoffTarget(r *http.Request, site sites.Site, userID, returnP
 	}
 	query := url.Values{"token": {token}, "return": {returnPath}}
 	return base + strings.TrimPrefix(hosting.CallbackPath, "/") + "?" + query.Encode(), nil
+}
+
+func (s *Server) handoffBase(r *http.Request, cfg settings.Settings, site sites.Site, customHost string) (string, error) {
+	if customHost != "" {
+		return hosting.CustomDomainURL(s.public, customHost), nil
+	}
+	summaries, err := s.domainSummaries(r.Context(), []sites.Site{site})
+	if err != nil {
+		return "", err
+	}
+	custom := summaries[site.ID]
+	custom.Primary = ""
+	return hosting.PreferredURL(s.public, cfg, site.Slug, custom), nil
 }
 
 func redirect(w http.ResponseWriter, target string) {

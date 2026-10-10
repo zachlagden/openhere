@@ -12,7 +12,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Keep SQL portable between both databases. No JSONB, arrays, LISTEN/NOTIFY or other PostgreSQL-only features.
 - Migrations are plain SQL files in `internal/store/migrations`, embedded with `go:embed` and run by goose on startup. One migration set serves both databases.
 - Logging is structured JSON through `log/slog`. Errors go to Sentry only when `SENTRY_DSN` is set.
-- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `workspaces` (workspaces, grants, the authorization function), `sites` (folders, sites, listing), `publish` (manifests, versions, finalize, restore, retention, maintenance), `hosting` (host router, file serving, path-mode sandbox, wildcard check, the viewer gate), `access` (access modes, viewer cookies, email codes, sign-in handoff tokens), `mail` (the sender interface, the SMTP and Resend senders that follow the live settings, a recorder, and `smtptest`, a fake SMTP server for tests), `secrets` (AES-256-GCM sealing and the secret key), `otp` (numeric codes), `invites`, `passwordreset`, `agentcode` and `policy` (instance-wide permission settings), `proxy` (trusted proxy addresses, client IP and HTTPS detection), `sitefiles` (version files on disk), `sitepath` (path safety), `settings` (typed instance settings), `ids`, `slug` and `validate` (small shared helpers), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
+- Layout is in `internal/`: `config`, `store` (with `storetest` for database tests), `telemetry`, `auth` (passwords, sessions, API keys, setup), `workspaces` (workspaces, grants, the authorization function), `sites` (folders, sites, listing), `domains` (custom domain names, claims, verification, lookup), `publish` (manifests, versions, finalize, restore, retention, maintenance), `hosting` (host router, file serving, path-mode sandbox, wildcard check, the viewer gate), `access` (access modes, viewer cookies, email codes, sign-in handoff tokens), `mail` (the sender interface, the SMTP and Resend senders that follow the live settings, a recorder, and `smtptest`, a fake SMTP server for tests), `secrets` (AES-256-GCM sealing and the secret key), `otp` (numeric codes), `invites`, `passwordreset`, `agentcode` and `policy` (instance-wide permission settings), `proxy` (trusted proxy addresses, client IP and HTTPS detection), `sitefiles` (version files on disk), `sitepath` (path safety), `settings` (typed instance settings), `ids`, `slug` and `validate` (small shared helpers), `ratelimit`, `api` (HTTP handlers and middleware). Business logic lives in plain packages so it tests without HTTP. Handlers stay thin.
 
 ## Rules
 
@@ -45,7 +45,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 
 ## Hosting
 
-- `hosting.Router` wraps the API handler and picks by request host: the host of `PUBLIC_URL` goes to the API (plus `/s/` for path mode), `{slug}.{baseDomain}` goes to the site, and anything else is a 404. Site hosts must never reach the auth middleware, CSRF logic or any API route.
+- `hosting.Router` wraps the API handler and picks by request host, in this order: the host of `PUBLIC_URL` goes to the API (plus `/s/` for path mode), `{slug}.{baseDomain}` goes to the site, a verified custom domain goes to its site while `hosting.customDomainsEnabled` is on, and anything else is a 404. Site hosts must never reach the auth middleware, CSRF logic or any API route.
 - Every not-found cause (unknown host, unknown slug, disabled mode, no live version) goes through `writeNotFound`, so the status, headers and body stay identical. Do not add detail to it.
 - Every `/s/` response, including errors and redirects, carries the sandbox `Content-Security-Policy` without `allow-same-origin`. Subdomain mode sets no policy.
 - The session cookie is `__Host-session` when the request is HTTPS (the `PUBLIC_URL` scheme or a trusted proxy) and `session` otherwise. Read only the form that fits the request.
@@ -53,6 +53,16 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Files are opened only through `sitefiles.Store.Open`, never by joining paths in `hosting`.
 - The wildcard check writes its outcome through `settings.Service.RecordWildcard` (manual) or `RecordScheduledWildcard` (startup and scheduled). A failed check keeps subdomain mode serving, and a scheduled one adds to `hosting.wildcardFailures` while `hosting.subdomainEnabled` is on. A retry runs every 15 minutes until a check passes. After 3 consecutive failures the check switches `hosting.subdomainEnabled` off and records `hosting.subdomainDisabledReason`, only when `hosting.pathEnabled` is on. Manual checks never count. No settings write or automatic change may leave both modes off (`ErrNoHostingMode`). Enabling subdomain mode needs status `ok`.
 - Per-site and instance availability come from `hosting.SiteHosting` and `hosting.InstanceHosting`. Notices are plain language with no administrator detail, and the root-only detail of `GET /api/v1/hosting/status` stays out of every other response.
+
+## Custom domains
+
+- Domain names pass `domains.Normalise` before they reach SQL or a comparison. Compare and store only the normalised form.
+- A domain serves only while `site_domains.verified_at` is set. The router asks `domains.Service.Lookup`, which answers from a cache that every claim, verification, primary change, delete, maintenance run and `OnSiteChange` call invalidates. Never query `site_domains` from `hosting` directly.
+- Verification reads TXT records at `_selfhost-challenge.<domain>` (the `domains.ChallengeLabel` constant) through the injected `domains.TXTResolver`. Do not require A, AAAA or CNAME records to point at the instance. Only a successful lookup without the token or a not-found answer counts as a miss. A timeout or resolver error never does.
+- `domains.Service.Maintain` runs from the maintenance loop in `cmd/selfhost`. It releases unverified claims older than 7 days and re-checks each verified domain once a day. Three consecutive misses clear `verified_at` and the primary flag.
+- Claims and primary changes lock the site row with `UPDATE sites SET id = id WHERE id = $1` inside the transaction, so the per-site limit and the one-primary rule hold on PostgreSQL. `primary_site_id` is unique, which makes a second primary fail at the database.
+- The handoff `host` parameter is accepted only through `domains.Service.ServesSite`, which requires a verified domain of that same site and `hosting.customDomainsEnabled`. Build custom domain URLs only with `hosting.CustomDomainURL`.
+- Domain routes sit under `/api/v1/sites/{slug}/domains` and add no unauthenticated route. Viewing needs read on the site and every change needs write.
 
 ## Access
 

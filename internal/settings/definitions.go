@@ -20,6 +20,8 @@ const (
 	KeyBaseDomain       = "hosting.baseDomain"
 	KeySubdomainEnabled = "hosting.subdomainEnabled"
 	KeyPathEnabled      = "hosting.pathEnabled"
+	KeyCustomDomains    = "hosting.customDomainsEnabled"
+	KeyMaxDomains       = "hosting.maxDomainsPerSite"
 	KeyWildcardStatus   = "hosting.wildcardStatus"
 	KeyWildcardChecked  = "hosting.wildcardCheckedAt"
 	KeyWildcardDetail   = "hosting.wildcardDetail"
@@ -46,6 +48,7 @@ const (
 	minimumInt          = 1
 	maxBaseDomainLength = 253
 	maxKeepVersions     = 10000
+	maxDomainsPerSite   = 50
 	maxFilesLimit       = 1_000_000
 	maxBytesLimit       = int64(1) << 50
 )
@@ -60,6 +63,9 @@ type Settings struct {
 	BaseDomain       string
 	SubdomainEnabled bool
 	PathEnabled      bool
+
+	CustomDomainsEnabled bool
+	MaxDomainsPerSite    int
 
 	WildcardStatus    string
 	WildcardCheckedAt string
@@ -116,6 +122,12 @@ var definitions = []definition{
 	boolDefinition(KeyPathEnabled, true,
 		func(s *Settings, v bool) { s.PathEnabled = v },
 		func(s Settings) bool { return s.PathEnabled }),
+	boolDefinition(KeyCustomDomains, true,
+		func(s *Settings, v bool) { s.CustomDomainsEnabled = v },
+		func(s Settings) bool { return s.CustomDomainsEnabled }),
+	intDefinition(KeyMaxDomains, 10, maxDomainsPerSite,
+		func(s *Settings, v int64) { s.MaxDomainsPerSite = int(v) },
+		func(s Settings) int64 { return int64(s.MaxDomainsPerSite) }),
 	readOnlyString(KeyWildcardStatus, WildcardUnchecked, false,
 		func(s *Settings, v string) { s.WildcardStatus = v },
 		func(s Settings) string { return s.WildcardStatus }),

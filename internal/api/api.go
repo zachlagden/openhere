@@ -11,6 +11,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/agentcode"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
@@ -47,6 +48,8 @@ type Limits struct {
 	SetupPerEmail     Rule
 	WildcardCheck     Rule
 	Handoff           Rule
+	DomainVerify      Rule
+	DomainChange      Rule
 }
 
 func DefaultLimits() Limits {
@@ -72,6 +75,8 @@ func DefaultLimits() Limits {
 		SetupPerEmail:     Rule{Max: 5, Window: window},
 		WildcardCheck:     Rule{Max: 6, Window: time.Minute},
 		Handoff:           Rule{Max: 30, Window: time.Minute},
+		DomainVerify:      Rule{Max: 20, Window: time.Minute},
+		DomainChange:      Rule{Max: 30, Window: time.Minute},
 	}
 }
 
@@ -96,6 +101,8 @@ func (l Limits) withDefaults() Limits {
 	fill(&l.AgentVerifyEmail, defaults.AgentVerifyEmail)
 	fill(&l.WildcardCheck, defaults.WildcardCheck)
 	fill(&l.Handoff, defaults.Handoff)
+	fill(&l.DomainVerify, defaults.DomainVerify)
+	fill(&l.DomainChange, defaults.DomainChange)
 	return l
 }
 
@@ -110,6 +117,7 @@ type Options struct {
 	Invites        *invites.Service
 	PasswordReset  *passwordreset.Service
 	AgentCodes     *agentcode.Service
+	Domains        *domains.Service
 }
 
 type Server struct {
@@ -128,6 +136,7 @@ type Server struct {
 	invites    *invites.Service
 	reset      *passwordreset.Service
 	agents     *agentcode.Service
+	domains    *domains.Service
 	now        func() time.Time
 
 	agentReqIP     *ratelimit.Limiter
@@ -144,6 +153,8 @@ type Server struct {
 	emailTestLimit *ratelimit.Limiter
 	wildcardLimit  *ratelimit.Limiter
 	handoffLimit   *ratelimit.Limiter
+	domainVerify   *ratelimit.Limiter
+	domainChange   *ratelimit.Limiter
 	loginIP        *ratelimit.Limiter
 	loginEmail     *ratelimit.Limiter
 	setupIP        *ratelimit.Limiter
@@ -185,6 +196,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		invites:    opts.Invites,
 		reset:      opts.PasswordReset,
 		agents:     opts.AgentCodes,
+		domains:    opts.Domains,
 		now:        now,
 
 		agentReqIP:     limiter(limits.AgentRequestIP),
@@ -201,6 +213,8 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		emailTestLimit: limiter(limits.EmailTest),
 		wildcardLimit:  limiter(limits.WildcardCheck),
 		handoffLimit:   limiter(limits.Handoff),
+		domainVerify:   limiter(limits.DomainVerify),
+		domainChange:   limiter(limits.DomainChange),
 		loginIP:        limiter(limits.LoginPerIP),
 		loginEmail:     limiter(limits.LoginPerEmail),
 		setupIP:        limiter(limits.SetupPerIP),
@@ -226,6 +240,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerSettingsRoutes(mux)
 	s.registerHostingRoutes(mux)
 	s.registerAccessRoutes(mux)
+	s.registerDomainRoutes(mux)
 	s.registerAdminRoutes(mux)
 	s.registerInviteRoutes(mux)
 	s.registerPasswordResetRoutes(mux)

@@ -12,6 +12,8 @@ type siteRequest struct {
 	site   Site
 	path   string
 	prefix string
+
+	customHost string
 }
 
 func (s siteRequest) pathMode() bool {

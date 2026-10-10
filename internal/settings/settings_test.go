@@ -36,7 +36,7 @@ func TestDefaults(t *testing.T) {
 		}
 		want := Settings{
 			KeepVersions: 10, MaxFilesPerVer: 2500, MaxVersionBytes: 1 << 30, MaxFileBytes: 256 << 20,
-			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, WildcardStatus: WildcardUnchecked,
+			BaseDomain: "", SubdomainEnabled: false, PathEnabled: true, CustomDomainsEnabled: true, MaxDomainsPerSite: 10, WildcardStatus: WildcardUnchecked,
 			DefaultAccessMode: AccessPublic,
 			Email:             Email{Provider: ProviderNone, SMTPPort: 587, SMTPSecurity: SecurityStartTLS},
 			WhoCanInvite:      InviteRoot, WhoCanCreate: CreateAny,
@@ -136,6 +136,11 @@ func TestUpdateRejectsBadInput(t *testing.T) {
 			"zero max version bytes":  `{"limits.maxVersionBytes": 0}`,
 			"zero max file bytes":     `{"limits.maxFileBytes": 0}`,
 			"int for bool":            `{"hosting.pathEnabled": 1}`,
+			"string for domains flag": `{"hosting.customDomainsEnabled": "true"}`,
+			"zero domain limit":       `{"hosting.maxDomainsPerSite": 0}`,
+			"negative domain limit":   `{"hosting.maxDomainsPerSite": -1}`,
+			"huge domain limit":       `{"hosting.maxDomainsPerSite": 51}`,
+			"fractional domain limit": `{"hosting.maxDomainsPerSite": 2.5}`,
 			"string for bool":         `{"hosting.subdomainEnabled": "true"}`,
 			"int for string":          `{"hosting.baseDomain": 5}`,
 			"domain with scheme":      `{"hosting.baseDomain": "https://example.com"}`,

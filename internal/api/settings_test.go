@@ -40,6 +40,8 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"hosting.baseDomain":              "",
 			"hosting.subdomainEnabled":        false,
 			"hosting.pathEnabled":             true,
+			"hosting.customDomainsEnabled":    true,
+			"hosting.maxDomainsPerSite":       float64(10),
 			"hosting.wildcardFailures":        float64(0),
 			"hosting.subdomainDisabledReason": nil,
 			"hosting.wildcardStatus":          "unchecked",

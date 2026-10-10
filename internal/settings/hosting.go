@@ -13,6 +13,7 @@ import (
 var (
 	ErrWildcardNotVerified = errors.New("subdomain mode needs a successful wildcard check")
 	ErrNoHostingMode       = errors.New("at least one hosting mode must stay on")
+	ErrBaseDomainInUse     = errors.New("a custom domain already uses that base domain or a name under it")
 )
 
 const NoticePathModeEnabled = "path_mode_enabled"
@@ -35,6 +36,9 @@ func (s *Service) applyHostingRules(ctx context.Context, q store.Querier, change
 		return nil, err
 	}
 	if moved {
+		if err := requireNoDomainUnder(ctx, q, s.effectiveDomain(changes[KeyBaseDomain])); err != nil {
+			return nil, err
+		}
 		status = WildcardUnchecked
 		resetWildcard(changes)
 	}
@@ -144,4 +148,19 @@ func storedValue(ctx context.Context, q store.Querier, key, fallback string) (st
 		return "", fmt.Errorf("read setting %s: %w", key, err)
 	}
 	return value, nil
+}
+
+func requireNoDomainUnder(ctx context.Context, q store.Querier, baseDomain string) error {
+	if baseDomain == "" {
+		return nil
+	}
+	var one int
+	err := q.QueryRowContext(ctx, "SELECT 1 FROM site_domains WHERE domain = $1 OR domain LIKE $2 LIMIT 1", baseDomain, "%."+baseDomain).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("check custom domains against base domain: %w", err)
+	}
+	return ErrBaseDomainInUse
 }

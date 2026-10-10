@@ -23,6 +23,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/publish"
@@ -54,6 +55,8 @@ type env struct {
 	probes     *Probes
 	router     *Router
 	access     *access.Service
+	domains    *domains.Service
+	dns        *fakeDNS
 	mailer     *mail.Recorder
 	clock      *testClock
 	alex       string
@@ -111,10 +114,16 @@ func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	e.resolver = NewResolver(db, nil)
 	e.settings = settings.New(db, settings.Options{DefaultBaseDomain: managementHost})
 	ws := workspaces.New(db, workspaces.Options{})
-	siteSvc := sites.New(db, ws, sites.Options{Files: files, Logger: logger, OnSiteChange: e.resolver.Invalidate})
+	e.dns = &fakeDNS{answers: map[string][]string{}}
+	e.domains = domains.New(db, e.settings, domains.Options{ManagementHost: managementHost, Resolver: e.dns, Now: e.clock.Now, Logger: logger})
+	changed := func(slug string) {
+		e.resolver.Invalidate(slug)
+		e.domains.Invalidate()
+	}
+	siteSvc := sites.New(db, ws, sites.Options{Files: files, Logger: logger, OnSiteChange: changed})
 	e.sites = siteSvc
 	e.workspaces = ws
-	e.publish = publish.New(db, siteSvc, ws, e.settings, files, publish.Options{Logger: logger, OnSiteChange: e.resolver.Invalidate})
+	e.publish = publish.New(db, siteSvc, ws, e.settings, files, publish.Options{Logger: logger, OnSiteChange: changed})
 	e.alex = storetest.InsertUser(t, db, "alex@example.com")
 	if _, err := workspaces.CreatePersonal(context.Background(), db, e.alex, timeNow()); err != nil {
 		t.Fatalf("CreatePersonal: %v", err)
@@ -132,7 +141,7 @@ func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	}
 	e.router = New(management, e.settings, db, files, Options{
 		Public: public, Probes: e.probes, Resolver: e.resolver, Logger: logger, Access: e.access, Proxies: opts.proxies,
-		Limits: opts.limits, Now: e.clock.Now,
+		Limits: opts.limits, Now: e.clock.Now, Domains: e.domains,
 	})
 	return e
 }
