@@ -1,6 +1,6 @@
 import { request } from "./client";
 import { segment } from "./paths";
-import type { AdminUser, EmailTestResult, HostingStatus, ResetLink, Settings, UpdateSettingsEnvelope, WildcardCheckResult } from "./types";
+import type { AdminUser, EmailTestResult, HostingStatus, ResetLink, Settings, SettingsPatch, UpdateSettingsEnvelope, WildcardCheckResult } from "./types";
 
 interface Signal {
   signal?: AbortSignal;
@@ -11,7 +11,7 @@ export async function getSettings({ signal }: Signal = {}): Promise<Settings> {
   return result.settings;
 }
 
-export async function patchSettings(settings: Settings): Promise<UpdateSettingsEnvelope> {
+export async function patchSettings(settings: SettingsPatch): Promise<UpdateSettingsEnvelope> {
   return request<UpdateSettingsEnvelope>("/admin/settings", { method: "PATCH", body: { settings } });
 }
 

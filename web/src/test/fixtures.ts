@@ -1,4 +1,4 @@
-import type { Analytics, Domain, Folder, Instance, Member, Site, User, Workspace } from "@/api/types";
+import type { Analytics, Domain, Folder, Instance, Member, Settings, Site, User, Workspace } from "@/api/types";
 
 export const alex: User = {
   id: "u1",
@@ -139,4 +139,47 @@ export function makeMember(overrides: Partial<Member> = {}): Member {
     createdAt: "2026-03-01T10:00:00Z",
     ...overrides,
   };
+}
+
+export function makeSettings(overrides: Partial<Settings> = {}): Settings {
+  return {
+    "retention.keepVersions": 10,
+    "limits.maxFilesPerVersion": 2500,
+    "limits.maxVersionBytes": 1_073_741_824,
+    "limits.maxFileBytes": 268_435_456,
+    "hosting.baseDomain": "example.com",
+    "hosting.subdomainEnabled": false,
+    "hosting.pathEnabled": true,
+    "hosting.customDomainsEnabled": true,
+    "hosting.maxDomainsPerSite": 10,
+    "hosting.wildcardStatus": "unchecked",
+    "hosting.wildcardCheckedAt": null,
+    "hosting.wildcardDetail": "",
+    "hosting.wildcardFailures": 0,
+    "hosting.subdomainDisabledReason": null,
+    "sites.defaultAccessMode": "public",
+    "invites.whoCanInvite": "root",
+    "workspaces.whoCanCreate": "any",
+    "email.provider": "none",
+    "email.fromAddress": "",
+    "email.fromName": "",
+    "email.smtp.host": "",
+    "email.smtp.port": 587,
+    "email.smtp.security": "starttls",
+    "email.smtp.username": "",
+    "email.smtp.passwordSet": false,
+    "email.resend.apiKeySet": false,
+    "tls.dnsProvider": "none",
+    "tls.cloudflareApiTokenSet": false,
+    "analytics.enabledByDefault": true,
+    "analytics.retentionDays": 395,
+    "analytics.rawDays": 31,
+    "analytics.maxmindAccountId": "",
+    "analytics.maxmindLicenseKeySet": false,
+    "analytics.geoStatus": "unconfigured",
+    "analytics.geoUpdatedAt": null,
+    "analytics.geoCheckedAt": null,
+    "analytics.geoDetail": "",
+    ...overrides,
+  } as Settings;
 }

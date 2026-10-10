@@ -37,6 +37,7 @@ export type CreatedApiKey = Schemas["CreatedApiKey"];
 export type Analytics = Schemas["Analytics"];
 export type AnalyticsRanked = Schemas["AnalyticsRanked"];
 export type Settings = Schemas["Settings"];
+export type SettingsPatch = Partial<Settings>;
 export type UpdateSettingsEnvelope = Schemas["UpdateSettingsEnvelope"];
 export type HostingStatus = Schemas["HostingStatus"];
 export type HostingDetail = Schemas["HostingDetail"];

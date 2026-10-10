@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from "@tanstack/react-query";
 import * as api from "@/api/admin";
-import type { AdminUser, EmailTestResult, HostingStatus, ResetLink, Settings, UpdateSettingsEnvelope, WildcardCheckResult } from "@/api/types";
+import type { AdminUser, EmailTestResult, HostingStatus, ResetLink, Settings, SettingsPatch, UpdateSettingsEnvelope, WildcardCheckResult } from "@/api/types";
 import { queryKeys } from "./keys";
 
 export function useHostingStatus(enabled = true): UseQueryResult<HostingStatus> {
@@ -18,7 +18,7 @@ export function useAdminSettings(): UseQueryResult<Settings> {
   });
 }
 
-export function useUpdateSettings(): UseMutationResult<UpdateSettingsEnvelope, Error, Settings> {
+export function useUpdateSettings(): UseMutationResult<UpdateSettingsEnvelope, Error, SettingsPatch> {
   const client = useQueryClient();
   return useMutation({
     mutationFn: api.patchSettings,

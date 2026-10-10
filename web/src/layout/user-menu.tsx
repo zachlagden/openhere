@@ -1,4 +1,4 @@
-import { BookOpen, LogOut, Monitor, Moon, Settings, Sun, User as UserIcon } from "lucide-react";
+import { BookOpen, LogOut, Monitor, Moon, ServerCog, Settings, Sun, User as UserIcon } from "lucide-react";
 import type { JSX } from "react";
 import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,13 @@ export function UserMenu(): JSX.Element {
             <Settings /> Settings
           </Link>
         </DropdownMenuItem>
+        {user?.isRoot ? (
+          <DropdownMenuItem asChild>
+            <Link to="/admin">
+              <ServerCog /> Instance admin
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator className="sm:hidden" />
         <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={preference} onValueChange={(value) => isPreference(value) && setPreference(value)}>

@@ -24,6 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 const AnalyticsTab = lazy(() => import("@/features/site-detail/analytics-tab").then((module) => ({ default: module.AnalyticsTab })));
 const WorkspaceAnalyticsTab = lazy(() => import("@/features/workspaces/workspace-analytics-tab").then((module) => ({ default: module.WorkspaceAnalyticsTab })));
+const AdminPage = lazy(() => import("@/features/admin/admin-page").then((module) => ({ default: module.AdminPage })));
 const DocsPage = lazy(() => import("@/features/docs/docs-page").then((module) => ({ default: module.DocsPage })));
 
 export function App(): JSX.Element {
@@ -56,6 +57,14 @@ export function App(): JSX.Element {
             element={
               <Suspense fallback={<Spinner label="Loading docs…" />}>
                 <DocsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/*"
+            element={
+              <Suspense fallback={<Spinner label="Loading admin…" />}>
+                <AdminPage />
               </Suspense>
             }
           />
