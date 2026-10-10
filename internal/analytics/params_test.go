@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"errors"
 	"net/url"
 	"testing"
 	"time"
@@ -50,7 +51,8 @@ func TestParseParams(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = ParseParams(query, now)
-			if _, ok := err.(*validate.Error); !ok {
+			var invalid *validate.Error
+			if !errors.As(err, &invalid) {
 				t.Errorf("ParseParams(%q) error = %v, want a validation error", raw, err)
 			}
 		})

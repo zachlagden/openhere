@@ -19,7 +19,7 @@ const (
 
 var analyticsSite = siteFiles{"index.html": "<h1>home</h1>", "about.html": "<h1>about</h1>", "app.js": "console.log(1)"}
 
-func (h *harness) visit(target, userAgent, referrer, remote string) *httptest.ResponseRecorder {
+func (h *harness) visit(target, userAgent, referrer, remote string) {
 	h.t.Helper()
 	req := httptest.NewRequestWithContext(h.t.Context(), http.MethodGet, "http://"+testHost+target, nil)
 	req.Header.Set("User-Agent", userAgent)
@@ -27,9 +27,7 @@ func (h *harness) visit(target, userAgent, referrer, remote string) *httptest.Re
 		req.Header.Set("Referer", referrer)
 	}
 	req.RemoteAddr = remote
-	rec := httptest.NewRecorder()
-	h.routed.ServeHTTP(rec, req)
-	return rec
+	h.routed.ServeHTTP(httptest.NewRecorder(), req)
 }
 
 func (h *harness) flush() {

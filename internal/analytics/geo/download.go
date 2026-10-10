@@ -61,28 +61,36 @@ func statusProblem(code int) error {
 	}
 }
 
-func (u *Updater) fetchArchive(ctx context.Context, account, key string) (string, []byte, error) {
+func (u *Updater) fetchArchive(ctx context.Context, account, key string) (*os.File, []byte, error) {
 	resp, err := u.get(ctx, u.endpoint("tar.gz"), account, key)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return "", nil, statusProblem(resp.StatusCode)
+		return nil, nil, statusProblem(resp.StatusCode)
 	}
 	file, err := os.CreateTemp(u.dir, "download-*.tar.gz")
 	if err != nil {
-		return "", nil, fmt.Errorf("create a temporary download file: %w", err)
+		return nil, nil, fmt.Errorf("create a temporary download file: %w", err)
 	}
 	hasher := sha256.New()
 	limited := &io.LimitedReader{R: resp.Body, N: maxArchiveBytes + 1}
 	written, copyErr := io.Copy(io.MultiWriter(file, hasher), limited)
-	closeErr := file.Close()
-	if err := firstProblem(copyErr, closeErr, written > maxArchiveBytes); err != nil {
-		removeQuietly(file.Name())
-		return "", nil, err
+	if err := firstProblem(copyErr, nil, written > maxArchiveBytes); err != nil {
+		discard(file)
+		return nil, nil, err
 	}
-	return file.Name(), hasher.Sum(nil), nil
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		discard(file)
+		return nil, nil, fmt.Errorf("rewind the temporary download file: %w", err)
+	}
+	return file, hasher.Sum(nil), nil
+}
+
+func discard(file *os.File) {
+	closeBody(file)
+	removeQuietly(file.Name())
 }
 
 func firstProblem(copyErr, closeErr error, tooLarge bool) error {
@@ -130,8 +138,8 @@ func closeBody(body io.Closer) {
 	}
 }
 
-func (u *Updater) install(archivePath string) error {
-	staged, err := u.extract(archivePath)
+func (u *Updater) install(archive *os.File) error {
+	staged, err := u.extract(archive)
 	if err != nil {
 		return err
 	}
@@ -157,12 +165,7 @@ func validateDatabase(file string) error {
 	return nil
 }
 
-func (u *Updater) extract(archivePath string) (string, error) {
-	archive, err := os.Open(archivePath)
-	if err != nil {
-		return "", fmt.Errorf("open the downloaded archive: %w", err)
-	}
-	defer closeBody(archive)
+func (u *Updater) extract(archive *os.File) (string, error) {
 	unzipped, err := gzip.NewReader(archive)
 	if err != nil {
 		return "", errors.New("the download is not a gzip archive")

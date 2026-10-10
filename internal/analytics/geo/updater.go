@@ -199,7 +199,7 @@ func (u *Updater) download(ctx context.Context, account, key string) (string, er
 	if err != nil {
 		return "", err
 	}
-	defer removeQuietly(archive)
+	defer discard(archive)
 	note, err := u.verify(ctx, account, key, sum)
 	if err != nil {
 		return "", err
