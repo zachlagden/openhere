@@ -128,7 +128,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
 	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
-		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc),
+		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc), AnalyticsDefault: analyticsDefault(settingsSvc),
 	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger, OnSiteChange: siteChanged})
 	baseURL := cfg.PublicURL.String()
@@ -182,6 +182,16 @@ func defaultAccessMode(settingsSvc *settings.Service) func(ctx context.Context) 
 			return "", err
 		}
 		return cfg.DefaultAccessMode, nil
+	}
+}
+
+func analyticsDefault(settingsSvc *settings.Service) func(ctx context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		cfg, err := settingsSvc.Get(ctx)
+		if err != nil {
+			return false, err
+		}
+		return cfg.Analytics.EnabledByDefault, nil
 	}
 }
 

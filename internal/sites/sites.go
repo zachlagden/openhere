@@ -30,6 +30,7 @@ type UpdateInput struct {
 	DisplayName *string
 	Description *string
 	SpaMode     *bool
+	Analytics   *bool
 	Folder      FolderChange
 }
 
@@ -46,6 +47,9 @@ func (s *Service) CreateSite(ctx context.Context, in CreateInput) (Site, error) 
 		return Site{}, err
 	}
 	if site.AccessMode, err = s.newSiteAccessMode(ctx); err != nil {
+		return Site{}, err
+	}
+	if site.AnalyticsEnabled, err = s.newSiteAnalytics(ctx); err != nil {
 		return Site{}, err
 	}
 	if in.Slug != "" {
@@ -169,6 +173,9 @@ func applyFieldChanges(site *Site, in UpdateInput) error {
 	if in.SpaMode != nil {
 		site.SpaMode = *in.SpaMode
 	}
+	if in.Analytics != nil {
+		site.AnalyticsEnabled = *in.Analytics
+	}
 	if in.Description != nil {
 		description, err := validate.Text("Description", *in.Description, MaxDescriptionLength)
 		if err != nil {
@@ -185,8 +192,8 @@ func updateSite(ctx context.Context, q store.Querier, site Site) error {
 		folderID = sql.NullString{String: site.FolderID, Valid: true}
 	}
 	_, err := q.ExecContext(ctx,
-		"UPDATE sites SET display_name = $1, description = $2, folder_id = $3, spa_mode = $4, updated_at = $5 WHERE id = $6",
-		site.DisplayName, site.Description, folderID, site.SpaMode, site.UpdatedAt, site.ID)
+		"UPDATE sites SET display_name = $1, description = $2, folder_id = $3, spa_mode = $4, analytics_enabled = $5, updated_at = $6 WHERE id = $7",
+		site.DisplayName, site.Description, folderID, site.SpaMode, site.AnalyticsEnabled, site.UpdatedAt, site.ID)
 	if err != nil {
 		return fmt.Errorf("update site: %w", err)
 	}

@@ -29,6 +29,7 @@ type Options struct {
 	OnSiteChange  func(slug string)
 
 	DefaultAccessMode func(ctx context.Context) (string, error)
+	AnalyticsDefault  func(ctx context.Context) (bool, error)
 }
 
 type Service struct {
@@ -40,7 +41,8 @@ type Service struct {
 	logger   *slog.Logger
 	changed  func(slug string)
 
-	defaultAccess func(ctx context.Context) (string, error)
+	defaultAccess    func(ctx context.Context) (string, error)
+	analyticsDefault func(ctx context.Context) (bool, error)
 }
 
 func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
@@ -60,7 +62,7 @@ func New(db store.Store, ws *workspaces.Service, opts Options) *Service {
 	if changed == nil {
 		changed = func(string) {}
 	}
-	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger, changed: changed, defaultAccess: opts.DefaultAccessMode}
+	return &Service{db: db, ws: ws, now: now, generate: generate, files: opts.Files, logger: logger, changed: changed, defaultAccess: opts.DefaultAccessMode, analyticsDefault: opts.AnalyticsDefault}
 }
 
 func (s *Service) clock() time.Time {
@@ -72,4 +74,11 @@ func (s *Service) newSiteAccessMode(ctx context.Context) (string, error) {
 		return accessPublic, nil
 	}
 	return s.defaultAccess(ctx)
+}
+
+func (s *Service) newSiteAnalytics(ctx context.Context) (bool, error) {
+	if s.analyticsDefault == nil {
+		return true, nil
+	}
+	return s.analyticsDefault(ctx)
 }

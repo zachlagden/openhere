@@ -135,6 +135,10 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 			cfg, err := settingsSvc.Get(ctx)
 			return cfg.DefaultAccessMode, err
 		},
+		AnalyticsDefault: func(ctx context.Context) (bool, error) {
+			cfg, err := settingsSvc.Get(ctx)
+			return cfg.Analytics.EnabledByDefault, err
+		},
 	})
 	recorder := mail.NewRecorder()
 	var mailer mail.Sender = recorder

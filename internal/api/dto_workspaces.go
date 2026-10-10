@@ -99,6 +99,7 @@ type siteResponse struct {
 	Description      string              `json:"description"`
 	CreatedBy        *string             `json:"createdBy"`
 	SpaMode          bool                `json:"spaMode"`
+	AnalyticsEnabled bool                `json:"analyticsEnabled"`
 	AccessMode       string              `json:"accessMode"`
 	CurrentVersionID *string             `json:"currentVersionId"`
 	URL              *string             `json:"url"`
@@ -121,7 +122,7 @@ func toSiteResponse(s sites.Site, availability hosting.SiteAvailability) siteRes
 	return siteResponse{
 		ID: s.ID, WorkspaceID: s.WorkspaceID, WorkspaceSlug: s.WorkspaceSlug, FolderID: optional(s.FolderID),
 		Slug: s.Slug, DisplayName: s.DisplayName, Description: s.Description, CreatedBy: optional(s.CreatedBy),
-		SpaMode: s.SpaMode, AccessMode: s.AccessMode, CurrentVersionID: optional(s.CurrentVersionID), URL: optional(availability.URL),
+		SpaMode: s.SpaMode, AnalyticsEnabled: s.AnalyticsEnabled, AccessMode: s.AccessMode, CurrentVersionID: optional(s.CurrentVersionID), URL: optional(availability.URL),
 		Hosting: toSiteHostingResponse(availability),
 		Role:    s.Role, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
