@@ -68,7 +68,8 @@ func (s *Service) claimsHold(ctx context.Context, claims Claims, siteID string, 
 }
 
 func (s *Service) UserCanRead(ctx context.Context, userID, siteID string) (bool, error) {
-	query := "SELECT 1 FROM sites s WHERE s.id = $1 AND " + workspaces.SiteCoverSQL("s", "$2")
+	query := "SELECT 1 FROM sites s WHERE s.id = $1 AND " + workspaces.SiteCoverSQL("s", "$2") +
+		" AND EXISTS (SELECT 1 FROM users u WHERE u.id = $2 AND u.disabled_at IS NULL)"
 	var one int
 	err := s.db.QueryRowContext(ctx, query, siteID, userID).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {

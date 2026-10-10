@@ -172,3 +172,35 @@ func TestUserCanReadFollowsGrants(t *testing.T) {
 		}
 	})
 }
+
+func TestMemberCookieStopsWorkingForADisabledUser(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		ctx := context.Background()
+		e.update(e.site.ID, ConfigUpdate{Mode: strptr("restricted")})
+		e.grant("sam@example.com", "read", "site", e.site.ID)
+		member := e.cookie(e.site.ID, MethodMember, e.sam)
+		emailViewer := e.cookie(e.site.ID, MethodEmail, "")
+		if !e.allowed(e.site.ID, member) {
+			t.Fatal("a scoped reader was refused")
+		}
+		if _, err := db.ExecContext(ctx, "UPDATE users SET disabled_at = $1 WHERE id = $2", e.clock.Now(), e.sam); err != nil {
+			t.Fatal(err)
+		}
+		if e.allowed(e.site.ID, member) {
+			t.Error("the member cookie of a disabled user still works")
+		}
+		if allowed, err := e.svc.UserCanRead(ctx, e.sam, e.site.ID); err != nil || allowed {
+			t.Errorf("UserCanRead for a disabled user = %v, %v", allowed, err)
+		}
+		if !e.allowed(e.site.ID, emailViewer) {
+			t.Error("an email viewer cookie is not tied to a user and must keep working")
+		}
+		if _, err := db.ExecContext(ctx, "UPDATE users SET disabled_at = NULL WHERE id = $1", e.sam); err != nil {
+			t.Fatal(err)
+		}
+		if !e.allowed(e.site.ID, member) {
+			t.Error("the member cookie did not work again after the user was enabled")
+		}
+	})
+}
