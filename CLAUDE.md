@@ -30,6 +30,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 ## Authorization
 
 - `workspaces.EffectiveRole` is the only place that decides a role. Services load a user's grants into `workspaces.Access` and ask it. Do not re-implement the rule. The one exception is the SQL fragment `workspaces.SiteCoverSQL` for listing, which a test checks against `EffectiveRole`.
+- Renaming a folder needs a workspace-wide write or admin role, and deleting one needs a workspace-wide admin role. Check them with `acc.WorkspaceRole()`, never `FolderRole`, because deleting a folder cascades away every grant on it. `DeleteFolder` refuses with `ErrFolderHasGrants` unless `force` is set.
 - A resource the user cannot see returns `workspaces.ErrNotFound` (404). A visible resource with too low a role returns `ErrForbidden` (403). `workspaces.Require` does both.
 - Create shared workspaces only through `workspaces.Service.CreateShared`, which later gates creation. Create sites only through `sites.Service.CreateSite`, which publishing reuses.
 - Pass every user-supplied string through `validate` and `slug` before it reaches SQL, and use `$n` placeholders only.

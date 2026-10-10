@@ -29,6 +29,7 @@ const (
 	codeForbidden           = "forbidden"
 	codeSlugTaken           = "slug_taken"
 	codeFolderNameTaken     = "folder_name_taken"
+	codeFolderHasGrants     = "folder_has_grants"
 	codeLastAdmin           = "last_admin"
 	codePersonalWorkspace   = "personal_workspace"
 	codeWorkspaceNotEmpty   = "workspace_not_empty"

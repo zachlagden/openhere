@@ -835,7 +835,7 @@ paths:
       tags: [Folders]
       operationId: renameFolder
       summary: Rename a folder
-      description: Needs write on the folder, from a workspace-wide grant or a grant on that folder.
+      description: Needs a workspace-wide write or admin role. A grant limited to the folder is not enough.
       requestBody:
         required: true
         content:
@@ -872,8 +872,18 @@ paths:
       operationId: deleteFolder
       summary: Delete a folder
       description: |
-        Needs write on the folder. The folder's sites stay in the workspace as unfiled sites. Grants limited to
-        the folder are removed with it.
+        Needs a workspace-wide admin role. A grant limited to the folder is not enough, whatever its role. The
+        folder's sites stay in the workspace as unfiled sites. Grants limited to the folder are removed with it,
+        so the call fails with 409 `folder_has_grants` while any exist. Pass `force=true` to delete the folder
+        and those grants anyway.
+      parameters:
+        - name: force
+          in: query
+          required: false
+          description: Delete the folder even when grants limited to it exist.
+          schema:
+            type: boolean
+            default: false
       responses:
         "204":
           description: Folder deleted.
@@ -883,6 +893,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Grants limited to the folder still exist (`folder_has_grants`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /workspaces/{workspace}/sites:
     parameters:
       - $ref: "#/components/parameters/Workspace"

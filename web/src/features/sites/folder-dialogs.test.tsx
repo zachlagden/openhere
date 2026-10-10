@@ -53,4 +53,23 @@ describe("folder dialogs", () => {
     await userEvent.click(screen.getByRole("button", { name: "Delete folder" }));
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
   });
+
+  it("explains a refused delete and offers to delete anyway", async () => {
+    const fetchMock = mockApi({
+      "DELETE /api/v1/workspaces/personal/folders/f1": (request) =>
+        request.search.get("force") === "true"
+          ? { status: 204 }
+          : apiError(409, "folder_has_grants", "People still have access to this folder. Remove their access first, or delete the folder anyway."),
+    });
+    const onDeleted = vi.fn();
+    renderWithApp(<DeleteFolderDialog workspace="personal" folder={reportsFolder} open onOpenChange={() => undefined} onDeleted={onDeleted} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Delete folder" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("People still have access to this folder.");
+    expect(onDeleted).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Delete anyway" }));
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls[0]).toMatch(/folders\/f1$/);
+    expect(urls[1]).toMatch(/folders\/f1\?force=true$/);
+  });
 });

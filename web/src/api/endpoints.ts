@@ -103,9 +103,10 @@ export async function renameFolder(workspace: string, folderId: string, name: st
   return result.folder;
 }
 
-export async function deleteFolder(workspace: string, folderId: string): Promise<void> {
+export async function deleteFolder(workspace: string, folderId: string, force: boolean): Promise<void> {
   await request<void>(`/workspaces/${encodeURIComponent(workspace)}/folders/${encodeURIComponent(folderId)}`, {
     method: "DELETE",
+    query: force ? { force: "true" } : undefined,
   });
 }
 

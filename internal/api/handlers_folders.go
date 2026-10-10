@@ -50,7 +50,7 @@ func (s *Server) handleRenameFolder(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteFolder(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r.Context())
-	if err := s.sites.DeleteFolder(r.Context(), p.user.ID, r.PathValue("workspace"), r.PathValue("folder")); err != nil {
+	if err := s.sites.DeleteFolder(r.Context(), p.user.ID, r.PathValue("workspace"), r.PathValue("folder"), r.URL.Query().Get("force") == "true"); err != nil {
 		s.writeDomainError(w, r, err)
 		return
 	}

@@ -463,15 +463,17 @@ export interface paths {
         post?: never;
         /**
          * Delete a folder
-         * @description Needs write on the folder. The folder's sites stay in the workspace as unfiled sites. Grants limited to
-         *     the folder are removed with it.
+         * @description Needs a workspace-wide admin role. A grant limited to the folder is not enough, whatever its role. The
+         *     folder's sites stay in the workspace as unfiled sites. Grants limited to the folder are removed with it,
+         *     so the call fails with 409 `folder_has_grants` while any exist. Pass `force=true` to delete the folder
+         *     and those grants anyway.
          */
         delete: operations["deleteFolder"];
         options?: never;
         head?: never;
         /**
          * Rename a folder
-         * @description Needs write on the folder, from a workspace-wide grant or a grant on that folder.
+         * @description Needs a workspace-wide write or admin role. A grant limited to the folder is not enough.
          */
         patch: operations["renameFolder"];
         trace?: never;
@@ -3374,7 +3376,10 @@ export interface operations {
     };
     deleteFolder: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Delete the folder even when grants limited to it exist. */
+                force?: boolean;
+            };
             header?: never;
             path: {
                 /** @description The workspace slug or id. */
@@ -3396,6 +3401,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Grants limited to the folder still exist (`folder_has_grants`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     renameFolder: {

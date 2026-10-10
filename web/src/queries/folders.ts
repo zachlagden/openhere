@@ -27,10 +27,10 @@ export function useRenameFolder(workspace: string): UseMutationResult<Folder, Er
   });
 }
 
-export function useDeleteFolder(workspace: string): UseMutationResult<void, Error, string> {
+export function useDeleteFolder(workspace: string): UseMutationResult<void, Error, { id: string; force: boolean }> {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.deleteFolder(workspace, id),
+    mutationFn: ({ id, force }) => api.deleteFolder(workspace, id, force),
     onSuccess: async () => {
       await Promise.all([
         client.invalidateQueries({ queryKey: queryKeys.folders(workspace) }),
