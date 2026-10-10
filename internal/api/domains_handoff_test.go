@@ -10,8 +10,8 @@ import (
 	"github.com/zachlagden/selfhost/internal/store/storetest"
 )
 
-func handoffWithHost(site, ret, host string) string {
-	query := url.Values{"site": {site}, "return": {ret}, "host": {host}}
+func handoffWithHost(host string) string {
+	query := url.Values{"site": {"guarded"}, "return": {"/about"}, "host": {host}}
 	return "/api/v1/access/handoff?" + query.Encode()
 }
 
@@ -30,7 +30,7 @@ func TestHandoffReturnsToACustomDomain(t *testing.T) {
 		}
 
 		session := s.h.sessionFor("sam@example.com")
-		rec := s.h.do("GET", handoffWithHost("guarded", "/about", "WWW.Example.org"), nil, withCookie(session))
+		rec := s.h.do("GET", handoffWithHost("WWW.Example.org"), nil, withCookie(session))
 		if rec.Code != http.StatusSeeOther {
 			t.Fatalf("handoff = %d, %s", rec.Code, rec.Body.String())
 		}
@@ -73,17 +73,17 @@ func TestHandoffRefusesEveryHostButTheSitesOwnVerifiedDomains(t *testing.T) {
 			"https://www.example.org", "www.example.org\r\nX: y", "WWW.EXAMPLE.ORG.EVIL.EXAMPLE",
 		}
 		for _, host := range refused {
-			rec := s.h.do("GET", handoffWithHost("guarded", "/about", host), nil, withCookie(session))
+			rec := s.h.do("GET", handoffWithHost(host), nil, withCookie(session))
 			if rec.Code != http.StatusBadRequest || rec.Header().Get("Location") != "" {
 				t.Errorf("host %q = %d, Location %q", host, rec.Code, rec.Header().Get("Location"))
 			}
 		}
-		if rec := s.h.do("GET", handoffWithHost("guarded", "/about", customName), nil, withCookie(session)); rec.Code != http.StatusSeeOther {
+		if rec := s.h.do("GET", handoffWithHost(customName), nil, withCookie(session)); rec.Code != http.StatusSeeOther {
 			t.Errorf("own verified domain = %d", rec.Code)
 		}
 
 		s.alex.expect(http.StatusOK, "PATCH", "/api/v1/admin/settings", settingsPatch("hosting.customDomainsEnabled", false))
-		if rec := s.h.do("GET", handoffWithHost("guarded", "/about", customName), nil, withCookie(session)); rec.Code != http.StatusBadRequest {
+		if rec := s.h.do("GET", handoffWithHost(customName), nil, withCookie(session)); rec.Code != http.StatusBadRequest {
 			t.Errorf("with the feature off = %d", rec.Code)
 		}
 	})
@@ -94,7 +94,7 @@ func TestHandoffHostStillNeedsASessionAndReadAccess(t *testing.T) {
 		s := newAccessSetup(t, newHarness(t, db, harnessOptions{public: httpsPublic}))
 		s.alex.setAccess(map[string]any{"mode": "restricted"})
 		s.alex.verifiedDomain("guarded", customName)
-		target := handoffWithHost("guarded", "/about", customName)
+		target := handoffWithHost(customName)
 		if rec := s.h.do("GET", target, nil); rec.Code != http.StatusSeeOther || locationPath(t, rec).Path != "/login" {
 			t.Errorf("anonymous = %d, Location %q", rec.Code, rec.Header().Get("Location"))
 		}
@@ -110,7 +110,7 @@ func TestHandoffWithoutAHostStaysOnTheUsualAddress(t *testing.T) {
 		s := newAccessSetup(t, newHarness(t, db, harnessOptions{public: httpsPublic}))
 		s.alex.setAccess(map[string]any{"mode": "restricted"})
 		verified := s.alex.verifiedDomain("guarded", customName)
-		s.alex.setPrimary("guarded", verified.ID, true)
+		s.alex.setPrimary(verified.ID, true)
 		session := s.h.sessionFor("sam@example.com")
 		rec := s.h.do("GET", handoffURL("guarded", "/about"), nil, withCookie(session))
 		if loc := locationPath(t, rec); rec.Code != http.StatusSeeOther || loc.Host != testHost || loc.Path != "/s/guarded/.well-known/selfhost-auth" {

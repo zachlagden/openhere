@@ -52,7 +52,7 @@ func collect(rows *sql.Rows) ([]Domain, error) {
 
 func closeAfter(rows *sql.Rows, err error) error {
 	if closeErr := rows.Close(); closeErr != nil {
-		return fmt.Errorf("%w (and closing rows failed: %v)", err, closeErr)
+		return fmt.Errorf("%w (and closing rows failed: %w)", err, closeErr)
 	}
 	return err
 }

@@ -3,6 +3,8 @@ package domains
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -58,7 +60,8 @@ func asValidation(err error, target **validate.Error) bool {
 	if err == nil {
 		return false
 	}
-	v, ok := err.(*validate.Error)
+	var v *validate.Error
+	ok := errors.As(err, &v)
 	*target = v
 	return ok
 }
@@ -120,7 +123,7 @@ func TestConcurrentClaimsRespectThePerSiteLimit(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_, err := e.svc.Claim(context.Background(), siteID, "host-"+string(rune('a'+i))+".example.org")
+				_, err := e.svc.Claim(context.Background(), siteID, "host-"+strconv.Itoa(i)+".example.org")
 				switch {
 				case err == nil:
 					accepted.Add(1)

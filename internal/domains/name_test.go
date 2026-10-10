@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -97,7 +98,8 @@ func TestNormaliseRejectsInvalidNames(t *testing.T) {
 			t.Errorf("%s: Normalise(%q) = %q, want an error", name, input, got)
 			continue
 		}
-		if _, ok := err.(*validate.Error); !ok {
+		var invalid *validate.Error
+		if !errors.As(err, &invalid) {
 			t.Errorf("%s: error %T is not a validation error", name, err)
 		}
 	}

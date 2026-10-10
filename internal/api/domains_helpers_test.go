@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 )
 
 type fakeDNS struct {
@@ -66,18 +65,14 @@ func (a actor) verifiedDomain(slug, name string) domainResponse {
 	return result.Domain
 }
 
-func (a actor) setPrimary(slug, id string, primary bool) *domainResponse {
+func (a actor) setPrimary(id string, primary bool) *domainResponse {
 	a.h.t.Helper()
-	rec := a.expect(http.StatusOK, "PATCH", domainsPath(slug)+"/"+id, map[string]any{"isPrimary": primary})
+	rec := a.expect(http.StatusOK, "PATCH", domainsPath("guarded")+"/"+id, map[string]any{"isPrimary": primary})
 	d := decodeBody[domainEnvelope](a.h.t, rec).Domain
 	return &d
 }
 
-func (a actor) siteByLive(slug string) siteResponse {
+func (a actor) guardedSite() siteResponse {
 	a.h.t.Helper()
-	return decodeBody[siteEnvelope](a.h.t, a.expect(http.StatusOK, "GET", "/api/v1/sites/"+slug, nil)).Site
-}
-
-func (h *harness) advance(d time.Duration) {
-	h.clock.Advance(d)
+	return decodeBody[siteEnvelope](a.h.t, a.expect(http.StatusOK, "GET", "/api/v1/sites/guarded", nil)).Site
 }

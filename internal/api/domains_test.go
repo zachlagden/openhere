@@ -140,10 +140,10 @@ func TestPrimaryDomainRules(t *testing.T) {
 		s.alex.expectError(http.StatusConflict, "domain_not_verified", "PATCH", domainsPath("guarded")+"/"+pending.ID, map[string]any{"isPrimary": true})
 		s.alex.expectError(http.StatusBadRequest, "validation_failed", "PATCH", domainsPath("guarded")+"/"+first.ID, map[string]any{})
 
-		if !s.alex.setPrimary("guarded", first.ID, true).IsPrimary {
+		if !s.alex.setPrimary(first.ID, true).IsPrimary {
 			t.Error("first is not primary")
 		}
-		s.alex.setPrimary("guarded", second.ID, true)
+		s.alex.setPrimary(second.ID, true)
 		list := decodeBody[domainListResponse](t, s.alex.expect(http.StatusOK, "GET", domainsPath("guarded"), nil)).Domains
 		primaries := map[string]bool{}
 		for _, d := range list {
@@ -152,7 +152,7 @@ func TestPrimaryDomainRules(t *testing.T) {
 		if primaries["first.example.org"] || !primaries["second.example.org"] {
 			t.Errorf("primaries = %v", primaries)
 		}
-		if s.alex.setPrimary("guarded", second.ID, false).IsPrimary {
+		if s.alex.setPrimary(second.ID, false).IsPrimary {
 			t.Error("primary was not cleared")
 		}
 	})
@@ -161,12 +161,12 @@ func TestPrimaryDomainRules(t *testing.T) {
 func TestSiteURLAndHostingFollowCustomDomains(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		s := newAccessSetup(t, newHarness(t, db, harnessOptions{}))
-		base := s.alex.siteByLive("guarded")
+		base := s.alex.guardedSite()
 		if base.URL == nil || *base.URL != "http://example.com/s/guarded/" {
 			t.Fatalf("base url = %v", base.URL)
 		}
 		pending := s.alex.addDomain("guarded", "pending.example.org")
-		waiting := s.alex.siteByLive("guarded")
+		waiting := s.alex.guardedSite()
 		requireCodes(t, "pending notices", waiting.Hosting.Notices, "subdomain_off", "custom_domain_pending")
 		if *waiting.URL != *base.URL || !waiting.Hosting.Reachable || waiting.Hosting.Modes.CustomDomains.State != "on" {
 			t.Errorf("hosting with a pending domain = %+v", waiting.Hosting)
@@ -176,12 +176,12 @@ func TestSiteURLAndHostingFollowCustomDomains(t *testing.T) {
 		}
 
 		verified := s.alex.verifiedDomain("guarded", "www.example.org")
-		unpicked := s.alex.siteByLive("guarded")
+		unpicked := s.alex.guardedSite()
 		if *unpicked.URL != *base.URL {
 			t.Errorf("url without a primary = %q", *unpicked.URL)
 		}
-		s.alex.setPrimary("guarded", verified.ID, true)
-		primary := s.alex.siteByLive("guarded")
+		s.alex.setPrimary(verified.ID, true)
+		primary := s.alex.guardedSite()
 		if *primary.URL != "http://www.example.org/" || *primary.Hosting.URL != "http://www.example.org/" {
 			t.Errorf("url with a primary = %q", *primary.URL)
 		}
@@ -191,7 +191,7 @@ func TestSiteURLAndHostingFollowCustomDomains(t *testing.T) {
 		}
 
 		s.alex.expect(http.StatusOK, "PATCH", "/api/v1/admin/settings", settingsPatch("hosting.customDomainsEnabled", false))
-		off := s.alex.siteByLive("guarded")
+		off := s.alex.guardedSite()
 		if *off.URL != *base.URL || off.Hosting.Modes.CustomDomains.State != "off" {
 			t.Errorf("hosting with the feature off = %+v", off.Hosting)
 		}
