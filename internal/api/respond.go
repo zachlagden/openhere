@@ -2,11 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 )
 
 const (
@@ -20,6 +23,7 @@ const (
 	codeSetupComplete       = "setup_complete"
 	codeCSRFRejected        = "csrf_rejected"
 	codeRateLimited         = "rate_limited"
+	codeServerBusy          = "server_busy"
 	codeNotFound            = "not_found"
 	codeKeyLimitReached     = "api_key_limit_reached"
 	codeForbidden           = "forbidden"
@@ -94,7 +98,24 @@ func writeRateLimited(w http.ResponseWriter, wait time.Duration) {
 	})
 }
 
+func writeServerBusy(w http.ResponseWriter) {
+	seconds := int(math.Ceil(hashlimit.Default().RetryAfter().Seconds()))
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+	writeJSON(w, http.StatusServiceUnavailable, errorBody{
+		Code:       codeServerBusy,
+		Message:    "The server is busy. Try again in a moment.",
+		RetryAfter: &seconds,
+	})
+}
+
 func (s *Server) writeInternal(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, hashlimit.ErrBusy) {
+		writeServerBusy(w)
+		return
+	}
 	s.logger.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
 	writeError(w, http.StatusInternalServerError, codeInternal, "Something went wrong.")
 }

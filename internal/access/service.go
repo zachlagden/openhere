@@ -30,9 +30,8 @@ type Service struct {
 	secretMu sync.Mutex
 	secret   []byte
 
-	dummyOnce sync.Once
+	dummyMu   sync.Mutex
 	dummyHash string
-	dummyErr  error
 }
 
 func New(db store.Store, opts Options) *Service {

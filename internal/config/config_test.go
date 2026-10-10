@@ -107,6 +107,9 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		"key prefix with symbols":     {map[string]string{"API_KEY_PREFIX": "sk-"}, "API_KEY_PREFIX"},
 		"key prefix too long":         {map[string]string{"API_KEY_PREFIX": "abcdefghijklmnopq"}, "API_KEY_PREFIX"},
 		"trusted proxy not an ip":     {map[string]string{"TRUSTED_PROXIES": "10.0.0.1, proxy"}, "TRUSTED_PROXIES"},
+		"argon2 concurrency zero":     {map[string]string{"ARGON2_CONCURRENCY": "0"}, "ARGON2_CONCURRENCY"},
+		"argon2 concurrency too high": {map[string]string{"ARGON2_CONCURRENCY": "17"}, "ARGON2_CONCURRENCY"},
+		"argon2 concurrency text":     {map[string]string{"ARGON2_CONCURRENCY": "many"}, "ARGON2_CONCURRENCY"},
 		"trusted proxy bad cidr":      {map[string]string{"TRUSTED_PROXIES": "10.0.0.0/40"}, "TRUSTED_PROXIES"},
 	}
 	for name, tc := range cases {
@@ -319,5 +322,16 @@ func TestTLSSettingsAreIgnoredWhenDisabled(t *testing.T) {
 	}
 	if cfg.TLS.Enabled {
 		t.Errorf("TLS should stay off: %+v", cfg.TLS)
+	}
+}
+
+func TestArgon2Concurrency(t *testing.T) {
+	cfg, err := Load(lookupFrom(nil))
+	if err != nil || cfg.Argon2Concurrency != 2 {
+		t.Fatalf("default = %d, %v; want 2", cfg.Argon2Concurrency, err)
+	}
+	cfg, err = Load(lookupFrom(map[string]string{"ARGON2_CONCURRENCY": "16"}))
+	if err != nil || cfg.Argon2Concurrency != 16 {
+		t.Fatalf("override = %d, %v; want 16", cfg.Argon2Concurrency, err)
 	}
 }

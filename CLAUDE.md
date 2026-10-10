@@ -93,6 +93,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Never log a code, token, reset link, invite link, API key or password. Store only hashes of tokens (`auth.HashToken`) and HMACs of codes (`secrets.Box.Sign`).
 - Responses that must not reveal whether an account exists (password reset request, agent `request-code`, invite lookup and accept failures) return one fixed body for every case, and their rate limits count every request alike. The one exception is `email_not_configured`, which tells an agent to ask for a dashboard key.
 - A disabled user (`users.disabled_at`) fails every session and API key lookup in the same query. Add no lookup of a user that skips `disabled_at IS NULL`.
+- Every argon2 hash or verify goes through `auth.HashPassword` or `auth.VerifyPassword`, which take a slot from `hashlimit` first (`ARGON2_CONCURRENCY`, default 2). A caller that waits more than 5 seconds gets `hashlimit.ErrBusy`, which the API turns into 503 `server_busy`. Never call `argon2` directly.
 - Invites create instance accounts. Create users only through `auth.Service` (`CreateUser`, `Setup`, `InsertMember`) so the personal workspace exists.
 
 ## Analytics

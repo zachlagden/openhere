@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -9,6 +10,8 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/argon2"
+
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 )
 
 type Params struct {
@@ -33,23 +36,33 @@ const (
 
 var errMalformedHash = errors.New("password hash is malformed")
 
-func HashPassword(password string, p Params) (string, error) {
+func HashPassword(ctx context.Context, password string, p Params) (string, error) {
 	salt := make([]byte, p.SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
+	release, err := hashlimit.Acquire(ctx)
+	if err != nil {
+		return "", err
+	}
 	key := argon2.IDKey([]byte(password), salt, p.Time, p.MemoryKiB, p.Threads, p.KeyLen)
+	release()
 	encoding := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, p.MemoryKiB, p.Time, p.Threads, encoding.EncodeToString(salt), encoding.EncodeToString(key)), nil
 }
 
-func VerifyPassword(password, encoded string) (bool, error) {
+func VerifyPassword(ctx context.Context, password, encoded string) (bool, error) {
 	p, salt, want, err := decodeHash(encoded)
 	if err != nil {
 		return false, err
 	}
+	release, err := hashlimit.Acquire(ctx)
+	if err != nil {
+		return false, err
+	}
 	got := argon2.IDKey([]byte(password), salt, p.Time, p.MemoryKiB, p.Threads, p.KeyLen)
+	release()
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 

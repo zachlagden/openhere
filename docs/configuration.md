@@ -19,6 +19,7 @@ An empty value counts as unset. The server refuses to start, and names every pro
 | `PUBLIC_URL` | `http://localhost` plus the port of `LISTEN_ADDR` | Address people use for the dashboard and API: scheme, host and optional port, no path. Its host is the management host and the default `hosting.baseDomain`. An `https://` scheme makes cookies `Secure` and `__Host-` prefixed. Every link in an email starts with it. |
 | `SECRET_KEY` | unset | 32 random bytes encoded as base64. Encrypts stored secrets. When unset, the server uses `DATA_DIR/secret.key` and creates it on first start. Generate one with `openssl rand -base64 32`. |
 | `TRUSTED_PROXIES` | unset | Comma-separated IP addresses or CIDR ranges of reverse proxies. The server reads `X-Forwarded-For` and `X-Forwarded-Proto` only from these peers. See [Reverse proxy](reverse-proxy.md). |
+| `ARGON2_CONCURRENCY` | `2` | Password hashes the server computes at once, 1 to 16. Each hash uses 64 MiB of memory while it runs. Further sign-ins, password changes and site password checks wait up to 5 seconds for a free slot, then get a 503 `server_busy` response with a `retry_after` value. Raise it on a server with spare memory and many simultaneous sign-ins. |
 | `TLS_ENABLED` | `false` | Switches built-in HTTPS on. Accepts `true` or `false`. See [Built-in HTTPS](built-in-https.md). |
 | `TLS_HTTP_ADDR` | `:80` | Challenge and redirect listener. Read only when `TLS_ENABLED` is true. |
 | `TLS_HTTPS_ADDR` | `:443` | HTTPS listener. Read only when `TLS_ENABLED` is true. Must differ from `TLS_HTTP_ADDR`. |

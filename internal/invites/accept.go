@@ -47,7 +47,7 @@ func (s *Service) Accept(ctx context.Context, token, password, displayName strin
 	if err != nil {
 		return auth.User{}, err
 	}
-	creds, err := s.auth.PrepareCredentials(inv.Email, password)
+	creds, err := s.auth.PrepareCredentials(ctx, inv.Email, password)
 	if err != nil {
 		return auth.User{}, err
 	}

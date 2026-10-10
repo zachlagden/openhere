@@ -3,11 +3,14 @@ package hosting
 import (
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/store"
 )
@@ -92,6 +95,11 @@ func (g *gate) deny(req siteRequest, state access.State, data pageData) {
 }
 
 func (g *gate) fail(w http.ResponseWriter, err error) {
+	if errors.Is(err, hashlimit.ErrBusy) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(hashlimit.Default().RetryAfter().Seconds()))))
+		writeText(w, http.StatusServiceUnavailable, "Server busy\n", true)
+		return
+	}
 	g.logger.Error("check site access", "error", err)
 	writeServerError(w)
 }

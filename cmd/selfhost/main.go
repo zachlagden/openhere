@@ -20,6 +20,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
@@ -103,6 +104,7 @@ func serve(cfg config.Config, logger *slog.Logger) error {
 }
 
 func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *slog.Logger) (*application, error) {
+	hashlimit.SetDefault(hashlimit.New(cfg.Argon2Concurrency, hashlimit.DefaultWait))
 	svc, err := auth.New(db, auth.Options{KeyPrefix: cfg.APIKeyPrefix, Logger: logger})
 	if err != nil {
 		return nil, err

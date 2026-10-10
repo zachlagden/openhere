@@ -21,7 +21,7 @@ type plan struct {
 }
 
 func (s *Service) Update(ctx context.Context, siteID string, in ConfigUpdate) (Config, error) {
-	prepared, err := s.prepare(in)
+	prepared, err := s.prepare(ctx, in)
 	if err != nil {
 		return Config{}, err
 	}
@@ -37,7 +37,7 @@ func (s *Service) Update(ctx context.Context, siteID string, in ConfigUpdate) (C
 	return result, nil
 }
 
-func (s *Service) prepare(in ConfigUpdate) (plan, error) {
+func (s *Service) prepare(ctx context.Context, in ConfigUpdate) (plan, error) {
 	var p plan
 	if in.Mode != nil {
 		mode, ok := ParseMode(*in.Mode)
@@ -46,7 +46,7 @@ func (s *Service) prepare(in ConfigUpdate) (plan, error) {
 		}
 		p.mode = &mode
 	}
-	if err := s.preparePassword(&p, in.Password); err != nil {
+	if err := s.preparePassword(ctx, &p, in.Password); err != nil {
 		return plan{}, err
 	}
 	if in.Emails != nil {
@@ -66,7 +66,7 @@ func (s *Service) prepare(in ConfigUpdate) (plan, error) {
 	return p, nil
 }
 
-func (s *Service) preparePassword(p *plan, change PasswordChange) error {
+func (s *Service) preparePassword(ctx context.Context, p *plan, change PasswordChange) error {
 	if !change.Set {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (s *Service) preparePassword(p *plan, change PasswordChange) error {
 	if length < MinPasswordLength || length > MaxPasswordLength {
 		return validate.Invalid(fmt.Sprintf("Password must be %d to %d characters long.", MinPasswordLength, MaxPasswordLength))
 	}
-	hash, err := auth.HashPassword(*change.Value, s.params)
+	hash, err := auth.HashPassword(ctx, *change.Value, s.params)
 	if err != nil {
 		return wrap("hash site password", err)
 	}

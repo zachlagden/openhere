@@ -98,7 +98,7 @@ func (s *Service) Confirm(ctx context.Context, token, password string) error {
 	if err != nil {
 		return err
 	}
-	hash, err := s.auth.HashNewPassword(password)
+	hash, err := s.auth.HashNewPassword(ctx, password)
 	if err != nil {
 		return err
 	}

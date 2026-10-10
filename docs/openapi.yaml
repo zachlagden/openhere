@@ -149,6 +149,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /auth/login:
     post:
       tags: [Auth]
@@ -194,6 +196,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /auth/password-reset/request:
     post:
       tags: [Auth]
@@ -259,6 +263,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /auth/agent/request-code:
     post:
       tags: [Auth]
@@ -1394,6 +1400,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "415":
           $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /access/handoff:
     get:
       tags: [Access]
@@ -1853,6 +1861,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServerBusy"
   /invites/{invite}/resend:
     post:
       tags: [Invites]
@@ -2392,6 +2402,17 @@ components:
             $ref: "#/components/schemas/Error"
     RateLimited:
       description: Too many attempts (`rate_limited`). Limits are held in memory, per process, and reset on restart.
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerBusy:
+      description: Password hashing is saturated (`server_busy`). The request waited 5 seconds for a free slot. Retry after the interval in `Retry-After`.
       headers:
         Retry-After:
           description: Seconds to wait.

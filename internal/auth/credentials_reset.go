@@ -7,11 +7,11 @@ import (
 	"github.com/zachlagden/selfhost/internal/store"
 )
 
-func (s *Service) HashNewPassword(password string) (string, error) {
+func (s *Service) HashNewPassword(ctx context.Context, password string) (string, error) {
 	if err := ValidatePassword(password); err != nil {
 		return "", err
 	}
-	hash, err := HashPassword(password, s.params)
+	hash, err := HashPassword(ctx, password, s.params)
 	if err != nil {
 		return "", fmt.Errorf("hash password: %w", err)
 	}
