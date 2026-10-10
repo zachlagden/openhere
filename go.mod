@@ -9,6 +9,7 @@ require (
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/libdns v1.1.1
 	github.com/mholt/acmez/v3 v3.1.7
+	github.com/miekg/dns v1.1.73
 	github.com/pressly/goose/v3 v3.28.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
@@ -26,7 +27,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/miekg/dns v1.1.73 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
