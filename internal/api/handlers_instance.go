@@ -22,6 +22,8 @@ type instanceResponse struct {
 	EmailAvailable       bool                  `json:"emailAvailable"`
 	CanCreateWorkspaces  bool                  `json:"canCreateWorkspaces"`
 	HostingModes         instanceModesResponse `json:"hostingModes"`
+	MaxDomainsPerSite    int                   `json:"maxDomainsPerSite"`
+	WhoCanInvite         string                `json:"whoCanInvite"`
 	AgentCredentialsDir  string                `json:"agentCredentialsDir"`
 	AgentCredentialsPath string                `json:"agentCredentialsPath"`
 }
@@ -50,6 +52,8 @@ func (s *Server) handleInstance(w http.ResponseWriter, r *http.Request) {
 			Path:          availability.Path.State == hosting.StateOn,
 			CustomDomains: availability.CustomDomains.State == hosting.StateOn,
 		},
+		MaxDomainsPerSite:    cfg.MaxDomainsPerSite,
+		WhoCanInvite:         cfg.WhoCanInvite,
 		AgentCredentialsDir:  config.AgentCredentialsDir,
 		AgentCredentialsPath: config.AgentCredentialsPath(),
 	})

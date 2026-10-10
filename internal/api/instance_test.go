@@ -20,6 +20,8 @@ func TestInstanceDescribesTheServerToSignedInUsers(t *testing.T) {
 		want := instanceResponse{
 			PublicURL: "http://example.com", Version: "1.2.3", EmailAvailable: true, CanCreateWorkspaces: true,
 			HostingModes:         instanceModesResponse{Subdomain: false, Path: true, CustomDomains: true},
+			MaxDomainsPerSite:    10,
+			WhoCanInvite:         "root",
 			AgentCredentialsDir:  ".selfhost",
 			AgentCredentialsPath: "~/.selfhost/credentials",
 		}
@@ -27,10 +29,13 @@ func TestInstanceDescribesTheServerToSignedInUsers(t *testing.T) {
 			t.Errorf("instance = %+v, want %+v", got, want)
 		}
 
-		root.setSettings(`{"settings":{"workspaces.whoCanCreate":"root","hosting.customDomainsEnabled":false}}`)
+		root.setSettings(`{"settings":{"workspaces.whoCanCreate":"root","hosting.customDomainsEnabled":false,"hosting.maxDomainsPerSite":3,"invites.whoCanInvite":"workspaceAdmins"}}`)
 		restricted := decodeBody[instanceResponse](t, sam.expect(http.StatusOK, "GET", "/api/v1/instance", nil))
 		if restricted.CanCreateWorkspaces || restricted.HostingModes.CustomDomains {
 			t.Errorf("restricted = %+v", restricted)
+		}
+		if restricted.MaxDomainsPerSite != 3 || restricted.WhoCanInvite != "workspaceAdmins" {
+			t.Errorf("policy fields = %d, %q", restricted.MaxDomainsPerSite, restricted.WhoCanInvite)
 		}
 		if !decodeBody[instanceResponse](t, root.expect(http.StatusOK, "GET", "/api/v1/instance", nil)).CanCreateWorkspaces {
 			t.Error("the root user must always be able to create workspaces")
