@@ -37,6 +37,14 @@ linters:
         linters:
           - gosec
         text: G402
+      - path: _test\.go
+        linters:
+          - gosec
+        text: G112|G301|G302|G304|G306
+      - path: internal/fsperm/fsperm\.go
+        linters:
+          - gosec
+        text: G304
 
 formatters:
   enable:

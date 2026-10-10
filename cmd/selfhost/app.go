@@ -56,8 +56,8 @@ func tlsReporter(manager *certs.Manager) api.TLSReporter {
 
 func (a *application) servers(cfg config.Config) []*http.Server {
 	if a.certs == nil {
-		srv := &http.Server{Addr: cfg.ListenAddr, Handler: a.handler, MaxHeaderBytes: maxHeaderBytes}
-		a.timeouts.Apply(srv)
+		srv := a.timeouts.NewServer(cfg.ListenAddr, a.handler)
+		srv.MaxHeaderBytes = maxHeaderBytes
 		return []*http.Server{srv}
 	}
 	return []*http.Server{

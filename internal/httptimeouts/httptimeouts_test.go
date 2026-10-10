@@ -64,7 +64,7 @@ func TestSlowBodyIsClosedAfterTheReadTimeout(t *testing.T) {
 		_, err := io.Copy(io.Discard, r.Body)
 		failed <- err
 	}))
-	conn, err := net.Dial("tcp", addr)
+	conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestSteadySlowUploadCompletesWithinItsExtendedDeadline(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 		_, _ = io.WriteString(w, "done")
 	}))
-	conn, err := net.Dial("tcp", addr)
+	conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestWithoutExtensionTheSameSlowUploadIsCutOff(t *testing.T) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	}))
-	conn, err := net.Dial("tcp", addr)
+	conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,11 @@ func TestSlowDownloadSurvivesOnceTheWriteDeadlineIsExtended(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 		_, _ = io.WriteString(w, "payload")
 	}))
-	resp, err := http.Get("http://" + addr + "/")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+addr+"/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +184,7 @@ func TestIdleConnectionsAreClosed(t *testing.T) {
 	addr := startServer(t, shortTimeouts(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "ok")
 	}))
-	conn, err := net.Dial("tcp", addr)
+	conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", addr)
 	if err != nil {
 		t.Fatal(err)
 	}

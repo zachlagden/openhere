@@ -32,14 +32,10 @@ func (m *Manager) HTTPServer(addr string) *http.Server {
 }
 
 func (m *Manager) HTTPSServer(addr string, handler http.Handler, timeouts httptimeouts.Timeouts) *http.Server {
-	srv := &http.Server{
-		Addr:           addr,
-		Handler:        handler,
-		TLSConfig:      m.TLSConfig(),
-		MaxHeaderBytes: maxHeaderBytes,
-		ErrorLog:       quietLog(),
-	}
-	timeouts.OrDefaults().Apply(srv)
+	srv := timeouts.OrDefaults().NewServer(addr, handler)
+	srv.TLSConfig = m.TLSConfig()
+	srv.MaxHeaderBytes = maxHeaderBytes
+	srv.ErrorLog = quietLog()
 	return srv
 }
 

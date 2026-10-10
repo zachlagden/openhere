@@ -41,6 +41,13 @@ func (t Timeouts) OrDefaults() Timeouts {
 	return t
 }
 
+func (t Timeouts) NewServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr: addr, Handler: handler,
+		ReadHeaderTimeout: t.ReadHeader, ReadTimeout: t.Read, WriteTimeout: t.Write, IdleTimeout: t.Idle,
+	}
+}
+
 func (t Timeouts) Apply(srv *http.Server) {
 	srv.ReadHeaderTimeout = t.ReadHeader
 	srv.ReadTimeout = t.Read
