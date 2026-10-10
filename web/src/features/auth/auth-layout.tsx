@@ -2,6 +2,7 @@ import type { JSX, ReactNode } from "react";
 import { BRAND_NAME } from "@/brand";
 import { Logo } from "@/layout/logo";
 import { ThemeToggle } from "@/layout/theme-toggle";
+import { usePageTitle } from "@/lib/use-page-title";
 
 interface AuthLayoutProps {
   title: string;
@@ -11,6 +12,7 @@ interface AuthLayoutProps {
 }
 
 export function AuthLayout({ title, description, children, footer }: AuthLayoutProps): JSX.Element {
+  usePageTitle(title);
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
       <aside className="dot-grid relative hidden overflow-hidden border-r border-line bg-sunken lg:flex lg:flex-col lg:justify-between lg:p-12">
