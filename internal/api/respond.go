@@ -54,6 +54,7 @@ const (
 	codeFileNotInManifest   = "file_not_in_manifest"
 	codeWildcardNotVerified = "wildcard_not_verified"
 	codeNoHostingMode       = "no_hosting_mode"
+	codeBaseDomainInUse     = "base_domain_in_use"
 )
 
 type errorBody struct {
