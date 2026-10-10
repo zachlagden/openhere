@@ -40,6 +40,7 @@ func TestDefaults(t *testing.T) {
 			DefaultAccessMode: AccessPublic,
 			Email:             Email{Provider: ProviderNone, SMTPPort: 587, SMTPSecurity: SecurityStartTLS},
 			TLS:               TLS{DNSProvider: DNSProviderNone},
+			Analytics:         Analytics{EnabledByDefault: true, RetentionDays: 395, RawDays: 31, GeoStatus: GeoUnconfigured},
 			WhoCanInvite:      InviteRoot, WhoCanCreate: CreateAny,
 		}
 		if got != want {

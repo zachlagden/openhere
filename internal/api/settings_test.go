@@ -61,6 +61,15 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"email.resend.apiKeySet":          false,
 			"tls.dnsProvider":                 "none",
 			"tls.cloudflareApiTokenSet":       false,
+			"analytics.enabledByDefault":      true,
+			"analytics.retentionDays":         float64(395),
+			"analytics.rawDays":               float64(31),
+			"analytics.maxmindAccountId":      "",
+			"analytics.maxmindLicenseKeySet":  false,
+			"analytics.geoStatus":             "unconfigured",
+			"analytics.geoUpdatedAt":          nil,
+			"analytics.geoCheckedAt":          nil,
+			"analytics.geoDetail":             "",
 		}
 		assertSettings(t, defaults, want)
 
