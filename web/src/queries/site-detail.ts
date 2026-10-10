@@ -6,6 +6,7 @@ import { queryKeys } from "./keys";
 export function useSite(slug: string): UseQueryResult<Site> {
   return useQuery({
     queryKey: queryKeys.site(slug),
+    staleTime: 0,
     queryFn: ({ signal }) => api.getSite(slug, { signal }),
   });
 }
@@ -30,8 +31,10 @@ export function useDeleteSite(slug: string): UseMutationResult<void, Error, void
   return useMutation({
     mutationFn: () => api.deleteSite(slug),
     onSuccess: async () => {
-      client.removeQueries({ queryKey: queryKeys.site(slug) });
-      await Promise.all([refreshSites(client), client.invalidateQueries({ queryKey: queryKeys.allDomains })]);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.sites, predicate: (query) => !(query.queryKey[1] === "detail" && query.queryKey[2] === slug) }),
+        client.invalidateQueries({ queryKey: queryKeys.allDomains }),
+      ]);
     },
   });
 }
@@ -39,6 +42,7 @@ export function useDeleteSite(slug: string): UseMutationResult<void, Error, void
 export function useAccess(slug: string): UseQueryResult<Access> {
   return useQuery({
     queryKey: queryKeys.siteAccess(slug),
+    staleTime: 0,
     queryFn: ({ signal }) => api.getAccess(slug, { signal }),
   });
 }
@@ -57,6 +61,7 @@ export function useUpdateAccess(slug: string): UseMutationResult<Access, Error, 
 export function useDomains(slug: string): UseQueryResult<Domain[]> {
   return useQuery({
     queryKey: queryKeys.siteDomains(slug),
+    staleTime: 0,
     queryFn: ({ signal }) => api.listDomains(slug, { signal }),
   });
 }
@@ -104,6 +109,7 @@ export function useDeleteDomain(slug: string): UseMutationResult<void, Error, st
 export function useVersions(slug: string): UseQueryResult<Version[]> {
   return useQuery({
     queryKey: queryKeys.siteVersions(slug),
+    staleTime: 0,
     queryFn: ({ signal }) => api.listVersions(slug, { signal }),
   });
 }
@@ -111,6 +117,7 @@ export function useVersions(slug: string): UseQueryResult<Version[]> {
 export function useLiveFiles(slug: string): UseQueryResult<LiveManifest> {
   return useQuery({
     queryKey: queryKeys.siteFiles(slug),
+    staleTime: 0,
     queryFn: ({ signal }) => api.listLiveFiles(slug, { signal }),
   });
 }

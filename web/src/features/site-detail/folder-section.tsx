@@ -48,7 +48,7 @@ function FolderForm({ site }: { site: Site }): JSX.Element {
 export function FolderSection({ site }: { site: Site }): JSX.Element {
   return (
     <Section title="Folder" description="Folders group sites inside one workspace. A site cannot move to another workspace.">
-      {canWrite(site.role) ? <FolderForm key={site.updatedAt} site={site} /> : <p className="text-sm">Folders are changed by people with write access.</p>}
+      {canWrite(site.role) ? <FolderForm site={site} /> : <p className="text-sm">Folders are changed by people with write access.</p>}
     </Section>
   );
 }

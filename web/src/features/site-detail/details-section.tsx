@@ -56,7 +56,7 @@ export function DetailsSection({ site }: { site: Site }): JSX.Element {
   return (
     <Section title="Details" description="The name and description people see in the dashboard.">
       {editable ? (
-        <DetailsForm key={site.updatedAt} site={site} />
+        <DetailsForm site={site} />
       ) : (
         <dl className="grid gap-3 text-sm">
           <div>

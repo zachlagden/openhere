@@ -20,14 +20,15 @@ export function DeleteSiteSection({ site }: { site: Site }): JSX.Element | null 
     return null;
   }
 
-  function confirm(): void {
-    remove.mutate(undefined, {
-      onSuccess: () => {
-        setOpen(false);
-        toast.success(`Deleted ${site.displayName}.`);
-        void navigate(workspacePath(site.workspaceSlug), { replace: true });
-      },
-    });
+  async function confirm(): Promise<void> {
+    try {
+      await remove.mutateAsync();
+    } catch {
+      return;
+    }
+    setOpen(false);
+    toast.success(`Deleted ${site.displayName}.`);
+    void navigate(workspacePath(site.workspaceSlug), { replace: true });
   }
 
   return (
@@ -50,7 +51,7 @@ export function DeleteSiteSection({ site }: { site: Site }): JSX.Element | null 
         confirmLabel="Delete site"
         pending={remove.isPending}
         error={remove.error ? describeError(remove.error).message : null}
-        onConfirm={confirm}
+        onConfirm={() => void confirm()}
       >
         <p>This permanently deletes the site and every version of it. Visitors get a not-found page. This cannot be undone.</p>
       </TypedConfirmDialog>

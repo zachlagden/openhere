@@ -53,7 +53,12 @@ function AccessForm({ slug, access, editable, isRoot }: AccessFormProps): JSX.El
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     if (problem === null) {
-      update.mutate(patch, { onSuccess: () => toast.success("Access settings saved.") });
+      update.mutate(patch, {
+        onSuccess: () => {
+          setDraft((current) => ({ ...current, password: "" }));
+          toast.success("Access settings saved.");
+        },
+      });
     }
   }
 
@@ -102,5 +107,5 @@ export function AccessTab(): JSX.Element {
   if (access.isError) {
     return <LoadError error={access.error} onRetry={() => void access.refetch()} />;
   }
-  return <AccessForm key={JSON.stringify(access.data)} slug={site.slug} access={access.data} editable={canWrite(site.role)} isRoot={isRoot} />;
+  return <AccessForm slug={site.slug} access={access.data} editable={canWrite(site.role)} isRoot={isRoot} />;
 }

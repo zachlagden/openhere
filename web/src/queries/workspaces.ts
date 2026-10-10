@@ -31,8 +31,9 @@ export function useDeleteWorkspace(slug: string): UseMutationResult<void, Error,
   const client = useQueryClient();
   return useMutation({
     mutationFn: () => workspaceApi.deleteWorkspace(slug),
-    onSuccess: async () => {
-      await Promise.all([client.invalidateQueries({ queryKey: queryKeys.workspaces, exact: true }), client.invalidateQueries({ queryKey: queryKeys.sites })]);
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.workspaces, exact: true });
+      void client.invalidateQueries({ queryKey: queryKeys.sites });
     },
   });
 }

@@ -52,6 +52,17 @@ function DeleteWorkspace({ workspace }: { workspace: Workspace }): JSX.Element {
   const navigate = useNavigate();
   const toast = useToast();
 
+  async function confirmDelete(): Promise<void> {
+    try {
+      await remove.mutateAsync();
+    } catch {
+      return;
+    }
+    setOpen(false);
+    toast.success(`Deleted ${workspace.name}.`);
+    void navigate("/", { replace: true });
+  }
+
   if (workspace.kind === "personal") {
     return <p className="text-sm text-muted">A personal workspace belongs to your account and cannot be deleted.</p>;
   }
@@ -79,15 +90,7 @@ function DeleteWorkspace({ workspace }: { workspace: Workspace }): JSX.Element {
         confirmLabel="Delete workspace"
         pending={remove.isPending}
         error={remove.error ? describeDeleteError(remove.error) : null}
-        onConfirm={() =>
-          remove.mutate(undefined, {
-            onSuccess: () => {
-              setOpen(false);
-              toast.success(`Deleted ${workspace.name}.`);
-              void navigate("/", { replace: true });
-            },
-          })
-        }
+        onConfirm={() => void confirmDelete()}
       >
         <p>This cannot be undone. It works only while the workspace has no sites.</p>
       </TypedConfirmDialog>
@@ -103,7 +106,7 @@ export function WorkspaceSettingsTab(): JSX.Element {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <Section title="Name">
-        <RenameForm key={workspace.updatedAt} workspace={workspace} />
+        <RenameForm workspace={workspace} />
       </Section>
       <Section title="Delete workspace">
         <DeleteWorkspace workspace={workspace} />
