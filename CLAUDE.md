@@ -19,7 +19,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Write no code comments. The only allowed marker is `TODO(zach): reason`.
 - Handle every error explicitly. Never swallow one.
 - The API documents itself in `docs/openapi.yaml`. Keep it in step with the handlers.
-- Nothing is reachable without auth, except hosted sites, the login, setup, invite and password reset pages, the invite lookup and accept routes (`GET /api/v1/invites/{token}`, `POST /api/v1/invites/{token}/accept`), the password reset routes (`POST /api/v1/auth/password-reset/{request,confirm}`), the agent sign-in routes (`POST /api/v1/auth/agent/{request-code,verify-code}`), the wildcard probe route (`/.well-known/selfhost-check/{token}` on non-management hosts, live only during a check), the viewer gate routes of gated sites (`/.well-known/selfhost-auth` and `/.well-known/selfhost-gate/{unlock,code,verify}` on site hosts and under `/s/{slug}/`), and `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. The port-80 listener of built-in TLS also answers `/.well-known/acme-challenge/` through certmagic and redirects everything else to HTTPS, and it never reaches the API router. Add no health endpoint, root page or docs route that skips auth.
+- Nothing is reachable without auth, except the dashboard shell and its static assets on the management host (see Dashboard), which carry the login, setup, invite and password reset screens, hosted sites, the invite lookup and accept routes (`GET /api/v1/invites/{token}`, `POST /api/v1/invites/{token}/accept`), the password reset routes (`POST /api/v1/auth/password-reset/{request,confirm}`), the agent sign-in routes (`POST /api/v1/auth/agent/{request-code,verify-code}`), the wildcard probe route (`/.well-known/selfhost-check/{token}` on non-management hosts, live only during a check), the viewer gate routes of gated sites (`/.well-known/selfhost-auth` and `/.well-known/selfhost-gate/{unlock,code,verify}` on site hosts and under `/s/{slug}/`), and `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. The port-80 listener of built-in TLS also answers `/.well-known/acme-challenge/` through certmagic and redirects everything else to HTTPS, and it never reaches the API router. Add no health endpoint, root page or docs route that skips auth. Everything else on the management host answers 401 without credentials, or 404 with them.
 - Docker Compose is forbidden, including for development. Run Postgres for tests with a plain `docker run`.
 - Deploy with the Dockerfile only.
 - Use only fictional placeholder values (example.com, Alex, Acme Ltd) in docs, tests and examples. Never commit a secret.
@@ -106,6 +106,17 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - The visitor secret lives sealed in `instance_settings` under `internal.analyticsSecret`. It is not a `settings.definitions` entry, so the settings API never returns it. The MaxMind licence key is a sealed secret setting. Open it only in `geo.Updater` and never log it.
 - The GeoLite2 updater (`internal/analytics/geo`) writes the database to `DATA_DIR/geo` through a temporary file and an atomic rename. Tests never contact MaxMind: use a local TLS `httptest` server and a database built with `mmdbwriter`.
 
+## Dashboard
+
+- The dashboard is a single page app in `web/` (Vite, React, TypeScript, Tailwind, react-router, TanStack Query). `pnpm --dir web build` writes it to `internal/ui/dist`, which `go:embed` compiles into the binary. The built files are not committed. `internal/ui/dist/.gitkeep` keeps the embed directive compiling on a fresh clone, and without a build the shell routes answer 503 with a plain "dashboard not built" text.
+- `ui.Shell.Wrap` goes around the API handler, inside `hosting.Router`, so only the management host can serve it. It serves the shell for every GET and HEAD path except `/api/`, `/s/` and `/.well-known/`, serves files from the build at their own path, and answers 404 JSON for a missing path with a file extension. Site hosts never reach it.
+- This is the one deliberate exception to "nothing without auth". The shell and its hashed assets must hold nothing specific to the instance: no site names, users, settings or inline secrets. Keep scripts out of the HTML (`script-src 'self'`), and keep the strict Content-Security-Policy in `internal/ui/shell.go`.
+- Hashed files under `assets/` are `public, max-age=31536000, immutable`. Every other file, the shell included, is `no-cache`.
+- The dashboard never uploads or publishes sites. Agents do that through the API. Everything else it does goes through the documented API, with `X-Requested-With` on state-changing requests.
+- `web/src/api/schema.d.ts` is generated from `docs/openapi.yaml` by `pnpm --dir web gen:api`. Regenerate and commit it whenever the spec changes.
+- The product name appears in the dashboard only in `web/src/brand.ts` and `web/index.html`.
+- Checks: `pnpm --dir web lint`, `typecheck`, `test`, `build`. `pnpm --dir web e2e` drives a built binary in a real browser.
+
 ## Commands
 
 ```sh
@@ -116,6 +127,8 @@ go vet ./...
 golangci-lint run
 go test ./...
 TEST_DATABASE_URL=postgres://user:password@localhost:5432/selfhost_test go test ./...
+pnpm --dir web install
+pnpm --dir web build
 docker build -t selfhost .
 ```
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/access"
@@ -32,8 +33,11 @@ import (
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/selfhost/internal/ui"
 	"github.com/zachlagden/selfhost/internal/workspaces"
 )
+
+const testShell = "<!doctype html><title>dashboard</title>"
 
 const (
 	testPassword = "correct horse battery"
@@ -68,15 +72,16 @@ type harness struct {
 	publish *publish.Service
 	dataDir string
 
-	settings *settings.Service
-	routed   http.Handler
-	access   *access.Service
-	mailer   *mail.Recorder
-	logs     *bytes.Buffer
-	sender   mail.Sender
-	box      *secrets.Box
-	domains  *domains.Service
-	dns      *fakeDNS
+	settings  *settings.Service
+	routed    http.Handler
+	dashboard http.Handler
+	access    *access.Service
+	mailer    *mail.Recorder
+	logs      *bytes.Buffer
+	sender    mail.Sender
+	box       *secrets.Box
+	domains   *domains.Service
+	dns       *fakeDNS
 
 	db        store.Store
 	recorder  *analytics.Recorder
@@ -187,8 +192,16 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3",
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc, Views: viewRecorder, Resolver: resolver})
+	shell, err := ui.New(fstest.MapFS{
+		"index.html":      {Data: []byte(testShell)},
+		"assets/app-1.js": {Data: []byte("export {}")},
+	})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	dashboard := hosting.New(shell.Wrap(server.Handler()), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc, Views: viewRecorder, Resolver: resolver})
 	return &harness{
-		t: t, handler: server.Handler(), clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir,
+		t: t, handler: server.Handler(), dashboard: dashboard, clock: clock, auth: svc, gate: gate, publish: publishSvc, dataDir: dataDir,
 		settings: settingsSvc, routed: routed, access: accessSvc, mailer: recorder, logs: logs, sender: mailer, box: box, domains: domainSvc, dns: dns,
 		db: db, recorder: viewRecorder, analytics: analyticsSvc,
 	}
