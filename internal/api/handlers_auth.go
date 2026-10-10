@@ -26,12 +26,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	emailKey := emailLimitKey(req.Email)
-	if !s.allow(w, s.loginEmail, emailKey) {
+	attempt := newLoginAttempt(s.proxies.ClientIP(r), req.Email)
+	if !s.allowLogin(w, attempt) {
 		return
 	}
 	user, err := s.auth.Authenticate(r.Context(), req.Email, req.Password)
 	if errors.Is(err, auth.ErrInvalidCredentials) {
+		s.recordLoginFailure(attempt)
 		writeError(w, http.StatusUnauthorized, codeInvalidLogin, "Incorrect email or password.")
 		return
 	}
@@ -43,7 +44,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.writeInternal(w, r, err)
 		return
 	}
-	s.loginEmail.Reset(emailKey)
+	s.loginPair.Reset(attempt.pairKey)
 	s.startSession(w, r, user, http.StatusOK)
 }
 

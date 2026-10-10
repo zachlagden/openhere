@@ -38,7 +38,7 @@ The limits below count in process memory. A restart resets every counter, and tw
 
 | Route | Limit |
 |---|---|
-| Login | 30 per IP and 10 per email in 15 minutes. A successful login resets the email counter. |
+| Login | 30 attempts per IP in 15 minutes. 10 failed attempts per IP and email pair in 15 minutes, reset by a successful login. After 100 failed attempts for one email in 15 minutes from any addresses, only addresses that already failed for that email get 429. A first attempt from a new address still reaches the password check. |
 | Setup | 10 per IP and 5 per email in 15 minutes |
 | Invite lookup | 60 per minute per IP |
 | Invite accept | 10 per 15 minutes per IP |

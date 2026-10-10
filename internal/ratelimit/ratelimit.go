@@ -49,6 +49,40 @@ func (l *Limiter) Allow(key string) (bool, time.Duration) {
 	return true, 0
 }
 
+func (l *Limiter) Count(key string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	w, ok := l.windows[key]
+	if !ok || !l.now().Before(w.resetAt) {
+		return 0
+	}
+	return w.count
+}
+
+func (l *Limiter) Full(key string) (bool, time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	w, ok := l.windows[key]
+	if !ok || !now.Before(w.resetAt) || w.count < l.max {
+		return false, 0
+	}
+	return true, w.resetAt.Sub(now)
+}
+
+func (l *Limiter) Record(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	w, ok := l.windows[key]
+	if !ok || !now.Before(w.resetAt) {
+		l.makeRoom(now)
+		w = &window{resetAt: now.Add(l.period)}
+		l.windows[key] = w
+	}
+	w.count++
+}
+
 func (l *Limiter) Reset(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

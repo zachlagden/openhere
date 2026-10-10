@@ -45,6 +45,7 @@ type Limits struct {
 	AgentVerifyIP     Rule
 	AgentVerifyEmail  Rule
 	LoginPerIP        Rule
+	LoginPerPair      Rule
 	LoginPerEmail     Rule
 	SetupPerIP        Rule
 	SetupPerEmail     Rule
@@ -72,7 +73,8 @@ func DefaultLimits() Limits {
 		AgentVerifyIP:     Rule{Max: 20, Window: window},
 		AgentVerifyEmail:  Rule{Max: 10, Window: window},
 		LoginPerIP:        Rule{Max: 30, Window: window},
-		LoginPerEmail:     Rule{Max: 10, Window: window},
+		LoginPerPair:      Rule{Max: 10, Window: window},
+		LoginPerEmail:     Rule{Max: 100, Window: window},
 		SetupPerIP:        Rule{Max: 10, Window: window},
 		SetupPerEmail:     Rule{Max: 5, Window: window},
 		WildcardCheck:     Rule{Max: 6, Window: time.Minute},
@@ -101,6 +103,8 @@ func (l Limits) withDefaults() Limits {
 	fill(&l.AgentRequestAll, defaults.AgentRequestAll)
 	fill(&l.AgentVerifyIP, defaults.AgentVerifyIP)
 	fill(&l.AgentVerifyEmail, defaults.AgentVerifyEmail)
+	fill(&l.LoginPerPair, defaults.LoginPerPair)
+	fill(&l.LoginPerEmail, defaults.LoginPerEmail)
 	fill(&l.WildcardCheck, defaults.WildcardCheck)
 	fill(&l.Handoff, defaults.Handoff)
 	fill(&l.DomainVerify, defaults.DomainVerify)
@@ -166,6 +170,7 @@ type Server struct {
 	domainVerify   *ratelimit.Limiter
 	domainChange   *ratelimit.Limiter
 	loginIP        *ratelimit.Limiter
+	loginPair      *ratelimit.Limiter
 	loginEmail     *ratelimit.Limiter
 	setupIP        *ratelimit.Limiter
 	setupEmail     *ratelimit.Limiter
@@ -230,6 +235,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		domainVerify:   limiter(limits.DomainVerify),
 		domainChange:   limiter(limits.DomainChange),
 		loginIP:        limiter(limits.LoginPerIP),
+		loginPair:      limiter(limits.LoginPerPair),
 		loginEmail:     limiter(limits.LoginPerEmail),
 		setupIP:        limiter(limits.SetupPerIP),
 		setupEmail:     limiter(limits.SetupPerEmail),

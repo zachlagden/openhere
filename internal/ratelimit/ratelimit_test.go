@@ -48,3 +48,30 @@ func TestReset(t *testing.T) {
 		t.Error("Reset did not clear the counter")
 	}
 }
+
+func TestRecordCountsAndFullReportsWithoutConsuming(t *testing.T) {
+	c := &clock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	l := New(2, time.Minute, c.Now)
+	if full, _ := l.Full("a"); full || l.Count("a") != 0 {
+		t.Fatal("an unseen key reported failures")
+	}
+	l.Record("a")
+	if full, _ := l.Full("a"); full || l.Count("a") != 1 {
+		t.Errorf("after one record: full %v, count %d", full, l.Count("a"))
+	}
+	for range 3 {
+		l.Full("a")
+	}
+	if l.Count("a") != 1 {
+		t.Error("Full consumed an attempt")
+	}
+	l.Record("a")
+	full, wait := l.Full("a")
+	if !full || wait != time.Minute {
+		t.Errorf("after two records: full %v, wait %v", full, wait)
+	}
+	c.now = c.now.Add(time.Minute)
+	if full, _ := l.Full("a"); full || l.Count("a") != 0 {
+		t.Error("the counter survived its window")
+	}
+}

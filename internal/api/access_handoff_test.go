@@ -198,7 +198,7 @@ func TestHandoffRefusesUnsafeReturnPaths(t *testing.T) {
 
 func TestHandoffIsRateLimited(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
-		limits := Limits{LoginPerIP: Rule{Max: 1000, Window: time.Hour}, LoginPerEmail: Rule{Max: 1000, Window: time.Hour},
+		limits := Limits{LoginPerIP: Rule{Max: 1000, Window: time.Hour}, LoginPerPair: Rule{Max: 1000, Window: time.Hour}, LoginPerEmail: Rule{Max: 1000, Window: time.Hour},
 			SetupPerIP: Rule{Max: 1000, Window: time.Hour}, SetupPerEmail: Rule{Max: 1000, Window: time.Hour},
 			Handoff: Rule{Max: 3, Window: time.Minute}}
 		s := newAccessSetup(t, newHarness(t, db, harnessOptions{limits: &limits}))

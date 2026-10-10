@@ -158,7 +158,7 @@ paths:
       summary: Sign in with email and password
       description: |
         Sets the session cookie. Sessions last 30 days and renew on use. A wrong password, an unknown
-        email and a malformed email all return the same response. Rate limited per IP address and per email.
+        email and a malformed email all return the same response. Rate limited per IP address, and by failed attempts per IP address and email pair.
       security: []
       requestBody:
         required: true
