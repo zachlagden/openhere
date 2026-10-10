@@ -16,6 +16,7 @@ import { NotFoundPage } from "@/layout/not-found-page";
 import { RequireAuth } from "@/layout/require-auth";
 import { Spinner } from "@/components/ui/spinner";
 
+const AnalyticsTab = lazy(() => import("@/features/site-detail/analytics-tab").then((module) => ({ default: module.AnalyticsTab })));
 const DocsPage = lazy(() => import("@/features/docs/docs-page").then((module) => ({ default: module.DocsPage })));
 
 export function App(): JSX.Element {
@@ -34,6 +35,7 @@ export function App(): JSX.Element {
             <Route index element={<OverviewTab />} />
             <Route path="access" element={<AccessTab />} />
             <Route path="domains" element={<DomainsTab />} />
+            <Route path="analytics" element={<Suspense fallback={<Spinner label="Loading analytics…" />}><AnalyticsTab /></Suspense>} />
           </Route>
           <Route
             path="docs/*"

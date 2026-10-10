@@ -25,6 +25,8 @@
   --danger-soft: oklch(0.95 0.035 27);
   --focus: oklch(0.53 0.175 37);
   --elevation: 0 24px 60px -20px oklch(0.2 0.02 60 / 0.35);
+  --chart-views: oklch(0.53 0.175 37);
+  --chart-uniques: oklch(0.42 0.11 255);
 }
 
 :root.dark {
@@ -47,6 +49,8 @@
   --danger-soft: oklch(0.3 0.06 27);
   --focus: oklch(0.8 0.13 52);
   --elevation: 0 24px 60px -20px oklch(0 0 0 / 0.7);
+  --chart-views: oklch(0.74 0.15 48);
+  --chart-uniques: oklch(0.79 0.1 235);
 }
 
 @theme inline {
@@ -70,6 +74,8 @@
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-chart-views: var(--chart-views);
+  --color-chart-uniques: var(--chart-uniques);
   --shadow-dialog: var(--elevation);
 }
 

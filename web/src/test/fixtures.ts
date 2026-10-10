@@ -1,4 +1,4 @@
-import type { Domain, Folder, Instance, Site, User, Workspace } from "@/api/types";
+import type { Analytics, Domain, Folder, Instance, Site, User, Workspace } from "@/api/types";
 
 export const alex: User = {
   id: "u1",
@@ -84,6 +84,34 @@ export function makeDomain(overrides: Partial<Domain> = {}): Domain {
     lastCheckedAt: null,
     lastCheckResult: null,
     createdAt: "2026-03-01T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export function makeReport(overrides: Partial<Analytics> = {}): Analytics {
+  return {
+    from: "2026-03-01",
+    to: "2026-03-03",
+    interval: "day",
+    totals: { views: 30, uniques: 18, botViews: 4 },
+    series: [
+      { start: "2026-03-01T00:00:00Z", views: 5, uniques: 3 },
+      { start: "2026-03-02T00:00:00Z", views: 20, uniques: 12 },
+      { start: "2026-03-03T00:00:00Z", views: 5, uniques: 3 },
+    ],
+    paths: [
+      { value: "/", views: 20, uniques: 12 },
+      { value: "/pricing", views: 10, uniques: 6 },
+    ],
+    referrers: [{ value: "news.example.com", views: 8, uniques: 5 }],
+    countries: [],
+    cities: [],
+    browsers: [{ value: "Firefox", views: 30, uniques: 18 }],
+    operatingSystems: [{ value: "Linux", views: 30, uniques: 18 }],
+    devices: [{ value: "desktop", views: 30, uniques: 18 }, { value: "bot", views: 4, uniques: 4 }],
+    statuses: [{ value: "2xx", views: 30, uniques: 18 }],
+    locationAvailable: false,
+    generatedAt: "2026-03-03T12:00:00Z",
     ...overrides,
   };
 }
