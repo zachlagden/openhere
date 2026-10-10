@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/agentcode"
+	"github.com/zachlagden/selfhost/internal/analytics"
+	"github.com/zachlagden/selfhost/internal/analytics/geo"
 	"github.com/zachlagden/selfhost/internal/api"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
@@ -40,6 +43,9 @@ const (
 
 	maintenanceInterval   = time.Hour
 	wildcardCheckInterval = 6 * time.Hour
+	geoCheckInterval      = 5 * time.Minute
+	analyticsFlushTimeout = 20 * time.Second
+	geoDirName            = "geo"
 	setupPath             = "/api/v1/setup"
 )
 
@@ -128,7 +134,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
 	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
-		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc),
+		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc), AnalyticsDefault: analyticsDefault(settingsSvc),
 	})
 	publishSvc := publish.New(db, siteSvc, workspaceSvc, settingsSvc, files, publish.Options{Logger: logger, OnSiteChange: siteChanged})
 	baseURL := cfg.PublicURL.String()
@@ -137,30 +143,40 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	agentSvc := agentcode.New(db, svc, box, agentcode.Options{BaseURL: baseURL, Mailer: mailer, Logger: logger})
 	probes := hosting.NewProbes(nil)
 	checker := hosting.NewChecker(settingsSvc, probes, hosting.CheckerOptions{Public: cfg.PublicURL, Logger: logger})
+	geoDir := filepath.Join(cfg.DataDir, geoDirName)
+	locator := geo.NewLookup(filepath.Join(geoDir, geo.FileName), logger)
+	recorder := analytics.NewRecorder(db, analytics.RecorderOptions{
+		Hasher: analytics.NewHasher(db, box, logger), Locator: locator, Logger: logger,
+	})
+	recorder.Start()
+	analyticsSvc := analytics.New(db, siteSvc, workspaceSvc, settingsSvc, analytics.Options{Recorder: recorder, Location: locator})
+	geoUpdater := geo.NewUpdater(settingsSvc, box, locator, geo.UpdaterOptions{Dir: geoDir, Logger: logger})
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
 		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
-		TLS: tlsReporter(certManager),
+		TLS: tlsReporter(certManager), Analytics: analyticsSvc,
 	})
 	router := hosting.New(server.Handler(), settingsSvc, db, files,
 		hosting.Options{
 			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
-			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled,
+			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder,
 		})
 
-	stop := startBackground(ctx, svc, checker,
+	stop := startBackground(ctx, svc, checker, geoUpdater,
 		auth.MaintenanceTask{Name: "publish", Run: publishSvc.Maintain},
 		auth.MaintenanceTask{Name: "domains", Run: domainSvc.Maintain},
 		auth.MaintenanceTask{Name: "access", Run: accessSvc.Purge},
 		auth.MaintenanceTask{Name: "password reset", Run: resetSvc.Purge},
-		auth.MaintenanceTask{Name: "agent codes", Run: agentSvc.Purge})
-	return &application{handler: router, certs: certManager, stopBackground: stop}, nil
+		auth.MaintenanceTask{Name: "agent codes", Run: agentSvc.Purge},
+		auth.MaintenanceTask{Name: "analytics", Run: analyticsSvc.Maintain})
+	closeAnalytics := func() { shutdownAnalytics(recorder, locator, logger) }
+	return &application{handler: router, certs: certManager, stopBackground: stop, closeAnalytics: closeAnalytics}, nil
 }
 
-func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Checker, tasks ...auth.MaintenanceTask) func() {
+func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Checker, geoUpdater *geo.Updater, tasks ...auth.MaintenanceTask) func() {
 	backgroundCtx, cancel := context.WithCancel(ctx)
 	var running sync.WaitGroup
-	running.Add(2)
+	running.Add(3)
 	go func() {
 		defer running.Done()
 		svc.RunMaintenance(backgroundCtx, maintenanceInterval, tasks...)
@@ -168,6 +184,10 @@ func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Ch
 	go func() {
 		defer running.Done()
 		checker.Run(backgroundCtx, wildcardCheckInterval)
+	}()
+	go func() {
+		defer running.Done()
+		geoUpdater.Run(backgroundCtx, geoCheckInterval)
 	}()
 	return func() {
 		cancel()
@@ -182,6 +202,27 @@ func defaultAccessMode(settingsSvc *settings.Service) func(ctx context.Context) 
 			return "", err
 		}
 		return cfg.DefaultAccessMode, nil
+	}
+}
+
+func shutdownAnalytics(recorder *analytics.Recorder, locator *geo.Lookup, logger *slog.Logger) {
+	flushCtx, cancel := context.WithTimeout(context.Background(), analyticsFlushTimeout)
+	defer cancel()
+	if err := recorder.Close(flushCtx); err != nil {
+		logger.Error("flush analytics events", "error", err)
+	}
+	if err := locator.Close(); err != nil {
+		logger.Error("close the GeoLite2 database", "error", err)
+	}
+}
+
+func analyticsDefault(settingsSvc *settings.Service) func(ctx context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		cfg, err := settingsSvc.Get(ctx)
+		if err != nil {
+			return false, err
+		}
+		return cfg.Analytics.EnabledByDefault, nil
 	}
 }
 

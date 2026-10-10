@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 )
 
@@ -25,9 +26,11 @@ type serveTarget struct {
 }
 
 type siteServer struct {
-	files  *sitefiles.Store
-	index  fileIndex
-	logger *slog.Logger
+	files   *sitefiles.Store
+	index   fileIndex
+	logger  *slog.Logger
+	views   ViewRecorder
+	proxies proxy.Trust
 }
 
 func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, requestPath string, target serveTarget) {
@@ -41,7 +44,7 @@ func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, req
 		return
 	}
 	if found {
-		s.respondWithFile(w, r, site, resolved.record, http.StatusOK, target.private)
+		s.respondWithFile(w, r, fileResponse{site: site, rec: resolved.record, path: requestPath, status: http.StatusOK, private: target.private})
 		return
 	}
 	s.serveMissing(w, r, site, requestPath, target.private)
@@ -49,18 +52,18 @@ func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, req
 
 func (s siteServer) serveMissing(w http.ResponseWriter, r *http.Request, site Site, requestPath string, private bool) {
 	if site.SPAMode && lacksExtension(requestPath) {
-		if s.serveNamed(w, r, site, indexFile, http.StatusOK, private) {
+		if s.serveNamed(w, r, fileResponse{site: site, path: requestPath, status: http.StatusOK, private: private}, indexFile) {
 			return
 		}
 	}
-	if s.serveNamed(w, r, site, notFoundFile, http.StatusNotFound, private) {
+	if s.serveNamed(w, r, fileResponse{site: site, path: requestPath, status: http.StatusNotFound, private: private}, notFoundFile) {
 		return
 	}
 	writeNotFound(w, r)
 }
 
-func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, site Site, name string, status int, private bool) bool {
-	rec, found, err := s.index.one(r.Context(), site.VersionID, name)
+func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, resp fileResponse, name string) bool {
+	rec, found, err := s.index.one(r.Context(), resp.site.VersionID, name)
 	if err != nil {
 		s.fail(w, err)
 		return true
@@ -68,11 +71,21 @@ func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, site Site
 	if !found {
 		return false
 	}
-	s.respondWithFile(w, r, site, rec, status, private)
+	resp.rec = rec
+	s.respondWithFile(w, r, resp)
 	return true
 }
 
-func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, site Site, rec fileRecord, status int, private bool) {
+type fileResponse struct {
+	site    Site
+	rec     fileRecord
+	path    string
+	status  int
+	private bool
+}
+
+func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, resp fileResponse) {
+	site, rec := resp.site, resp.rec
 	file, info, err := s.files.Open(site.ID, site.VersionID, rec.Path)
 	if errors.Is(err, sitefiles.ErrNotFound) || errors.Is(err, sitefiles.ErrNotRegular) {
 		if errors.Is(err, sitefiles.ErrNotRegular) {
@@ -89,13 +102,15 @@ func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, site
 	contentType := contentTypeFor(rec)
 	h := w.Header()
 	h.Set("Content-Type", contentType)
-	h.Set("Cache-Control", cacheControlFor(contentType, private))
-	if status == http.StatusOK {
+	h.Set("Cache-Control", cacheControlFor(contentType, resp.private))
+	recorded := &statusRecorder{ResponseWriter: w}
+	if resp.status == http.StatusOK {
 		h.Set("ETag", `"`+rec.SHA256+`"`)
-		http.ServeContent(w, r, "", info.ModTime(), file)
-		return
+		http.ServeContent(recorded, r, "", info.ModTime(), file)
+	} else {
+		writeStatusWithBody(recorded, r, file, info.Size(), resp.status)
 	}
-	writeStatusWithBody(w, r, file, info.Size(), status)
+	s.countView(r, site, resp.path, contentType, recorded.status)
 }
 
 func writeStatusWithBody(w http.ResponseWriter, r *http.Request, file *os.File, size int64, status int) {

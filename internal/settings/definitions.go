@@ -80,6 +80,8 @@ type Settings struct {
 
 	TLS TLS
 
+	Analytics Analytics
+
 	WhoCanInvite string
 	WhoCanCreate string
 }
@@ -159,6 +161,7 @@ var definitions = []definition{
 func init() {
 	definitions = append(definitions, emailDefinitions()...)
 	definitions = append(definitions, tlsDefinitions()...)
+	definitions = append(definitions, analyticsDefinitions()...)
 }
 
 func findDefinition(key string) (definition, bool) {

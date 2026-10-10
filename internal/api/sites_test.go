@@ -145,3 +145,31 @@ func TestScopedMemberSeesOnlyCoveredSites(t *testing.T) {
 		sam.expectError(http.StatusNotFound, codeNotFound, "PATCH", "/api/v1/workspaces/acme/folders/"+archive.ID, folderRequest{Name: "Mine"})
 	})
 }
+
+func TestSiteAnalyticsToggleAndInstanceDefault(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		root := h.rootActor()
+		root.createWorkspace("Acme Ltd", "acme")
+
+		first := decodeBody[siteEnvelope](t, root.expect(http.StatusCreated, "POST", "/api/v1/workspaces/acme/sites", `{"slug":"first"}`)).Site
+		if !first.AnalyticsEnabled {
+			t.Error("a new site has analytics off by default")
+		}
+		patched := decodeBody[siteEnvelope](t, root.expect(http.StatusOK, "PATCH", "/api/v1/sites/first", `{"analyticsEnabled":false}`)).Site
+		if patched.AnalyticsEnabled {
+			t.Error("the toggle did not switch off")
+		}
+		kept := decodeBody[siteEnvelope](t, root.expect(http.StatusOK, "PATCH", "/api/v1/sites/first", `{"description":"x"}`)).Site
+		if kept.AnalyticsEnabled {
+			t.Error("a patch without the field changed it")
+		}
+		root.expectError(http.StatusBadRequest, codeInvalidJSON, "PATCH", "/api/v1/sites/first", `{"analyticsEnabled":"no"}`)
+
+		root.setSettings(`{"settings":{"analytics.enabledByDefault":false}}`)
+		second := decodeBody[siteEnvelope](t, root.expect(http.StatusCreated, "POST", "/api/v1/workspaces/acme/sites", `{"slug":"second"}`)).Site
+		if second.AnalyticsEnabled {
+			t.Error("the instance default of off was ignored")
+		}
+	})
+}

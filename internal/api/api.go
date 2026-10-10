@@ -9,6 +9,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/agentcode"
+	"github.com/zachlagden/selfhost/internal/analytics"
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
@@ -119,6 +120,7 @@ type Options struct {
 	AgentCodes     *agentcode.Service
 	Domains        *domains.Service
 	TLS            TLSReporter
+	Analytics      *analytics.Service
 }
 
 type Server struct {
@@ -139,6 +141,7 @@ type Server struct {
 	agents     *agentcode.Service
 	domains    *domains.Service
 	tls        TLSReporter
+	analytics  *analytics.Service
 	now        func() time.Time
 
 	agentReqIP     *ratelimit.Limiter
@@ -200,6 +203,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		agents:     opts.AgentCodes,
 		domains:    opts.Domains,
 		tls:        opts.TLS,
+		analytics:  opts.Analytics,
 		now:        now,
 
 		agentReqIP:     limiter(limits.AgentRequestIP),
@@ -245,6 +249,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerAccessRoutes(mux)
 	s.registerDomainRoutes(mux)
 	s.registerAdminRoutes(mux)
+	s.registerAnalyticsRoutes(mux)
 	s.registerInviteRoutes(mux)
 	s.registerPasswordResetRoutes(mux)
 	s.registerAgentRoutes(mux)

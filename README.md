@@ -6,7 +6,7 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain, by path or at custom domains the owner proves they control, and gates them with per-site access modes (public, password or restricted). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. There is no dashboard yet.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain, by path or at custom domains the owner proves they control, and gates them with per-site access modes (public, password or restricted). It counts anonymous page views without cookies or scripts (see [Analytics](#analytics)). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. There is no dashboard yet.
 
 **A new site is public.** Anyone who can reach the server and knows or guesses its slug can read its files, until you set another access mode with `PATCH /api/v1/publish/{slug}/access` or change the default with the `sites.defaultAccessMode` setting. See [Access control](#access-control).
 
@@ -319,6 +319,69 @@ On a site host, and under `/s/<slug>/` in path mode, a gated site answers four p
 
 A gated site that has a live version answers with its gate page, so anyone who knows or guesses the slug can tell it exists. An unknown slug, and a site without a live version, still get the plain 404. The gate page shows nothing else about the site: no name, no description and no file names. If the existence of a slug is itself sensitive, choose slugs that cannot be guessed (the generated ones are).
 
+## Analytics
+
+The server counts page views itself, from the requests it serves. It injects no script into your sites, sets no cookie and needs no consent banner.
+
+### What is recorded
+
+A view is an HTML document served to a `GET` request with status 200, or a custom `404.html` served with status 404. For each view the server stores:
+
+- the site, the time and the request path without its query string or fragment (at most 200 characters; for a single-page app it is the path the visitor asked for);
+- the status class (`2xx` or `4xx`);
+- the host of the referring page (`news.example.org`, not the path or query), left empty when the visitor came from the same host or sent none;
+- country and city, when a GeoLite2 database is installed;
+- browser family, operating system family and device type (`desktop`, `mobile`, `tablet`, `bot` or `other`), parsed from the `User-Agent` header;
+- a visitor hash.
+
+The server never stores the IP address, the raw `User-Agent`, a query string, a cookie or any other header value. It uses the IP address in memory to look up the location and to compute the visitor hash, then drops it. The address comes from `internal/proxy`, so a forwarded address counts only when the connection comes from a `TRUSTED_PROXIES` address.
+
+The server does not count asset requests (scripts, styles, images, data), `HEAD` requests, partial (`Range`) and cached (304) responses, prefetches, redirects, gate pages and sign-in prompts, or any request while analytics is off for the site. A protected site records a view only after the gate has let the request through.
+
+### How unique visitors work
+
+The visitor hash is an HMAC-SHA256 over the client address (the first 64 bits for IPv6), the `User-Agent`, the site id and the UTC date. The key is a random secret created on first use and stored encrypted in the database, and no API returns it. The same browser on the same site on the same day gets the same hash, so it counts once. The next day it gets a different hash, and so does another site. The hash cannot be reversed or linked across days. This has two consequences you should know about:
+
+- Unique counts for a range add up the daily counts, so a person who visits on three days counts three times.
+- Two people behind one address with the same browser string count as one.
+
+Visitors whose `User-Agent` looks like a crawler or an HTTP client, or is empty, count as `botViews` and as the `bot` device. They are left out of every other number. The bot list is a short built-in list of name fragments, so it catches common bots and not all of them.
+
+### Privacy in plain words
+
+Visitors are not tracked across sites or days, and nothing on their device is read or written. The server keeps counts of anonymous page views. If you also turn on location lookups, it keeps country and city for each view, which are derived from the IP address but do not identify a person. Whether that fits your legal duties is your decision.
+
+### Turning it on and off, and reading it
+
+Each site has an `analyticsEnabled` switch (`PATCH /api/v1/sites/{slug}`). New sites take the `analytics.enabledByDefault` value. Switching a site off stops counting at once and keeps the data already recorded.
+
+| Endpoint | Who may read it |
+|---|---|
+| `GET /api/v1/sites/{slug}/analytics` | Anyone with read access to the site. |
+| `GET /api/v1/workspaces/{workspace}/analytics` | Users with a workspace-wide role. The report adds up the sites in the workspace that the user can see. It works for personal workspaces too. |
+| `GET /api/v1/admin/analytics` | The root user. It covers every site and adds `droppedEvents`. |
+
+Query parameters are `from` and `to` (RFC 3339 dates, both days inclusive, default the last 30 days, at most 366 days), `interval` (`day`, or `hour` for ranges of 14 days or less) and `top` (entries per ranked list, 1 to 50, default 10). The response holds totals, a time series, ranked lists for paths, referrers, countries, cities, browsers, operating systems, device types and status classes, `locationAvailable` and `generatedAt`.
+
+### Performance
+
+Serving never waits for analytics. The server puts each view in a bounded in-memory buffer (4096 events) and a background worker writes batches every 5 seconds or 200 events. When the buffer is full the server drops the event and adds one to `droppedEvents`, which the root report shows. The count restarts at 0 when the server starts. A failed database write drops only the affected events. A graceful shutdown writes what is still in the buffer. A crash loses at most a few seconds of events.
+
+### Rollups and retention
+
+Individual events stay for `analytics.rawDays` days (default 31). A maintenance task runs every hour and folds each finished UTC day into daily rollups per site (views and uniques in total and by path, referrer host, country, city, browser, operating system, device and status class, keeping the top 500 values of each list per day). Reports read the rollup for days that have one and raw events for the rest, so a range that spans both counts every view once. Running the task again changes nothing, and events that arrive late for a finished day are folded in at the next run. The server deletes raw events older than `analytics.rawDays` once they are rolled up, and deletes everything older than `analytics.retentionDays` (default 395 days, 0 keeps all). Hourly charts need raw events, so `analytics.rawDays` has a minimum of 14.
+
+### Country and city lookups with MaxMind
+
+Location lookups use the free GeoLite2 City database from MaxMind. To switch them on:
+
+1. Create a free GeoLite2 account at MaxMind and generate a licence key in the account portal.
+2. Set `analytics.maxmindAccountId` (the numeric account ID) and `analytics.maxmindLicenseKey` with `PATCH /api/v1/admin/settings`.
+
+Within five minutes the server downloads `GeoLite2-City` from `download.maxmind.com` over HTTPS, checks its SHA-256 checksum when MaxMind provides one, and installs it as `DATA_DIR/geo/GeoLite2-City.mmdb` through an atomic rename, so a failed or partial download never replaces a working file. It refreshes the database at most once a week, and retries a failed download after 6 hours or at once when you change the credentials. The lookup picks up a new file without a restart. `analytics.geoStatus`, `analytics.geoUpdatedAt`, `analytics.geoCheckedAt` and `analytics.geoDetail` show the state to the root user, and the licence key is never logged or returned. Without credentials the location fields stay empty and reports show `locationAvailable: false`.
+
+The GeoLite2 database and the account are MaxMind's, and MaxMind's GeoLite End User License Agreement governs their use, including the duty to keep the data current and its attribution requirements. Read it before you switch lookups on. MaxMind limits GeoLite2 downloads per day.
+
 ## Instance settings
 
 The root user reads and changes instance settings with `GET` and `PATCH /api/v1/admin/settings`. Other users get 404. A `PATCH` sends only the keys to change, and the server rejects unknown keys and invalid values without applying any.
@@ -353,6 +416,15 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `email.resend.apiKey` | write-only | Resend API key. Reads return `email.resend.apiKeySet` instead. An empty string clears it. |
 | `tls.dnsProvider` | `none` | DNS provider for the wildcard certificate: `none` or `cloudflare`. Only used with built-in HTTPS. |
 | `tls.cloudflareApiToken` | write-only | Cloudflare API token with Zone:DNS:Edit and Zone:Zone:Read on the base domain's zone. Reads return `tls.cloudflareApiTokenSet` instead. An empty string clears it. |
+| `analytics.enabledByDefault` | true | Whether sites created from now on count page views. Existing sites keep their own setting. |
+| `analytics.retentionDays` | 395 | Days of rolled-up analytics to keep. 0 keeps everything, otherwise 30 to 3650. |
+| `analytics.rawDays` | 31 | Days of individual events to keep before only the daily rollups remain. 14 to 365. |
+| `analytics.maxmindAccountId` | empty | Account ID of a free MaxMind account (digits only). Needed with the licence key for country and city lookups. |
+| `analytics.maxmindLicenseKey` | write-only | MaxMind licence key. Reads return `analytics.maxmindLicenseKeySet` instead. An empty string clears it. |
+| `analytics.geoStatus` | `unconfigured` | Read-only. Outcome of the last GeoLite2 download: `unconfigured`, `ok` or `failed`. |
+| `analytics.geoUpdatedAt` | null | Read-only. When a GeoLite2 database was last installed. |
+| `analytics.geoCheckedAt` | null | Read-only. When the last download attempt ran. |
+| `analytics.geoDetail` | empty | Read-only. Why the last attempt failed, or a note about the last download. |
 
 Changes take effect on the next request. Email settings need no restart.
 
@@ -386,7 +458,7 @@ Messages are plain text. Links in them start with `PUBLIC_URL`.
 
 ### Secrets at rest
 
-The SMTP password and the Resend API key are write-only. The settings API never returns them, only whether one is set. The server encrypts them with AES-256-GCM before it stores them. The key comes from `SECRET_KEY` (32 random bytes, base64 encoded) when set. Otherwise the server creates `secret.key` in `DATA_DIR` with mode 0600 on first start and reuses it. Generate a key with `openssl rand -base64 32`. Back up the key with the database: without it, stored secrets cannot be read, and email stays off until the root user enters them again. The server derives the agent sign-in code hashes from the same key, so a changed key also invalidates codes that are in flight.
+The SMTP password, the Resend API key, the Cloudflare API token and the MaxMind licence key are write-only. The settings API never returns them, only whether one is set. The server encrypts them with AES-256-GCM before it stores them. The key comes from `SECRET_KEY` (32 random bytes, base64 encoded) when set. Otherwise the server creates `secret.key` in `DATA_DIR` with mode 0600 on first start and reuses it. Generate a key with `openssl rand -base64 32`. Back up the key with the database: without it, stored secrets cannot be read, and email stays off until the root user enters them again. The analytics visitor secret is stored the same way. If it cannot be opened, the server creates a new one, which only means that visitors counted before the change can count once more on the same day. The server derives the agent sign-in code hashes from the same key, so a changed key also invalidates codes that are in flight.
 
 ## Invites
 

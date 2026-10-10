@@ -17,6 +17,7 @@ type application struct {
 	handler        http.Handler
 	certs          *certs.Manager
 	stopBackground func()
+	closeAnalytics func()
 }
 
 func newCertManager(cfg config.Config, settingsSvc *settings.Service, box *secrets.Box, domainSvc *domains.Service, logger *slog.Logger) (*certs.Manager, error) {
@@ -61,4 +62,5 @@ func (a *application) stop() {
 		a.certs.Stop()
 	}
 	a.stopBackground()
+	a.closeAnalytics()
 }

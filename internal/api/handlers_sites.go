@@ -20,6 +20,7 @@ type updateSiteRequest struct {
 	DisplayName *string        `json:"displayName"`
 	Description *string        `json:"description"`
 	SpaMode     *bool          `json:"spaMode"`
+	Analytics   *bool          `json:"analyticsEnabled"`
 	FolderID    optionalString `json:"folderId"`
 }
 
@@ -106,7 +107,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	update := sites.UpdateInput{DisplayName: req.DisplayName, Description: req.Description, SpaMode: req.SpaMode}
+	update := sites.UpdateInput{DisplayName: req.DisplayName, Description: req.Description, SpaMode: req.SpaMode, Analytics: req.Analytics}
 	if req.FolderID.Set {
 		update.Folder.Set = true
 		if req.FolderID.Value != nil {

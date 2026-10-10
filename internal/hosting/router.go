@@ -33,6 +33,7 @@ type Options struct {
 	Domains  DomainLookup
 	Proxies  proxy.Trust
 	Limits   *GateLimits
+	Views    ViewRecorder
 	HSTS     bool
 	Now      func() time.Time
 }
@@ -64,7 +65,7 @@ func New(management http.Handler, settingsSvc *settings.Service, db store.Store,
 		management: management,
 		settings:   settingsSvc,
 		resolver:   resolver,
-		server:     siteServer{files: files, index: fileIndex{db: db}, logger: logger},
+		server:     siteServer{files: files, index: fileIndex{db: db}, logger: logger, views: opts.Views, proxies: opts.Proxies},
 		probes:     opts.Probes,
 		domains:    opts.Domains,
 		host:       opts.Public.Host,

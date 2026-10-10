@@ -59,6 +59,7 @@ type env struct {
 	dns        *fakeDNS
 	mailer     *mail.Recorder
 	clock      *testClock
+	views      *viewLog
 	alex       string
 	managed    atomic.Int64
 }
@@ -109,6 +110,7 @@ func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	e := &env{t: t, db: db, dataDir: dataDir, files: files}
 	e.clock = &testClock{now: time.Now().UTC().Truncate(time.Second)}
 	e.mailer = mail.NewRecorder()
+	e.views = &viewLog{}
 	e.access = access.New(db, access.Options{
 		Mailer: e.mailer, Params: fastParams, Now: e.clock.Now, Logger: logger, Spawn: func(task func()) { task() },
 	})
@@ -142,7 +144,7 @@ func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	}
 	e.router = New(management, e.settings, db, files, Options{
 		Public: public, Probes: e.probes, Resolver: e.resolver, Logger: logger, Access: e.access, Proxies: opts.proxies,
-		Limits: opts.limits, Now: e.clock.Now, Domains: e.domains, HSTS: opts.hsts,
+		Limits: opts.limits, Now: e.clock.Now, Domains: e.domains, HSTS: opts.hsts, Views: e.views,
 	})
 	return e
 }
@@ -307,4 +309,23 @@ func itoa(n int) string {
 
 func sitesUpdate(spa *bool) sites.UpdateInput {
 	return sites.UpdateInput{SpaMode: spa}
+}
+
+func newSiteRequest(t *testing.T, host, target, remote, forwarded string) *http.Request {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+host+target, nil)
+	req.Host = host
+	req.RemoteAddr = remote
+	if forwarded != "" {
+		req.Header.Set("X-Forwarded-For", forwarded)
+	}
+	return req
+}
+
+func newRecorder() *httptest.ResponseRecorder {
+	return httptest.NewRecorder()
+}
+
+func analyticsUpdate(enabled *bool) sites.UpdateInput {
+	return sites.UpdateInput{Analytics: enabled}
 }

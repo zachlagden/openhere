@@ -25,6 +25,7 @@ type Site struct {
 	Description      string
 	CreatedBy        string
 	SpaMode          bool
+	AnalyticsEnabled bool
 	AccessMode       string
 	CurrentVersionID string
 	Role             workspaces.Role
