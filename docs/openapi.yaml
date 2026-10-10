@@ -65,6 +65,7 @@ tags:
   - name: Domains
   - name: Invites
   - name: Hosting
+  - name: Analytics
   - name: Admin
 paths:
   /setup/status:
@@ -1824,6 +1825,89 @@ paths:
                 $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /sites/{slug}/analytics:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/AnalyticsFrom"
+      - $ref: "#/components/parameters/AnalyticsTo"
+      - $ref: "#/components/parameters/AnalyticsInterval"
+      - $ref: "#/components/parameters/AnalyticsTop"
+    get:
+      tags: [Analytics]
+      operationId: getSiteAnalytics
+      summary: Read a site's analytics
+      description: |
+        Needs read on the site. Counts the HTML pages the server served, with the numbers and rules described under
+        the `Analytics` schema. Turning analytics off for a site stops new counting and keeps what was recorded.
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analytics"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /workspaces/{workspace}/analytics:
+    parameters:
+      - $ref: "#/components/parameters/Workspace"
+      - $ref: "#/components/parameters/AnalyticsFrom"
+      - $ref: "#/components/parameters/AnalyticsTo"
+      - $ref: "#/components/parameters/AnalyticsInterval"
+      - $ref: "#/components/parameters/AnalyticsTop"
+    get:
+      tags: [Analytics]
+      operationId: getWorkspaceAnalytics
+      summary: Read a workspace's analytics
+      description: |
+        Needs a workspace-wide role (read, write or admin). A user whose access is limited to folders or single sites
+        gets 403 `forbidden`. The report adds up the sites in the workspace that the user can see. It works the same for
+        a personal workspace. Unique counts add up per site, so a visitor who opens two sites counts twice.
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analytics"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/analytics:
+    parameters:
+      - $ref: "#/components/parameters/AnalyticsFrom"
+      - $ref: "#/components/parameters/AnalyticsTo"
+      - $ref: "#/components/parameters/AnalyticsInterval"
+      - $ref: "#/components/parameters/AnalyticsTop"
+    get:
+      tags: [Analytics]
+      operationId: getInstanceAnalytics
+      summary: Read the analytics of the whole instance
+      description: |
+        Root user only. Every other user gets 404 `not_found`. The report adds up every site and includes
+        `droppedEvents`.
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analytics"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /admin/settings:
     get:
       tags: [Admin]
@@ -2126,6 +2210,42 @@ components:
       description: The workspace slug or id.
       schema:
         type: string
+    AnalyticsFrom:
+      name: from
+      in: query
+      required: false
+      description: |
+        First day of the range, as an RFC 3339 date (`2026-03-01`) or timestamp (converted to its UTC date).
+        Defaults to 29 days before `to`.
+      schema:
+        type: string
+    AnalyticsTo:
+      name: to
+      in: query
+      required: false
+      description: Last day of the range, inclusive, in the same formats as `from`. Defaults to today in UTC.
+      schema:
+        type: string
+    AnalyticsInterval:
+      name: interval
+      in: query
+      required: false
+      description: |
+        `day` (default) or `hour`. `hour` needs a range of 14 days or less. Hourly points come from raw events, which
+        the server keeps for `analytics.rawDays` days (at least 14).
+      schema:
+        type: string
+        enum: [day, hour]
+    AnalyticsTop:
+      name: top
+      in: query
+      required: false
+      description: How many entries each ranked list returns, 1 to 50. Defaults to 10.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
   headers:
     SessionCookie:
       description: The session cookie, named `__Host-session` over HTTPS and `session` over plain HTTP.
@@ -2573,7 +2693,7 @@ components:
           examples: [Reports]
     Site:
       type: object
-      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, accessMode, currentVersionId, url, hosting, role, createdAt, updatedAt]
+      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, analyticsEnabled, accessMode, currentVersionId, url, hosting, role, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -2597,6 +2717,11 @@ components:
         spaMode:
           type: boolean
           description: Serve `index.html` with status 200 for unknown paths whose last segment has no file extension.
+        analyticsEnabled:
+          type: boolean
+          description: |
+            Whether the server counts page views for this site. New sites take the value of the
+            `analytics.enabledByDefault` setting. Turning it off stops counting and keeps the data already recorded.
         accessMode:
           $ref: "#/components/schemas/AccessMode"
         currentVersionId:
@@ -2844,6 +2969,9 @@ components:
           description: A folder in the same workspace, or null for unfiled.
         spaMode:
           type: boolean
+        analyticsEnabled:
+          type: boolean
+          description: Switch page view counting for this site on or off.
     FileSpec:
       type: object
       additionalProperties: false
@@ -3360,6 +3488,56 @@ components:
           type: boolean
           readOnly: true
           description: Whether a Cloudflare API token is stored.
+        analytics.enabledByDefault:
+          type: boolean
+          default: true
+          description: Whether new sites count page views. Existing sites keep their own setting.
+        analytics.retentionDays:
+          type: integer
+          default: 395
+          description: |
+            How many days of rolled-up analytics the server keeps: 0 keeps everything, otherwise 30 to 3650. The
+            maintenance task deletes older rows.
+        analytics.rawDays:
+          type: integer
+          minimum: 14
+          maximum: 365
+          default: 31
+          description: |
+            How many days of individual events the server keeps. Older days are kept only as daily rollups. Hourly
+            charts need the raw events, so the minimum is 14 days.
+        analytics.maxmindAccountId:
+          type: string
+          description: |
+            The account ID of a MaxMind account (digits only). With the licence key, it lets the server download the
+            GeoLite2 City database for country and city lookups. An empty string clears it.
+        analytics.maxmindLicenseKey:
+          type: string
+          writeOnly: true
+          description: The MaxMind licence key. Write-only. An empty string clears it. Stored encrypted (AES-256-GCM).
+        analytics.maxmindLicenseKeySet:
+          type: boolean
+          readOnly: true
+          description: Whether a MaxMind licence key is stored.
+        analytics.geoStatus:
+          type: string
+          enum: [unconfigured, ok, failed]
+          readOnly: true
+          description: The outcome of the last GeoLite2 download attempt. `unconfigured` means no account ID and key are set.
+        analytics.geoUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+          readOnly: true
+          description: When the server last installed a GeoLite2 database. Null before the first download.
+        analytics.geoCheckedAt:
+          type: [string, "null"]
+          format: date-time
+          readOnly: true
+          description: When the server last tried to download the database. Null before the first attempt.
+        analytics.geoDetail:
+          type: string
+          readOnly: true
+          description: Why the last attempt failed, or a note about the last download. Never contains the key.
     UpdateSettingsRequest:
       type: object
       additionalProperties: false
@@ -3367,6 +3545,95 @@ components:
       properties:
         settings:
           $ref: "#/components/schemas/Settings"
+    Analytics:
+      type: object
+      required: [from, to, interval, totals, series, paths, referrers, countries, cities, browsers, operatingSystems, devices, statuses, locationAvailable, generatedAt]
+      description: |
+        A report counts HTML documents the server served to GET requests with status 200, plus custom `404.html` pages
+        (status class `4xx`). It does not count assets, HEAD requests, partial (Range) or cached (304) responses,
+        prefetches, gate pages and sign-in prompts of protected sites, or any request while analytics is off for the site.
+        Visitors whose User-Agent looks like a bot are counted in `botViews` and in the `bot` device entry, and are left
+        out of every other number. `4xx` pages appear only in `statuses`.
+
+        A visitor hash exists for one site on one UTC day, so `uniques` for a range is the sum of the daily unique
+        counts: a person who comes back on three days counts three times. Hourly unique counts can add up to more than
+        the day's count for the same reason.
+
+        Ranked lists are sorted by views, then by value. Empty referrers (direct visits) and unknown locations are left
+        out of their lists. A rolled-up day keeps its top 500 values per list.
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        interval:
+          type: string
+          enum: [day, hour]
+        totals:
+          type: object
+          required: [views, uniques, botViews]
+          properties:
+            views:
+              type: integer
+            uniques:
+              type: integer
+            botViews:
+              type: integer
+        series:
+          type: array
+          description: One point per day or hour in the range, including points with no traffic. `start` is in UTC.
+          items:
+            type: object
+            required: [start, views, uniques]
+            properties:
+              start:
+                type: string
+                format: date-time
+              views:
+                type: integer
+              uniques:
+                type: integer
+        paths:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        referrers:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        countries:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        cities:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        browsers:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        operatingSystems:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        devices:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        statuses:
+          $ref: "#/components/schemas/AnalyticsRanked"
+        locationAvailable:
+          type: boolean
+          description: Whether the server has a GeoLite2 database. Without one, `countries` and `cities` stay empty.
+        droppedEvents:
+          type: integer
+          description: |
+            Root-only report only. Events the server could not record since it started, because its buffer was full or
+            a database write failed. The count restarts at 0 on every start.
+        generatedAt:
+          type: string
+          format: date-time
+    AnalyticsRanked:
+      type: array
+      items:
+        type: object
+        required: [value, views, uniques]
+        properties:
+          value:
+            type: string
+          views:
+            type: integer
+          uniques:
+            type: integer
     PasswordResetRequest:
       type: object
       additionalProperties: false
