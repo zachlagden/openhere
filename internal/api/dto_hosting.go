@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/certs"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/settings"
 )
@@ -26,11 +27,12 @@ type siteHostingResponse struct {
 }
 
 type hostingDetailResponse struct {
-	WildcardStatus          string     `json:"wildcardStatus"`
-	WildcardCheckedAt       *time.Time `json:"wildcardCheckedAt"`
-	WildcardDetail          string     `json:"wildcardDetail"`
-	ConsecutiveFailures     int        `json:"consecutiveFailures"`
-	SubdomainDisabledReason *string    `json:"subdomainDisabledReason"`
+	WildcardStatus          string            `json:"wildcardStatus"`
+	WildcardCheckedAt       *time.Time        `json:"wildcardCheckedAt"`
+	WildcardDetail          string            `json:"wildcardDetail"`
+	ConsecutiveFailures     int               `json:"consecutiveFailures"`
+	SubdomainDisabledReason *string           `json:"subdomainDisabledReason"`
+	TLS                     tlsDetailResponse `json:"tls"`
 }
 
 type hostingStatusResponse struct {
@@ -68,10 +70,11 @@ func toHostingStatusResponse(a hosting.InstanceAvailability) hostingStatusRespon
 	}
 }
 
-func toHostingDetailResponse(cfg settings.Settings) *hostingDetailResponse {
+func toHostingDetailResponse(cfg settings.Settings, tlsStatus certs.Status) *hostingDetailResponse {
 	detail := &hostingDetailResponse{
 		WildcardStatus: cfg.WildcardStatus, WildcardDetail: cfg.WildcardDetail, ConsecutiveFailures: cfg.WildcardFailures,
 		SubdomainDisabledReason: optional(cfg.SubdomainDisabledReason),
+		TLS:                     toTLSDetailResponse(tlsStatus, cfg),
 	}
 	if checked, err := time.Parse(time.RFC3339, cfg.WildcardCheckedAt); err == nil {
 		detail.WildcardCheckedAt = &checked

@@ -87,6 +87,7 @@ type harnessOptions struct {
 	logToBuf   bool
 	noMailer   bool
 	liveMail   *liveMailOptions
+	tls        TLSReporter
 }
 
 type liveMailOptions struct {
@@ -163,7 +164,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 		public = config.PublicURL{Scheme: "http", Host: testHost}
 	}
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc})
 	return &harness{
