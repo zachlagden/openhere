@@ -165,6 +165,10 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	}
 	accessSvc := access.New(db, access.Options{
 		Mailer: mailer, Params: testParams, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() }, Secrets: box,
+		MaxCodeMailsPerHour: func(ctx context.Context) (int, error) {
+			cfg, err := settingsSvc.Get(ctx)
+			return cfg.MaxGateMails, err
+		},
 	})
 	invitesSvc := invites.New(db, svc, workspaceSvc, settingsSvc, invites.Options{
 		BaseURL: "http://" + testHost, Mailer: mailer, Now: clock.Now, Logger: logger,

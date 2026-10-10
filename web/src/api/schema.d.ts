@@ -1992,6 +1992,13 @@ export interface components {
              */
             "limits.maxPendingBytes": number;
             /**
+             * @description Most sign-in code emails the instance sends for gated sites in one hour, counted in a fixed
+             *     window. Past it, a code request gets the same answer as before and no email goes out. 0 turns the
+             *     limit off. The per-site and per-address limits still apply.
+             * @default 100
+             */
+            "limits.maxGateCodeMailsPerHour": number;
+            /**
              * @description A bare host name such as `example.com`. Stored in lower case. Sites are served at `{slug}.{baseDomain}`.
              *     An empty value means the host name of the server's `PUBLIC_URL`, which is also what a new instance
              *     reports. A change is refused with 409 `base_domain_in_use` while a custom domain equals the new base

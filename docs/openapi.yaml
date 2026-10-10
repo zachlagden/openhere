@@ -3509,6 +3509,15 @@ components:
           description: |
             Total bytes that all pending versions of all sites may declare. A manifest that would pass this total is
             refused with 429 `too_many_pending`. 0 turns the limit off.
+        limits.maxGateCodeMailsPerHour:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          default: 100
+          description: |
+            Most sign-in code emails the instance sends for gated sites in one hour, counted in a fixed
+            window. Past it, a code request gets the same answer as before and no email goes out. 0 turns the
+            limit off. The per-site and per-address limits still apply.
         hosting.baseDomain:
           type: string
           description: |

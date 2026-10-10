@@ -18,6 +18,7 @@ const (
 	KeyMaxVersionBytes  = "limits.maxVersionBytes"
 	KeyMaxFileBytes     = "limits.maxFileBytes"
 	KeyMaxPendingBytes  = "limits.maxPendingBytes"
+	KeyMaxGateMails     = "limits.maxGateCodeMailsPerHour"
 	KeyBaseDomain       = "hosting.baseDomain"
 	KeySubdomainEnabled = "hosting.subdomainEnabled"
 	KeyPathEnabled      = "hosting.pathEnabled"
@@ -62,6 +63,7 @@ type Settings struct {
 	MaxVersionBytes  int64
 	MaxFileBytes     int64
 	MaxPendingBytes  int64
+	MaxGateMails     int
 	BaseDomain       string
 	SubdomainEnabled bool
 	PathEnabled      bool
@@ -122,6 +124,9 @@ var definitions = []definition{
 	boundedIntDefinition(KeyMaxPendingBytes, 4<<30, true, minimumInt, maxBytesLimit,
 		func(s *Settings, v int64) { s.MaxPendingBytes = v },
 		func(s Settings) int64 { return s.MaxPendingBytes }),
+	boundedIntDefinition(KeyMaxGateMails, 100, true, minimumInt, maxFilesLimit,
+		func(s *Settings, v int64) { s.MaxGateMails = int(v) },
+		func(s Settings) int64 { return int64(s.MaxGateMails) }),
 	stringDefinition(KeyBaseDomain, "", normaliseBaseDomain,
 		func(s *Settings, v string) { s.BaseDomain = v },
 		func(s Settings) string { return s.BaseDomain }),

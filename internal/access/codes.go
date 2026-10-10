@@ -34,6 +34,10 @@ func (s *Service) RequestCode(ctx context.Context, in CodeRequest) error {
 	if err != nil || !allowed || !s.mailer.Configured() {
 		return err
 	}
+	withinCap, err := s.reserveCodeMail(ctx)
+	if err != nil || !withinCap {
+		return err
+	}
 	code, err := otp.New(CodeDigits)
 	if err != nil {
 		return err

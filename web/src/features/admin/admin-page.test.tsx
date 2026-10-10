@@ -236,6 +236,16 @@ describe("policy", () => {
     await waitFor(() => expect(patchBodies(fetchMock)).toEqual([{ settings: { "limits.maxPendingBytes": 0 } }]));
   });
 
+  it("saves the sign-in code email limit, including zero", async () => {
+    const fetchMock = setup("/admin/policy");
+    const limit = await screen.findByLabelText("Sign-in code emails per hour");
+    expect(limit).toHaveValue(100);
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "0");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patchBodies(fetchMock)).toEqual([{ settings: { "limits.maxGateCodeMailsPerHour": 0 } }]));
+  });
+
   it("changes who can invite", async () => {
     const fetchMock = setup("/admin/policy");
     await userEvent.selectOptions(await screen.findByLabelText("Who can invite new people"), "workspaceAdmins");

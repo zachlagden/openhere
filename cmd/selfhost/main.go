@@ -135,7 +135,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	}
 	mailer := mail.New(mail.NewSettingsSource(settingsSvc, box), mail.Options{Logger: logger})
 	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
-	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger, Secrets: box})
+	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger, Secrets: box, MaxCodeMailsPerHour: gateMailCap(settingsSvc)})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc), AnalyticsDefault: analyticsDefault(settingsSvc),
 	})
@@ -200,6 +200,16 @@ func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Ch
 	return func() {
 		cancel()
 		running.Wait()
+	}
+}
+
+func gateMailCap(settingsSvc *settings.Service) func(ctx context.Context) (int, error) {
+	return func(ctx context.Context) (int, error) {
+		cfg, err := settingsSvc.Get(ctx)
+		if err != nil {
+			return 0, err
+		}
+		return cfg.MaxGateMails, nil
 	}
 }
 

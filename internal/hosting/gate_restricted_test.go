@@ -359,3 +359,27 @@ func TestFormsCannotBeFramedOrCrossPosted(t *testing.T) {
 		}
 	})
 }
+
+func TestCappedCodeRequestsLookLikeSentOnes(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		e.gatedDemo(restrictedMode("sam@example.com", "kim@example.com"))
+		e.router.gate.access = access.New(db, access.Options{
+			Params: fastParams, Now: e.clock.Now, Mailer: e.mailer, Secrets: e.box, Spawn: func(task func()) { task() },
+			MaxCodeMailsPerHour: func(context.Context) (int, error) { return 1, nil },
+		})
+		sent := e.requestCodeFor("sam@example.com")
+		capped := e.requestCodeFor("kim@example.com")
+		unlisted := e.requestCodeFor("stranger@example.com")
+		if len(e.mailer.Messages()) != 1 {
+			t.Fatalf("sent %d emails under a cap of 1", len(e.mailer.Messages()))
+		}
+		want := answerWithout(sent, "sam@example.com")
+		if got := answerWithout(capped, "kim@example.com"); got != want {
+			t.Errorf("a capped request answered differently from a sent one:\n%+v\n%+v", got, want)
+		}
+		if got := answerWithout(unlisted, "stranger@example.com"); got != want {
+			t.Errorf("an unlisted request answered differently from a sent one:\n%+v\n%+v", got, want)
+		}
+	})
+}

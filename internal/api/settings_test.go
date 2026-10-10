@@ -38,6 +38,7 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"limits.maxVersionBytes":          float64(1 << 30),
 			"limits.maxFileBytes":             float64(256 << 20),
 			"limits.maxPendingBytes":          float64(4 << 30),
+			"limits.maxGateCodeMailsPerHour":  float64(100),
 			"hosting.baseDomain":              "",
 			"hosting.subdomainEnabled":        false,
 			"hosting.pathEnabled":             true,

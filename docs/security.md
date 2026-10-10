@@ -54,6 +54,7 @@ The limits below count in process memory. A restart resets every counter, and tw
 | Email test (root) | 5 per minute |
 | Site password unlock | 10 per IP and 100 per site in 15 minutes |
 | Site email code request | 3 per address in 10 minutes, 10 per IP in 15 minutes, 60 per site per hour |
+| Site email code emails | 100 per hour for the whole instance (`limits.maxGateCodeMailsPerHour`), on top of the limits above. A capped request gets the usual answer and no email goes out. |
 | Site email code check | 10 per address, 20 per IP and 200 per site in 15 minutes |
 | Certificates on demand | 5 per name, 10 per site and 50 in total per hour, counting only requests that reach the certificate authority |
 
