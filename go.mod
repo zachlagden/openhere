@@ -8,8 +8,10 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/libdns v1.1.1
+	github.com/maxmind/mmdbwriter v1.2.0
 	github.com/mholt/acmez/v3 v3.1.7
 	github.com/miekg/dns v1.1.73
+	github.com/oschwald/maxminddb-golang/v2 v2.7.0
 	github.com/pressly/goose/v3 v3.28.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
@@ -33,6 +35,7 @@ require (
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
+	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
