@@ -22,6 +22,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
@@ -38,9 +39,9 @@ import (
 )
 
 const (
-	shutdownTimeout   = 15 * time.Second
-	readHeaderTimeout = 10 * time.Second
-	startupTimeout    = 30 * time.Second
+	shutdownTimeout = 15 * time.Second
+	maxHeaderBytes  = 1 << 16
+	startupTimeout  = 30 * time.Second
 
 	maintenanceInterval   = time.Hour
 	wildcardCheckInterval = 6 * time.Hour
@@ -147,6 +148,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	checker := hosting.NewChecker(settingsSvc, probes, hosting.CheckerOptions{Public: cfg.PublicURL, Logger: logger})
 	geoDir := filepath.Join(cfg.DataDir, geoDirName)
 	locator := geo.NewLookup(filepath.Join(geoDir, geo.FileName), logger)
+	timeouts := httptimeouts.Defaults()
 	recorder := analytics.NewRecorder(db, analytics.RecorderOptions{
 		Hasher: analytics.NewHasher(db, box, logger), Locator: locator, Logger: logger,
 	})
@@ -156,7 +158,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
 		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
-		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version,
+		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version, Timeouts: timeouts,
 	})
 	dashboard, err := newDashboard(logger)
 	if err != nil {
@@ -165,7 +167,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	router := hosting.New(dashboard.Wrap(server.Handler()), settingsSvc, db, files,
 		hosting.Options{
 			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
-			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder,
+			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder, Timeouts: timeouts,
 		})
 
 	stop := startBackground(ctx, svc, checker, geoUpdater,
@@ -176,7 +178,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 		auth.MaintenanceTask{Name: "agent codes", Run: agentSvc.Purge},
 		auth.MaintenanceTask{Name: "analytics", Run: analyticsSvc.Maintain})
 	closeAnalytics := func() { shutdownAnalytics(recorder, locator, logger) }
-	return &application{handler: router, certs: certManager, stopBackground: stop, closeAnalytics: closeAnalytics}, nil
+	return &application{handler: router, certs: certManager, stopBackground: stop, closeAnalytics: closeAnalytics, timeouts: timeouts}, nil
 }
 
 func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Checker, geoUpdater *geo.Updater, tasks ...auth.MaintenanceTask) func() {

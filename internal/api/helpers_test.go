@@ -23,6 +23,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
@@ -98,6 +99,7 @@ type harnessOptions struct {
 	noMailer   bool
 	liveMail   *liveMailOptions
 	tls        TLSReporter
+	timeouts   httptimeouts.Timeouts
 }
 
 type liveMailOptions struct {
@@ -189,7 +191,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	})
 	analyticsSvc := analytics.New(db, siteSvc, workspaceSvc, settingsSvc, analytics.Options{Now: clock.Now, Recorder: viewRecorder})
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3",
+		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3", Timeouts: opts.timeouts,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc, Views: viewRecorder, Resolver: resolver})
 	shell, err := ui.New(fstest.MapFS{

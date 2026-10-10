@@ -63,6 +63,10 @@ Authenticated API calls outside this table, such as publishing and listing, have
 
 The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.
 
+## Connection timeouts
+
+Every listener, including the built-in HTTPS ones and the port 80 redirect, closes a connection that sends its request headers slower than 10 seconds, its body slower than 30 seconds in total, or sits idle longer than 90 seconds. A response must finish within 60 seconds. Uploads and file downloads get more time in proportion to their size: 1 minute plus 1 second per 2 MiB, up to 30 minutes. A reverse proxy in front of the server needs timeouts at least this long for large uploads.
+
 ## Site isolation
 
 - **Subdomain and custom domain modes** give each site its own browser origin. The site cannot read the dashboard's cookies or call its API as the user, and the dashboard's session cookie is `__Host-` prefixed.

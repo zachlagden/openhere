@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/mholt/acmez/v3"
+
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 )
 
 const (
-	headerTimeout   = 10 * time.Second
 	httpIdleTimeout = 30 * time.Second
-	tlsIdleTimeout  = 2 * time.Minute
 	httpBodyTimeout = 10 * time.Second
 	maxHeaderBytes  = 1 << 16
 )
@@ -22,7 +22,7 @@ func (m *Manager) HTTPServer(addr string) *http.Server {
 	return &http.Server{
 		Addr:              addr,
 		Handler:           m.httpIssuer.HTTPChallengeHandler(redirectHandler(m.httpsPort)),
-		ReadHeaderTimeout: headerTimeout,
+		ReadHeaderTimeout: httptimeouts.DefaultReadHeader,
 		ReadTimeout:       httpBodyTimeout,
 		WriteTimeout:      httpBodyTimeout,
 		IdleTimeout:       httpIdleTimeout,
@@ -31,16 +31,16 @@ func (m *Manager) HTTPServer(addr string) *http.Server {
 	}
 }
 
-func (m *Manager) HTTPSServer(addr string, handler http.Handler) *http.Server {
-	return &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		TLSConfig:         m.TLSConfig(),
-		ReadHeaderTimeout: headerTimeout,
-		IdleTimeout:       tlsIdleTimeout,
-		MaxHeaderBytes:    maxHeaderBytes,
-		ErrorLog:          quietLog(),
+func (m *Manager) HTTPSServer(addr string, handler http.Handler, timeouts httptimeouts.Timeouts) *http.Server {
+	srv := &http.Server{
+		Addr:           addr,
+		Handler:        handler,
+		TLSConfig:      m.TLSConfig(),
+		MaxHeaderBytes: maxHeaderBytes,
+		ErrorLog:       quietLog(),
 	}
+	timeouts.OrDefaults().Apply(srv)
+	return srv
 }
 
 func (m *Manager) TLSConfig() *tls.Config {

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/settings"
 )
 
@@ -225,9 +226,9 @@ func contains(values []string, want string) bool {
 func TestServersHaveTimeoutsAndQuietErrorLogs(t *testing.T) {
 	env := newManagerEnv(t)
 	plain := env.manager.HTTPServer(":80")
-	secure := env.manager.HTTPSServer(":443", http.NotFoundHandler())
+	secure := env.manager.HTTPSServer(":443", http.NotFoundHandler(), httptimeouts.Defaults())
 	for name, srv := range map[string]*http.Server{"http": plain, "https": secure} {
-		if srv.ReadHeaderTimeout <= 0 || srv.IdleTimeout <= 0 {
+		if srv.ReadHeaderTimeout <= 0 || srv.ReadTimeout <= 0 || srv.WriteTimeout <= 0 || srv.IdleTimeout <= 0 {
 			t.Errorf("%s server lacks timeouts", name)
 		}
 		if srv.ErrorLog == nil {

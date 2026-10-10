@@ -13,6 +13,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/mail"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
@@ -122,6 +123,7 @@ type Options struct {
 	TLS            TLSReporter
 	Analytics      *analytics.Service
 	Version        string
+	Timeouts       httptimeouts.Timeouts
 }
 
 type Server struct {
@@ -145,6 +147,7 @@ type Server struct {
 	analytics  *analytics.Service
 	version    string
 	now        func() time.Time
+	timeouts   httptimeouts.Timeouts
 
 	agentReqIP     *ratelimit.Limiter
 	agentReqEmail  *ratelimit.Limiter
@@ -208,6 +211,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		analytics:  opts.Analytics,
 		version:    opts.Version,
 		now:        now,
+		timeouts:   opts.Timeouts.OrDefaults(),
 
 		agentReqIP:     limiter(limits.AgentRequestIP),
 		agentReqEmail:  limiter(limits.AgentRequestEmail),

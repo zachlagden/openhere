@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/zachlagden/selfhost/internal/analytics"
+	"github.com/zachlagden/selfhost/internal/httptimeouts"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 )
@@ -27,11 +28,12 @@ type serveTarget struct {
 }
 
 type siteServer struct {
-	files   *sitefiles.Store
-	index   fileIndex
-	logger  *slog.Logger
-	views   ViewRecorder
-	proxies proxy.Trust
+	files    *sitefiles.Store
+	index    fileIndex
+	logger   *slog.Logger
+	views    ViewRecorder
+	proxies  proxy.Trust
+	timeouts httptimeouts.Timeouts
 }
 
 func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, requestPath string, target serveTarget) {
@@ -104,6 +106,7 @@ func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, resp
 	h := w.Header()
 	h.Set("Content-Type", contentType)
 	h.Set("Cache-Control", cacheControlFor(contentType, resp.private))
+	s.timeouts.ExtendDownload(w, info.Size())
 	recorded := &statusRecorder{ResponseWriter: w}
 	if resp.status == http.StatusOK {
 		h.Set("ETag", `"`+rec.SHA256+`"`)
