@@ -60,6 +60,7 @@ All body fields except `files` are optional:
 - `slug` picks the site name. The server generates one such as `quiet-meadow-k3p7` when you leave it out. A slug uses lowercase letters, digits and hyphens, and cannot change later.
 - `workspace` is a workspace slug or id. Without it the server uses the `X-Workspace` header, then the user's personal workspace.
 - `folder` is a folder id or name in that workspace.
+- `description` is a short text of up to 1000 characters. `displayName` has at most 100.
 - `spaMode` serves `index.html` for unknown paths that have no file extension. Turn it on for single page apps.
 
 To publish a new version of an existing site, send `PUT /api/v1/publish/{slug}` with `files` and, to detect conflicts, `"baseVersionId": "<the live version id>"`. List every file of the new version, not only the changed ones.
@@ -117,6 +118,27 @@ A new site is open to anyone with the link unless the instance default says othe
 | `restricted` | Instance users with read access, plus the addresses and domains on the allowlists. Send `emailAllowlist` and `domainAllowlist` to replace those lists |
 
 `GET /api/v1/publish/{slug}/access` shows the current settings. It never returns the password.
+
+## Custom domains
+
+A site can have its own domains. The server proves ownership with a DNS TXT record, and the user must create it at their DNS provider.
+
+| Task | Call |
+|---|---|
+| Claim a domain | `POST /api/v1/sites/{slug}/domains` with `{"domain": "docs.example.org"}`. The response has a `challenge` (a TXT record name and value) and a `target` hint. |
+| Check the record | `POST /api/v1/sites/{slug}/domains/{id}/verify`. The response says in plain language why a check failed. DNS changes take time, so repeat the call later. |
+| Make it primary | `PATCH /api/v1/sites/{slug}/domains/{id}` with `{"isPrimary": true}` |
+| List or remove | `GET /api/v1/sites/{slug}/domains`, `DELETE /api/v1/sites/{slug}/domains/{id}` |
+
+Tell the user which record to create. Verification never looks at A or CNAME records, so the user also needs to point the domain at the instance.
+
+## Analytics
+
+`GET /api/v1/sites/{slug}/analytics?from=2026-01-01&to=2026-01-31` returns page views and unique visitors with ranked lists. Dates are inclusive and the range is at most 366 days. Switch counting on or off with `analyticsEnabled` on `PATCH /api/v1/sites/{slug}`.
+
+## Instance facts
+
+`GET /api/v1/instance` returns the public URL, the version, whether the instance can send email, which hosting modes are on and where agents keep credentials. Read it before you tell the user an address.
 
 ## Errors
 
