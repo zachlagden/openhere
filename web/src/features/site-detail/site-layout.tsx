@@ -91,6 +91,7 @@ export function SiteLayout(): JSX.Element {
         label="Site sections"
         items={[
           { to: base, label: "Overview", end: true },
+          { to: `${base}/access`, label: "Access" },
         ]}
       />
       <Outlet context={context} />
