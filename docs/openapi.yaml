@@ -60,6 +60,7 @@ tags:
   - name: Publish
   - name: Access
   - name: Invites
+  - name: Hosting
   - name: Admin
 paths:
   /setup/status:
@@ -1655,8 +1656,13 @@ paths:
         `validation_failed`. Changes apply to the next request.
 
         Setting `hosting.subdomainEnabled` to true returns 409 `wildcard_not_verified` unless the last wildcard
-        check succeeded. Changing `hosting.baseDomain` to a different effective value resets the check to
-        `unchecked` and switches subdomain mode off.
+        check succeeded. A change that would leave both `hosting.subdomainEnabled` and `hosting.pathEnabled` false
+        returns 409 `no_hosting_mode`. The server judges the stored values merged with the patch, so one patch can
+        switch one mode on and the other off.
+
+        Changing `hosting.baseDomain` to a different effective value resets the check to `unchecked` and switches
+        subdomain mode off. When that would leave both modes off, the server also switches path mode on in the same
+        change and returns a notice with the code `path_mode_enabled`.
       requestBody:
         required: true
         content:
@@ -1665,11 +1671,11 @@ paths:
               $ref: "#/components/schemas/UpdateSettingsRequest"
       responses:
         "200":
-          description: All settings after the change.
+          description: All settings after the change, and any notices about side effects.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SettingsEnvelope"
+                $ref: "#/components/schemas/UpdateSettingsEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1679,7 +1685,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          $ref: "#/components/responses/WildcardNotVerified"
+          $ref: "#/components/responses/HostingConflict"
         "413":
           $ref: "#/components/responses/BadRequest"
         "415":
@@ -1822,6 +1828,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /hosting/status:
+    get:
+      tags: [Hosting]
+      operationId: getHostingStatus
+      summary: Read the instance hosting status
+      description: |
+        Any signed-in user. Reports the state of each hosting mode, plain-language notices and whether hosting is
+        degraded. It names no site. The root user also gets a `detail` object with the wildcard check status, when
+        it last ran, the failure text, the consecutive failure count and the reason subdomain mode was switched
+        off. Other users never get `detail`.
+      responses:
+        "200":
+          description: The hosting status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostingStatus"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
   /admin/hosting/check:
     post:
       tags: [Admin]
@@ -1832,8 +1857,10 @@ paths:
         through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}`
         and succeeds only if the server itself answers with the HMAC of the one-time token (the key stays in the process). The check never follows
         redirects, reads at most 256 bytes and gives up after 10 seconds. It stores the outcome in the read-only
-        `hosting.wildcard*` settings and, on failure, switches subdomain mode off. The server also runs the check
-        at startup and every 6 hours. Rate limited to 6 calls per minute per user.
+        `hosting.wildcard*` settings. A failed check never switches subdomain mode off by itself, and a manual
+        check does not count toward the automatic switch-off. The server also runs the check at startup and every
+        6 hours, retries every 15 minutes while it fails, and switches subdomain mode off after 3 consecutive
+        failed startup or scheduled checks when path mode is on. Rate limited to 6 calls per minute per user.
 
         A failed check is a normal 200 response with `status` set to `failed`. The `.well-known/selfhost-check/`
         route on site hosts is the only unauthenticated route this feature adds. It answers only while a check
@@ -1958,8 +1985,10 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
-    WildcardNotVerified:
-      description: Subdomain mode cannot be enabled until a wildcard check succeeds (`wildcard_not_verified`).
+    HostingConflict:
+      description: |
+        Subdomain mode cannot be enabled until a wildcard check succeeds (`wildcard_not_verified`), or the change
+        would leave both hosting modes off (`no_hosting_mode`).
       content:
         application/json:
           schema:
@@ -2019,6 +2048,7 @@ components:
             - version_not_finalized
             - file_not_in_manifest
             - wildcard_not_verified
+            - no_hosting_mode
             - account_disabled
             - cannot_disable_self
             - last_root
@@ -2332,7 +2362,7 @@ components:
           examples: [Reports]
     Site:
       type: object
-      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, accessMode, currentVersionId, url, role, createdAt, updatedAt]
+      required: [id, workspaceId, workspaceSlug, folderId, slug, displayName, description, createdBy, spaMode, accessMode, currentVersionId, url, hosting, role, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -2363,6 +2393,8 @@ components:
           description: The live version. Null until a version is finalized.
         url:
           $ref: "#/components/schemas/SiteUrl"
+        hosting:
+          $ref: "#/components/schemas/SiteHosting"
         role:
           $ref: "#/components/schemas/Role"
         createdAt:
@@ -2585,7 +2617,7 @@ components:
             type: string
     PublishResponse:
       type: object
-      required: [slug, siteId, versionId, expiresAt, uploads, finalizeUrl, url]
+      required: [slug, siteId, versionId, expiresAt, uploads, finalizeUrl, url, hosting]
       properties:
         slug:
           type: string
@@ -2605,6 +2637,8 @@ components:
           type: string
         url:
           $ref: "#/components/schemas/SiteUrl"
+        hosting:
+          $ref: "#/components/schemas/SiteHosting"
     Version:
       type: object
       required: [id, siteId, status, live, createdBy, createdAt, finalizedAt, fileCount, totalBytes, baseVersionId]
@@ -2644,12 +2678,14 @@ components:
             $ref: "#/components/schemas/Version"
     VersionResult:
       type: object
-      required: [slug, url, version]
+      required: [slug, url, hosting, version]
       properties:
         slug:
           type: string
         url:
           $ref: "#/components/schemas/SiteUrl"
+        hosting:
+          $ref: "#/components/schemas/SiteHosting"
         version:
           $ref: "#/components/schemas/Version"
     FileInfo:
@@ -2687,6 +2723,104 @@ components:
       properties:
         settings:
           $ref: "#/components/schemas/Settings"
+    UpdateSettingsEnvelope:
+      type: object
+      required: [settings, notices]
+      properties:
+        settings:
+          $ref: "#/components/schemas/Settings"
+        notices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notice"
+          description: Side effects of the change. Empty when there were none.
+    Notice:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: A stable code such as `path_mode_enabled`, `no_live_version` or `subdomain_off`.
+        message:
+          type: string
+          description: A plain-language sentence for any user. It contains no administrator detail.
+    HostingMode:
+      type: object
+      required: [state, reason]
+      properties:
+        state:
+          type: string
+          enum: [on, off]
+        reason:
+          type: [string, "null"]
+          enum: [switched_off, wildcard_check_failed, https_required, not_applicable, null]
+          description: |
+            Null when the mode is on and healthy. `switched_off`: an administrator turned the mode off.
+            `wildcard_check_failed`: the mode is off because repeated checks failed, or on but the last check
+            failed. `https_required`: path mode is on but cannot serve this restricted or password site over plain
+            HTTP. `not_applicable`: subdomain mode has no base domain to use.
+    HostingModes:
+      type: object
+      required: [subdomain, path]
+      properties:
+        subdomain:
+          $ref: "#/components/schemas/HostingMode"
+        path:
+          $ref: "#/components/schemas/HostingMode"
+    SiteHosting:
+      type: object
+      required: [reachable, url, modes, notices]
+      properties:
+        reachable:
+          type: boolean
+          description: |
+            True when the site has a live version and at least one mode can serve it now. A gated site does not
+            count path mode over plain HTTP.
+        url:
+          $ref: "#/components/schemas/SiteUrl"
+        modes:
+          $ref: "#/components/schemas/HostingModes"
+        notices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notice"
+          description: |
+            Plain-language messages about this site's addresses, such as "The subdomain address for this site is
+            switched off." and "Nothing has been published to this site yet." Every user with read access to the
+            site gets the same notices.
+    HostingDetail:
+      type: object
+      required: [wildcardStatus, wildcardCheckedAt, wildcardDetail, consecutiveFailures, subdomainDisabledReason]
+      properties:
+        wildcardStatus:
+          type: string
+          enum: [unchecked, ok, failed]
+        wildcardCheckedAt:
+          type: [string, "null"]
+          format: date-time
+        wildcardDetail:
+          type: string
+        consecutiveFailures:
+          type: integer
+          minimum: 0
+        subdomainDisabledReason:
+          type: [string, "null"]
+          enum: [wildcard_check_failed, null]
+    HostingStatus:
+      type: object
+      required: [degraded, modes, notices]
+      properties:
+        degraded:
+          type: boolean
+          description: True while subdomain mode is on and its last wildcard check failed.
+        modes:
+          $ref: "#/components/schemas/HostingModes"
+        notices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notice"
+        detail:
+          $ref: "#/components/schemas/HostingDetail"
     Settings:
       type: object
       additionalProperties: false
@@ -2725,7 +2859,9 @@ components:
           default: false
           description: |
             Serve sites at `{slug}.{baseDomain}`. Needs wildcard DNS and, over HTTPS, a wildcard certificate. Can
-            only be set to true while `hosting.wildcardStatus` is `ok`. A failed wildcard check switches it off.
+            only be set to true while `hosting.wildcardStatus` is `ok`. A change that leaves it and
+            `hosting.pathEnabled` both false returns 409 `no_hosting_mode`. After 3 consecutive failed startup or
+            scheduled wildcard checks the server sets it to false, but only when path mode is on.
             Subdomain mode is the recommended way to host sites, because every site gets its own origin.
         hosting.pathEnabled:
           type: boolean
@@ -2733,7 +2869,8 @@ components:
           description: |
             Serve sites at `{publicUrl}/s/{slug}/`. Path-mode pages share an origin with the dashboard, so the server
             sends a `sandbox` Content-Security-Policy without `allow-same-origin` on every `/s/` response. The pages
-            cannot use cookies, localStorage or the dashboard session.
+            cannot use cookies, localStorage or the dashboard session. A change that leaves it and
+            `hosting.subdomainEnabled` both false returns 409 `no_hosting_mode`.
         hosting.wildcardStatus:
           type: string
           enum: [unchecked, ok, failed]
@@ -2748,6 +2885,20 @@ components:
           type: string
           readOnly: true
           description: Why the last check failed, or an empty string. Read-only.
+        hosting.wildcardFailures:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: |
+            Consecutive failed startup or scheduled checks while subdomain mode was on. A passing check and a change of
+            base domain reset it to 0. Manual checks do not change it. Read-only.
+        hosting.subdomainDisabledReason:
+          type: [string, "null"]
+          enum: [wildcard_check_failed, null]
+          readOnly: true
+          description: |
+            Set to `wildcard_check_failed` when the server switched subdomain mode off after repeated failed checks.
+            A passing check clears it without switching the mode back on. Null otherwise. Read-only.
         sites.defaultAccessMode:
           type: string
           enum: [public, restricted]
