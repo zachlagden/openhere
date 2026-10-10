@@ -81,7 +81,7 @@ func (g *gate) buildView(req siteRequest, state access.State, data pageData) (pa
 	view := pageView{
 		Title: "Protected site", Heading: "This site is protected", Message: data.Message, Info: data.Info, Return: returnPath, Email: data.Email,
 		UnlockURL: req.prefix + UnlockPath, CodeURL: req.prefix + CodePath, VerifyURL: req.prefix + VerifyPath,
-		HandoffURL: g.handoffURL(req.site.Slug, returnPath),
+		HandoffURL: g.handoffURL(req, returnPath),
 	}
 	if data.Kind == pageHTTPSRequired {
 		view.Heading = "HTTPS is required"
@@ -115,8 +115,11 @@ func (g *gate) chooseForms(view *pageView, state access.State, kind pageKind) {
 	}
 }
 
-func (g *gate) handoffURL(slug, returnPath string) string {
-	query := url.Values{"site": {slug}, "return": {returnPath}}
+func (g *gate) handoffURL(req siteRequest, returnPath string) string {
+	query := url.Values{"site": {req.site.Slug}, "return": {returnPath}}
+	if req.customHost != "" {
+		query.Set("host", req.customHost)
+	}
 	return g.public.String() + HandoffPath + "?" + query.Encode()
 }
 

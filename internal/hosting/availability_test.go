@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/settings"
 )
 
@@ -135,5 +136,54 @@ func TestInstanceHosting(t *testing.T) {
 	pathOff := InstanceHosting(hostingConfig(true, false, nil))
 	if pathOff.Path != (ModeStatus{StateOff, ReasonSwitchedOff}) || !slices.Equal(codesOf(pathOff.Notices), []string{"path_off"}) {
 		t.Errorf("path off = %+v", pathOff)
+	}
+}
+
+func TestCustomDomainsShapeSiteAvailability(t *testing.T) {
+	both := hostingConfig(true, true, nil)
+	neither := hostingConfig(false, false, nil)
+	live := func(summary domains.Summary) SiteFacts {
+		return SiteFacts{Slug: "docs", Live: true, Domains: summary}
+	}
+	cases := []struct {
+		name      string
+		cfg       settings.Settings
+		summary   domains.Summary
+		reachable bool
+		url       string
+		codes     []string
+	}{
+		{"no domains", both, domains.Summary{}, true, "https://docs.sites.example.com/", nil},
+		{"primary wins", both, domains.Summary{Total: 2, Verified: 2, Primary: "www.example.org", Fallback: "a.example.org"}, true, "https://www.example.org/", nil},
+		{"subdomain beats a domain without a primary", both, domains.Summary{Total: 1, Verified: 1, Fallback: "a.example.org"}, true, "https://docs.sites.example.com/", nil},
+		{"only a domain serves", neither, domains.Summary{Total: 1, Verified: 1, Fallback: "a.example.org"}, true, "https://a.example.org/", []string{"subdomain_off", "path_off"}},
+		{"pending domain alone does not serve", neither, domains.Summary{Total: 1}, false, "", []string{"subdomain_off", "path_off", "custom_domain_pending", "unreachable"}},
+		{"pending next to a verified one", both, domains.Summary{Total: 2, Verified: 1, Primary: "www.example.org"}, true, "https://www.example.org/", []string{"custom_domain_pending"}},
+		{"feature off hides the domain", hostingConfig(true, true, func(s *settings.Settings) { s.CustomDomainsEnabled = false }), domains.Summary{Total: 1, Verified: 1, Primary: "www.example.org"}, true, "https://docs.sites.example.com/", []string{"custom_domains_off"}},
+		{"feature off and nothing else", hostingConfig(false, false, func(s *settings.Settings) { s.CustomDomainsEnabled = false }), domains.Summary{Total: 1, Verified: 1, Primary: "www.example.org"}, false, "", []string{"subdomain_off", "path_off", "custom_domains_off", "unreachable"}},
+	}
+	for _, tc := range cases {
+		got := SiteHosting(secureURL, tc.cfg, live(tc.summary))
+		if got.Reachable != tc.reachable || got.URL != tc.url || !slices.Equal(codesOf(got.Notices), tc.codes) {
+			t.Errorf("%s: reachable %v url %q notices %v, want %v %q %v", tc.name, got.Reachable, got.URL, codesOf(got.Notices), tc.reachable, tc.url, tc.codes)
+		}
+	}
+}
+
+func TestPendingNoticeUsesPlainLanguage(t *testing.T) {
+	got := SiteHosting(secureURL, hostingConfig(true, true, nil), SiteFacts{Slug: "docs", Live: true, Domains: domains.Summary{Total: 1}})
+	if len(got.Notices) != 1 || got.Notices[0].Message != "A custom domain is waiting for DNS verification." {
+		t.Errorf("notices = %+v", got.Notices)
+	}
+}
+
+func TestInstanceHostingReportsCustomDomains(t *testing.T) {
+	on := InstanceHosting(hostingConfig(true, true, nil))
+	if on.CustomDomains.State != StateOn || len(on.Notices) != 0 {
+		t.Errorf("default = %+v", on)
+	}
+	off := InstanceHosting(hostingConfig(true, true, func(s *settings.Settings) { s.CustomDomainsEnabled = false }))
+	if off.CustomDomains.State != StateOff || !slices.Equal(codesOf(off.Notices), []string{"custom_domains_off"}) {
+		t.Errorf("disabled = %+v", off)
 	}
 }
