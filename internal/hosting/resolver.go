@@ -22,6 +22,7 @@ type Site struct {
 	Slug      string
 	VersionID string
 	SPAMode   bool
+	Analytics bool
 }
 
 type cacheEntry struct {
@@ -113,8 +114,8 @@ func (r *Resolver) makeRoom(now time.Time) {
 func (r *Resolver) load(ctx context.Context, slug string) (Site, bool, error) {
 	var site Site
 	var version sql.NullString
-	err := r.db.QueryRowContext(ctx, "SELECT id, current_version_id, spa_mode FROM sites WHERE slug = $1", slug).
-		Scan(&site.ID, &version, &site.SPAMode)
+	err := r.db.QueryRowContext(ctx, "SELECT id, current_version_id, spa_mode, analytics_enabled FROM sites WHERE slug = $1", slug).
+		Scan(&site.ID, &version, &site.SPAMode, &site.Analytics)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Site{}, false, nil
 	}
