@@ -27,6 +27,7 @@ const (
 	scheduledAttempts = 3
 	attemptGap        = 10 * time.Second
 	startupDelay      = 5 * time.Second
+	RetryInterval     = 15 * time.Minute
 )
 
 type HostResolver interface {
@@ -125,37 +126,54 @@ func (c *Checker) Run(ctx context.Context, interval time.Duration) {
 		return
 	}
 	for {
-		c.runScheduled(ctx)
-		if err := c.sleep(ctx, interval); err != nil {
+		wait := interval
+		if c.runScheduled(ctx) {
+			wait = RetryInterval
+		}
+		if err := c.sleep(ctx, wait); err != nil {
 			return
 		}
 	}
 }
 
-func (c *Checker) runScheduled(ctx context.Context) {
+func needsRetry(cfg settings.Settings) bool {
+	return cfg.WildcardStatus == settings.WildcardFailed && (cfg.SubdomainEnabled || cfg.SubdomainDisabledReason != "")
+}
+
+func (c *Checker) runScheduled(ctx context.Context) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	outcome, ok := c.probeWithRetries(ctx)
+	if !ok {
+		return false
+	}
+	recorded, err := c.settings.RecordScheduledWildcard(ctx, outcome.Verified, truncate(outcome.Detail, maxDetailLength))
+	if err != nil {
+		c.logger.Error("record wildcard check", "error", err)
+		return false
+	}
+	c.logger.Info("wildcard check finished", "status", recorded.WildcardStatus, "detail", recorded.WildcardDetail,
+		"consecutiveFailures", recorded.WildcardFailures, "subdomainEnabled", recorded.SubdomainEnabled)
+	return needsRetry(recorded)
+}
+
+func (c *Checker) probeWithRetries(ctx context.Context) (Outcome, bool) {
 	var outcome Outcome
 	for attempt := 1; attempt <= scheduledAttempts; attempt++ {
 		var err error
 		outcome, err = c.probe(ctx)
 		if err != nil {
 			c.logger.Error("wildcard check", "error", err)
-			return
+			return Outcome{}, false
 		}
 		if outcome.Verified || attempt == scheduledAttempts {
 			break
 		}
 		if err := c.sleep(ctx, attemptGap); err != nil {
-			return
+			return Outcome{}, false
 		}
 	}
-	recorded, err := c.record(ctx, outcome)
-	if err != nil {
-		c.logger.Error("record wildcard check", "error", err)
-		return
-	}
-	c.logger.Info("wildcard check finished", "status", recorded.WildcardStatus, "detail", recorded.WildcardDetail)
+	return outcome, true
 }
 
 func (c *Checker) record(ctx context.Context, outcome Outcome) (settings.Settings, error) {

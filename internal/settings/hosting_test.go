@@ -71,26 +71,6 @@ func TestSubdomainModeNeedsAVerifiedWildcard(t *testing.T) {
 	})
 }
 
-func TestFailedCheckSwitchesSubdomainModeOff(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, db store.Store) {
-		ctx := context.Background()
-		svc := New(db, Options{})
-		if _, err := svc.RecordWildcard(ctx, true, ""); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := svc.Update(ctx, patch(t, `{"hosting.subdomainEnabled": true}`)); err != nil {
-			t.Fatal(err)
-		}
-		failed, err := svc.RecordWildcard(ctx, false, "DNS lookup failed")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if failed.SubdomainEnabled || failed.WildcardStatus != WildcardFailed || failed.WildcardDetail != "DNS lookup failed" {
-			t.Errorf("after a failed check = %+v", failed)
-		}
-	})
-}
-
 func TestChangingTheBaseDomainResetsTheWildcardCheck(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		ctx := context.Background()

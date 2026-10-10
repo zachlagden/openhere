@@ -149,8 +149,8 @@ func TestWildcardCheckFailures(t *testing.T) {
 			if result.WildcardStatus != settings.WildcardFailed || !strings.Contains(result.WildcardDetail, tc.want) {
 				t.Errorf("%s: status %q, detail %q, want failed mentioning %q", tc.name, result.WildcardStatus, result.WildcardDetail, tc.want)
 			}
-			if result.SubdomainEnabled {
-				t.Errorf("%s: a failed check left subdomain mode on", tc.name)
+			if !result.SubdomainEnabled || result.WildcardFailures != 0 {
+				t.Errorf("%s: a failed manual check changed the mode or the counter: %+v", tc.name, result)
 			}
 			if len(e.probes.tokens) != 0 {
 				t.Errorf("%s: the probe token was not revoked", tc.name)
@@ -330,8 +330,8 @@ func TestScheduledCheckRetriesBeforeFailing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.WildcardStatus != settings.WildcardFailed || got.SubdomainEnabled {
-			t.Errorf("after three failures: %+v", got)
+		if got.WildcardStatus != settings.WildcardFailed || !got.SubdomainEnabled || got.WildcardFailures != 1 {
+			t.Errorf("after three failed attempts: %+v", got)
 		}
 	})
 }

@@ -102,8 +102,8 @@ func TestSubdomainModeNeedsAVerifiedWildcard(t *testing.T) {
 			t.Fatal(err)
 		}
 		off := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "GET", "/api/v1/admin/settings", nil)).Settings
-		if off["hosting.subdomainEnabled"] != false {
-			t.Errorf("a failed check left subdomain mode on: %v", off)
+		if off["hosting.subdomainEnabled"] != true || off["hosting.wildcardStatus"] != "failed" || off["hosting.wildcardFailures"] != float64(0) {
+			t.Errorf("a failed manual check changed the mode or the counter: %v", off)
 		}
 	})
 }

@@ -23,6 +23,8 @@ const (
 	KeyWildcardStatus   = "hosting.wildcardStatus"
 	KeyWildcardChecked  = "hosting.wildcardCheckedAt"
 	KeyWildcardDetail   = "hosting.wildcardDetail"
+	KeyWildcardFailures = "hosting.wildcardFailures"
+	KeyDisabledReason   = "hosting.subdomainDisabledReason"
 	KeyDefaultAccess    = "sites.defaultAccessMode"
 	KeyWhoCanInvite     = "invites.whoCanInvite"
 	KeyWhoCanCreate     = "workspaces.whoCanCreate"
@@ -30,6 +32,8 @@ const (
 	WildcardUnchecked = "unchecked"
 	WildcardOK        = "ok"
 	WildcardFailed    = "failed"
+
+	DisabledByWildcard = "wildcard_check_failed"
 
 	AccessPublic     = "public"
 	AccessRestricted = "restricted"
@@ -60,6 +64,9 @@ type Settings struct {
 	WildcardStatus    string
 	WildcardCheckedAt string
 	WildcardDetail    string
+	WildcardFailures  int
+
+	SubdomainDisabledReason string
 
 	DefaultAccessMode string
 
@@ -118,6 +125,12 @@ var definitions = []definition{
 	readOnlyString(KeyWildcardDetail, "", false,
 		func(s *Settings, v string) { s.WildcardDetail = v },
 		func(s Settings) string { return s.WildcardDetail }),
+	readOnlyInt(KeyWildcardFailures, 0,
+		func(s *Settings, v int64) { s.WildcardFailures = int(v) },
+		func(s Settings) int64 { return int64(s.WildcardFailures) }),
+	readOnlyString(KeyDisabledReason, "", true,
+		func(s *Settings, v string) { s.SubdomainDisabledReason = v },
+		func(s Settings) string { return s.SubdomainDisabledReason }),
 	stringDefinition(KeyDefaultAccess, AccessPublic, normaliseDefaultAccess,
 		func(s *Settings, v string) { s.DefaultAccessMode = v },
 		func(s Settings) string { return s.DefaultAccessMode }),
@@ -246,6 +259,26 @@ func readOnlyString(key, fallback string, nullWhenEmpty bool, set func(*Settings
 			}
 			return value
 		},
+	}
+}
+
+func readOnlyInt(key string, fallback int64, set func(*Settings, int64), get func(Settings) int64) definition {
+	return definition{
+		key:      key,
+		fallback: strconv.FormatInt(fallback, 10),
+		readOnly: true,
+		decode: func(json.RawMessage) (string, error) {
+			return "", validate.Invalid(fmt.Sprintf("Setting %s is read-only.", key))
+		},
+		apply: func(s *Settings, stored string) error {
+			value, err := strconv.ParseInt(stored, 10, 64)
+			if err != nil {
+				return fmt.Errorf("setting %s holds %q, which is not a whole number", key, stored)
+			}
+			set(s, value)
+			return nil
+		},
+		value: func(s Settings) any { return get(s) },
 	}
 }
 
