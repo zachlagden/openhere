@@ -5,6 +5,8 @@ import { LoginPage } from "@/features/auth/login-page";
 import { ResetConfirmPage } from "@/features/auth/reset-confirm-page";
 import { ResetRequestPage } from "@/features/auth/reset-request-page";
 import { SetupPage } from "@/features/auth/setup-page";
+import { OverviewTab } from "@/features/site-detail/overview-tab";
+import { SiteLayout } from "@/features/site-detail/site-layout";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { SitesPage } from "@/features/sites/sites-page";
 import { AppShell } from "@/layout/app-shell";
@@ -26,6 +28,9 @@ export function App(): JSX.Element {
         <Route element={<AppShell />}>
           <Route index element={<SitesPage />} />
           <Route path="workspaces/:workspace" element={<SitesPage />} />
+          <Route path="sites/:slug" element={<SiteLayout />}>
+            <Route index element={<OverviewTab />} />
+          </Route>
           <Route
             path="docs/*"
             element={
