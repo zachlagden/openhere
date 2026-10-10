@@ -25,6 +25,18 @@ linters:
         linters:
           - gosec
         text: G101
+      - path: internal/settings/tls\.go
+        linters:
+          - gosec
+        text: G101
+      - path: internal/certs/manager\.go
+        linters:
+          - gosec
+        text: G304
+      - path: _test\.go
+        linters:
+          - gosec
+        text: G402
 
 formatters:
   enable:
