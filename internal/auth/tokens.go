@@ -8,6 +8,8 @@ import (
 	"fmt"
 )
 
+const TokenLength = encodedToken
+
 const (
 	tokenBytes   = 32
 	idBytes      = 16
@@ -30,7 +32,7 @@ func newID() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-func newToken() (string, error) {
+func NewToken() (string, error) {
 	buf, err := randomBytes(tokenBytes)
 	if err != nil {
 		return "", err
@@ -38,7 +40,7 @@ func newToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-func hashToken(token string) string {
+func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }

@@ -11,7 +11,7 @@ import (
 
 var allMethods = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 
-func TestOnlyThreeRoutesAreReachableWithoutAuth(t *testing.T) {
+func TestOnlyTheDocumentedRoutesAreReachableWithoutAuth(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		h := newHarness(t, db, harnessOptions{})
 		h.completeSetup()
@@ -21,6 +21,16 @@ func TestOnlyThreeRoutesAreReachableWithoutAuth(t *testing.T) {
 			"HEAD /api/v1/setup/status": true,
 			"POST /api/v1/setup":        true,
 			"POST /api/v1/auth/login":   true,
+
+			"GET /api/v1/invites/abc":         true,
+			"HEAD /api/v1/invites/abc":        true,
+			"POST /api/v1/invites/abc/accept": true,
+
+			"POST /api/v1/auth/password-reset/request": true,
+			"POST /api/v1/auth/password-reset/confirm": true,
+
+			"POST /api/v1/auth/agent/request-code": true,
+			"POST /api/v1/auth/agent/verify-code":  true,
 		}
 		paths := []string{
 			"/", "/health", "/healthz", "/ready", "/docs", "/openapi.yaml", "/openapi.json", "/llms.txt", "/robots.txt", "/favicon.ico",
@@ -32,7 +42,7 @@ func TestOnlyThreeRoutesAreReachableWithoutAuth(t *testing.T) {
 			"/api/v1/sites", "/api/v1/sites/launch", "/api/v1/sites/launch/files", "/api/v1/sites/launch/files/index.html", "/api/v1/sites/launch/files/a/b/c.js",
 			"/api/v1/publish", "/api/v1/publish/launch", "/api/v1/publish/launch/versions", "/api/v1/publish/launch/versions/abc",
 			"/api/v1/publish/launch/versions/abc/files/index.html", "/api/v1/publish/launch/versions/abc/files/a/b.js",
-			"/api/v1/publish/launch/versions/abc/finalize", "/api/v1/publish/launch/versions/abc/restore", "/api/v1/admin/settings", "/api/v1/admin", "/api/v1/../me", "//", "/api//v1/me", "/./", "/s/site/",
+			"/api/v1/publish/launch/versions/abc/finalize", "/api/v1/publish/launch/versions/abc/restore", "/api/v1/admin/settings", "/api/v1/admin/email/test", "/api/v1/auth/agent/request-code", "/api/v1/auth/agent/verify-code", "/api/v1/auth/password-reset/request", "/api/v1/auth/password-reset/confirm", "/api/v1/admin/users/abc/password-reset", "/api/v1/invites", "/api/v1/invites/abc", "/api/v1/invites/abc/accept", "/api/v1/invites/abc/resend", "/api/v1/admin/users", "/api/v1/admin/users/abc", "/api/v1/admin", "/api/v1/../me", "//", "/api//v1/me", "/./", "/s/site/",
 		}
 		for _, path := range paths {
 			for _, method := range allMethods {

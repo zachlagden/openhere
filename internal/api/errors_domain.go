@@ -4,6 +4,11 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/zachlagden/selfhost/internal/agentcode"
+	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/invites"
+	"github.com/zachlagden/selfhost/internal/passwordreset"
+	"github.com/zachlagden/selfhost/internal/policy"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/validate"
@@ -28,6 +33,20 @@ var domainFailures = []domainFailure{
 	{workspaces.ErrNotEmpty, http.StatusConflict, codeWorkspaceNotEmpty, "Delete or move the workspace's sites first."},
 	{workspaces.ErrMemberExists, http.StatusConflict, codeMemberExists, "That user already has this access."},
 	{settings.ErrWildcardNotVerified, http.StatusConflict, codeWildcardNotVerified, "Subdomain mode needs a successful wildcard check. Run POST /admin/hosting/check first."},
+	{policy.ErrSharedCreationRestricted, http.StatusForbidden, codeForbidden, "Only the root user can create workspaces on this instance."},
+	{invites.ErrInviteInvalid, http.StatusNotFound, codeNotFound, "Not found."},
+	{invites.ErrInviteNotFound, http.StatusNotFound, codeNotFound, "Not found."},
+	{invites.ErrNotPermitted, http.StatusForbidden, codeForbidden, "Your account is not allowed to send invitations here."},
+	{invites.ErrAccepted, http.StatusConflict, codeInviteAccepted, "That invite has already been accepted."},
+	{invites.ErrEmailRegistered, http.StatusConflict, codeEmailRegistered, "That email address already has an account. Add them to the workspace from its members page instead."},
+	{passwordreset.ErrInvalidToken, http.StatusBadRequest, codeInvalidResetToken, "This reset link is invalid or has expired."},
+	{agentcode.ErrEmailNotConfigured, http.StatusConflict, codeEmailNotConfigured, agentNoEmailMessage},
+	{agentcode.ErrCodeInvalid, http.StatusBadRequest, codeInvalidCode, "The code is wrong, expired or already used. Request a new one."},
+	{auth.ErrAPIKeyLimit, http.StatusConflict, codeKeyLimitReached, "The account has reached the limit of 50 active API keys. Revoke one first."},
+	{auth.ErrUserNotFound, http.StatusNotFound, codeNotFound, "Not found."},
+	{auth.ErrSelfDisable, http.StatusConflict, codeCannotDisableSelf, "You cannot disable your own account."},
+	{auth.ErrLastRoot, http.StatusConflict, codeLastRoot, "The last root user cannot be disabled."},
+	{auth.ErrUserDisabled, http.StatusConflict, codeUserDisabled, "That account is disabled. Enable it first."},
 	{workspaces.ErrUserNotFound, http.StatusNotFound, codeUserNotFound, "No user has that email address."},
 }
 
@@ -35,6 +54,11 @@ func (s *Server) writeDomainError(w http.ResponseWriter, r *http.Request, err er
 	var invalid *validate.Error
 	if errors.As(err, &invalid) {
 		writeError(w, http.StatusBadRequest, codeValidationFailed, invalid.Message)
+		return
+	}
+	var authInvalid *auth.ValidationError
+	if errors.As(err, &authInvalid) {
+		writeError(w, http.StatusBadRequest, codeValidationFailed, authInvalid.Message)
 		return
 	}
 	if writePublishFailure(w, err) {

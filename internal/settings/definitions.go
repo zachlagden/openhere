@@ -24,6 +24,8 @@ const (
 	KeyWildcardChecked  = "hosting.wildcardCheckedAt"
 	KeyWildcardDetail   = "hosting.wildcardDetail"
 	KeyDefaultAccess    = "sites.defaultAccessMode"
+	KeyWhoCanInvite     = "invites.whoCanInvite"
+	KeyWhoCanCreate     = "workspaces.whoCanCreate"
 
 	WildcardUnchecked = "unchecked"
 	WildcardOK        = "ok"
@@ -31,6 +33,11 @@ const (
 
 	AccessPublic     = "public"
 	AccessRestricted = "restricted"
+
+	InviteRoot            = "root"
+	InviteWorkspaceAdmins = "workspaceAdmins"
+	CreateAny             = "any"
+	CreateRoot            = "root"
 
 	minimumInt          = 1
 	maxBaseDomainLength = 253
@@ -55,6 +62,11 @@ type Settings struct {
 	WildcardDetail    string
 
 	DefaultAccessMode string
+
+	Email Email
+
+	WhoCanInvite string
+	WhoCanCreate string
 }
 
 type definition struct {
@@ -64,6 +76,15 @@ type definition struct {
 	apply    func(s *Settings, stored string) error
 	value    func(s Settings) any
 	readOnly bool
+	secret   bool
+	outKey   string
+}
+
+func (d definition) outputKey() string {
+	if d.outKey != "" {
+		return d.outKey
+	}
+	return d.key
 }
 
 var definitions = []definition{
@@ -100,6 +121,16 @@ var definitions = []definition{
 	stringDefinition(KeyDefaultAccess, AccessPublic, normaliseDefaultAccess,
 		func(s *Settings, v string) { s.DefaultAccessMode = v },
 		func(s Settings) string { return s.DefaultAccessMode }),
+	enumDefinition(KeyWhoCanInvite, InviteRoot, []string{InviteRoot, InviteWorkspaceAdmins},
+		func(s *Settings, v string) { s.WhoCanInvite = v },
+		func(s Settings) string { return s.WhoCanInvite }),
+	enumDefinition(KeyWhoCanCreate, CreateAny, []string{CreateAny, CreateRoot},
+		func(s *Settings, v string) { s.WhoCanCreate = v },
+		func(s Settings) string { return s.WhoCanCreate }),
+}
+
+func init() {
+	definitions = append(definitions, emailDefinitions()...)
 }
 
 func findDefinition(key string) (definition, bool) {

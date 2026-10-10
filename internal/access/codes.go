@@ -3,16 +3,15 @@ package access
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/otp"
 )
 
 const (
@@ -35,7 +34,7 @@ func (s *Service) RequestCode(ctx context.Context, in CodeRequest) error {
 	if err != nil || !allowed || !s.mailer.Configured() {
 		return err
 	}
-	code, err := newCode()
+	code, err := otp.New(CodeDigits)
 	if err != nil {
 		return err
 	}
@@ -84,7 +83,7 @@ func (s *Service) VerifyCode(ctx context.Context, siteID, email, code string) (S
 	if stateErr != nil {
 		return State{}, false, stateErr
 	}
-	if err != nil || state.Mode != ModeRestricted || !validCodeShape(code) {
+	if err != nil || state.Mode != ModeRestricted || !otp.ValidShape(code, CodeDigits) {
 		return state, false, nil
 	}
 	matched, err := s.consumeAttempt(ctx, siteID, normalised, code)
@@ -164,25 +163,4 @@ func (s *Service) codeHash(ctx context.Context, siteID, email, code string) (str
 		return "", err
 	}
 	return hex.EncodeToString(mac), nil
-}
-
-func newCode() (string, error) {
-	limit := new(big.Int).Exp(big.NewInt(10), big.NewInt(CodeDigits), nil)
-	n, err := rand.Int(rand.Reader, limit)
-	if err != nil {
-		return "", wrap("generate sign-in code", err)
-	}
-	return fmt.Sprintf("%0*d", CodeDigits, n), nil
-}
-
-func validCodeShape(code string) bool {
-	if len(code) != CodeDigits {
-		return false
-	}
-	for i := 0; i < len(code); i++ {
-		if code[i] < '0' || code[i] > '9' {
-			return false
-		}
-	}
-	return true
 }

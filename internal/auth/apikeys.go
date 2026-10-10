@@ -48,7 +48,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, userID, label string) (strin
 	if err != nil {
 		return "", APIKey{}, err
 	}
-	secret, err := newToken()
+	secret, err := NewToken()
 	if err != nil {
 		return "", APIKey{}, err
 	}
@@ -60,7 +60,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, userID, label string) (strin
 	record := APIKey{ID: id, UserID: userID, Label: normalized, Prefix: key[:len(s.keyPrefix)+keyDisplayChars], CreatedAt: s.clock()}
 
 	err = store.WithTx(ctx, s.db, func(q store.Querier) error {
-		return s.insertAPIKey(ctx, q, record, hashToken(key))
+		return s.insertAPIKey(ctx, q, record, HashToken(key))
 	})
 	if err != nil {
 		return "", APIKey{}, err
@@ -147,17 +147,17 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, key string) (User, API
 	if !s.looksLikeKey(key) {
 		return User{}, APIKey{}, ErrAPIKeyInvalid
 	}
-	hash := hashToken(key)
+	hash := HashToken(key)
 	var record APIKey
 	var user User
 	var storedHash string
 	var lastUsed, revoked sql.NullTime
 	row := s.db.QueryRowContext(ctx,
 		`SELECT k.id, k.user_id, k.label, k.prefix, k.created_at, k.last_used_at, k.revoked_at, k.key_hash,
-		u.id, u.email, u.is_root, u.created_at, u.updated_at
-		FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = $1`, hash)
+		u.id, u.email, u.display_name, u.is_root, u.created_at, u.updated_at
+		FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = $1 AND u.disabled_at IS NULL`, hash)
 	err := row.Scan(&record.ID, &record.UserID, &record.Label, &record.Prefix, &record.CreatedAt, &lastUsed, &revoked, &storedHash,
-		&user.ID, &user.Email, &user.IsRoot, &user.CreatedAt, &user.UpdatedAt)
+		&user.ID, &user.Email, &user.DisplayName, &user.IsRoot, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, APIKey{}, ErrAPIKeyInvalid
 	}

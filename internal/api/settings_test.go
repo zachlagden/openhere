@@ -44,6 +44,17 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"hosting.wildcardCheckedAt": nil,
 			"hosting.wildcardDetail":    "",
 			"sites.defaultAccessMode":   "public",
+			"invites.whoCanInvite":      "root",
+			"workspaces.whoCanCreate":   "any",
+			"email.provider":            "none",
+			"email.fromAddress":         "",
+			"email.fromName":            "",
+			"email.smtp.host":           "",
+			"email.smtp.port":           float64(587),
+			"email.smtp.security":       "starttls",
+			"email.smtp.username":       "",
+			"email.smtp.passwordSet":    false,
+			"email.resend.apiKeySet":    false,
 		}
 		assertSettings(t, defaults, want)
 

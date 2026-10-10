@@ -29,12 +29,12 @@ type SessionInfo struct {
 }
 
 func (s *Service) CreateSession(ctx context.Context, userID string) (string, Session, error) {
-	token, err := newToken()
+	token, err := NewToken()
 	if err != nil {
 		return "", Session{}, err
 	}
 	now := s.clock()
-	session := Session{ID: hashToken(token), UserID: userID, CreatedAt: now, ExpiresAt: now.Add(SessionTTL), LastSeenAt: now}
+	session := Session{ID: HashToken(token), UserID: userID, CreatedAt: now, ExpiresAt: now.Add(SessionTTL), LastSeenAt: now}
 	_, err = s.db.ExecContext(ctx,
 		"INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at) VALUES ($1, $2, $3, $4, $5)",
 		session.ID, session.UserID, session.CreatedAt, session.ExpiresAt, session.LastSeenAt)
@@ -48,15 +48,15 @@ func (s *Service) ValidateSession(ctx context.Context, token string) (SessionInf
 	if len(token) != encodedToken {
 		return SessionInfo{}, ErrSessionInvalid
 	}
-	id := hashToken(token)
+	id := HashToken(token)
 	var info SessionInfo
 	var storedID string
 	row := s.db.QueryRowContext(ctx,
 		`SELECT s.id, s.user_id, s.created_at, s.expires_at, s.last_seen_at,
-		u.id, u.email, u.is_root, u.created_at, u.updated_at
-		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = $1`, id)
+		u.id, u.email, u.display_name, u.is_root, u.created_at, u.updated_at
+		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = $1 AND u.disabled_at IS NULL`, id)
 	err := row.Scan(&storedID, &info.Session.UserID, &info.Session.CreatedAt, &info.Session.ExpiresAt, &info.Session.LastSeenAt,
-		&info.User.ID, &info.User.Email, &info.User.IsRoot, &info.User.CreatedAt, &info.User.UpdatedAt)
+		&info.User.ID, &info.User.Email, &info.User.DisplayName, &info.User.IsRoot, &info.User.CreatedAt, &info.User.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SessionInfo{}, ErrSessionInvalid
 	}
@@ -97,7 +97,7 @@ func (s *Service) DeleteSession(ctx context.Context, token string) error {
 	if len(token) != encodedToken {
 		return nil
 	}
-	return s.deleteSessionByID(ctx, hashToken(token))
+	return s.deleteSessionByID(ctx, HashToken(token))
 }
 
 func (s *Service) deleteSessionByID(ctx context.Context, id string) error {

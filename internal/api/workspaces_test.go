@@ -133,3 +133,20 @@ func TestFolderEndpoints(t *testing.T) {
 		alex.expectError(http.StatusNotFound, codeNotFound, "DELETE", "/api/v1/workspaces/acme/folders/"+reports.ID, nil)
 	})
 }
+
+func TestWorkspaceCreationFollowsTheInstanceSetting(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		root := h.rootActor()
+		sam := h.bearerActor("sam@example.com")
+		sam.createWorkspace("Open Co", "open-co")
+
+		root.setSettings(`{"settings":{"workspaces.whoCanCreate":"root"}}`)
+		sam.expectError(http.StatusForbidden, codeForbidden, "POST", "/api/v1/workspaces", createWorkspaceRequest{Name: "Closed Co", Slug: "closed-co"})
+		root.createWorkspace("Acme Ltd", "acme")
+		sam.expect(http.StatusOK, "GET", "/api/v1/workspaces/open-co", nil)
+
+		root.setSettings(`{"settings":{"workspaces.whoCanCreate":"any"}}`)
+		sam.createWorkspace("Closed Co", "closed-co")
+	})
+}

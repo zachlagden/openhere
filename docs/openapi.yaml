@@ -4,8 +4,10 @@ info:
   version: 0.1.0
   description: |
     REST API of the selfhost server. Every route except `GET /setup/status`, `POST /setup`,
-    `POST /auth/login` and `GET /access/handoff` needs authentication, and every unknown path returns 401
-    without credentials and 404 with them.
+    `POST /auth/login`, `GET /invites/{token}`, `POST /invites/{token}/accept`,
+    `POST /auth/password-reset/request`, `POST /auth/password-reset/confirm`, `POST /auth/agent/request-code`,
+    `POST /auth/agent/verify-code` and `GET /access/handoff` needs authentication, and every unknown path returns
+    401 without credentials and 404 with them.
 
     Authenticate with `Authorization: Bearer <api key>` or with the session cookie that setup and
     login set. The cookie is named `session` over plain HTTP and `__Host-session` over HTTPS. Requests
@@ -28,8 +30,20 @@ info:
     to anyone with the link unless its access mode says otherwise (see the Access tag). Each site response
     carries the URL the instance serves it at right now in `url`, and its access mode in `accessMode`.
 
-    Every route except `GET /setup/status`, `POST /setup`, `POST /auth/login` and `GET /access/handoff` needs
-    credentials. `GET /access/handoff` answers a caller without credentials with a redirect to `/login`.
+    Every route except `GET /setup/status`, `POST /setup`, `POST /auth/login`, `GET /invites/{token}`,
+    `POST /invites/{token}/accept`, the two `/auth/password-reset/*` routes, the two `/auth/agent/*` routes and
+    `GET /access/handoff` needs credentials. `GET /access/handoff` answers a caller without credentials with a
+    redirect to `/login`.
+
+    Email is optional. The root user configures it in the instance settings (`email.*`). Routes that depend on it
+    check it at request time and degrade as their descriptions say.
+
+    **Agents.** An agent without credentials can ask the user for an email code (`/auth/agent/request-code`,
+    then `/auth/agent/verify-code`), which returns an API key. When the instance has no email, `request-code`
+    returns 409 `email_not_configured`, and the user must create an API key in the dashboard under Settings,
+    API keys, and give it to the agent. Store the key at `~/.selfhost/credentials` (the directory mode 0700, the
+    file mode 0600) as JSON, `{"url": "<instance URL>", "key": "<API key>"}`, and read that file at the start of
+    every session before asking the user for access again.
 servers:
   - url: /api/v1
 security:
@@ -45,6 +59,7 @@ tags:
   - name: Sites
   - name: Publish
   - name: Access
+  - name: Invites
   - name: Admin
 paths:
   /setup/status:
@@ -134,6 +149,164 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           description: Wrong email or password (`invalid_credentials`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The password is right but the account is disabled (`account_disabled`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/password-reset/request:
+    post:
+      tags: [Auth]
+      operationId: requestPasswordReset
+      summary: Ask for a password reset link by email
+      description: |
+        The response is the same for every address and every instance state. The server emails a one-time link
+        (`PUBLIC_URL/reset-password/<token>`, valid for one hour) only when email is configured and the address
+        belongs to an enabled account. Rate limited per IP address (5 in 15 minutes) and per email address
+        (3 per hour). Every request counts, whether or not the account exists.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "200":
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      operationId: confirmPasswordReset
+      summary: Set a new password with a reset link
+      description: |
+        A link works once and for one hour. Success ends every session of the user and keeps their API keys.
+        It does not sign anyone in. A short password returns 400 `validation_failed` and leaves the link usable.
+        Rate limited per IP address (10 in 15 minutes).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetConfirm"
+      responses:
+        "204":
+          description: The password changed.
+        "400":
+          description: |
+            The request was rejected: `invalid_reset_token` (unknown, expired, used or superseded link, all
+            identical), or one of the codes under BadRequest.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/agent/request-code:
+    post:
+      tags: [Auth]
+      operationId: requestAgentCode
+      summary: Ask the user to approve an agent with an emailed code
+      description: |
+        For agents that have no credentials. When email is configured, the response is the same for every address,
+        and the server emails an 8-digit code (valid for 10 minutes, single use) only to an existing, enabled
+        account. The user then gives the code to the agent, which calls `/auth/agent/verify-code`. Rate limited per
+        IP address (10 in 15 minutes), per email address (3 per hour) and for the whole instance (100 per hour).
+
+        When the instance cannot send email, this route returns 409 `email_not_configured`. That is the one place
+        the API reveals whether email works. The message tells the agent to ask the user for an API key created in
+        the dashboard under Settings, API keys.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRequestCode"
+      responses:
+        "200":
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: The instance has no working email (`email_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/agent/verify-code:
+    post:
+      tags: [Auth]
+      operationId: verifyAgentCode
+      summary: Trade an emailed code for an API key
+      description: |
+        Returns a new API key with the full access of the user, once. A code works once, expires after 10 minutes
+        and allows 5 attempts. Unknown addresses, disabled accounts, wrong codes and expired codes all return the
+        same 400 `invalid_code`. The 50 active keys per user limit applies (409 `api_key_limit_reached`), and the
+        code is spent by then. Rate limited per IP address (20 in 15 minutes) and per email address (10 in 15
+        minutes). Store the key where `credentialsPath` says.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentVerifyCode"
+      responses:
+        "201":
+          description: Key created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKey"
+        "400":
+          description: |
+            The request was rejected: `invalid_code`, `validation_failed` (a bad label) or one of the codes under
+            BadRequest.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The user already has 50 active keys (`api_key_limit_reached`).
           content:
             application/json:
               schema:
@@ -1244,6 +1417,215 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "404":
           $ref: "#/components/responses/NotFound"
+  /invites:
+    get:
+      tags: [Invites]
+      operationId: listInvites
+      summary: List invites
+      description: |
+        The root user sees every invite. Everyone else sees the invites they sent. Newest first, at most 500.
+        Links are never listed, because the server stores only a hash of each token.
+      responses:
+        "200":
+          description: Invites.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+    post:
+      tags: [Invites]
+      operationId: createInvite
+      summary: Invite someone to create an account
+      description: |
+        The root user may always invite, into any shared workspace or none. With the instance setting
+        `invites.whoCanInvite` set to `workspaceAdmins`, a workspace admin may also invite, but only into a
+        workspace they administer (404 for a workspace they cannot see, 403 for one where their role is too low or
+        when no workspace is named). Under the default `root`, everyone else gets 403 `forbidden`.
+
+        The response always carries the invite link, whether or not email is configured, and shows it once. If
+        email is configured and `sendEmail` is true, the server also emails the link. `emailAvailable` tells a
+        client whether to offer that option. If sending fails, the invite still exists, `emailSent` is false and
+        `emailError` holds a short reason.
+
+        An address that already has an account returns 409 `email_registered`. An invite lasts 7 days. Creating
+        and resending are limited to 30 per hour per user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteRequest"
+      responses:
+        "201":
+          description: Invite created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedInvite"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            `email_registered` (the address has an account; add the user to the workspace instead) or
+            `personal_workspace` (a personal workspace cannot take members).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /invites/{invite}:
+    parameters:
+      - name: invite
+        in: path
+        required: true
+        description: The invite token for GET, the invite id for DELETE.
+        schema:
+          type: string
+    get:
+      tags: [Invites]
+      operationId: getInvite
+      summary: Look up an invite by its token
+      description: |
+        Needs no credentials. Returns only the invited email address and the workspace name. Unknown, expired,
+        revoked and used tokens all return the same 404. Rate limited per IP address (60 per minute).
+      security: []
+      responses:
+        "200":
+          description: The invite is usable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitePreview"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+    delete:
+      tags: [Invites]
+      operationId: revokeInvite
+      summary: Revoke an invite
+      description: |
+        The root user may revoke any invite, everyone else only their own. Revoking a revoked or expired invite
+        succeeds. An accepted invite returns 409 `invite_accepted`.
+      responses:
+        "204":
+          description: Invite revoked.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The invite was already accepted (`invite_accepted`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /invites/{invite}/accept:
+    post:
+      tags: [Invites]
+      operationId: acceptInvite
+      summary: Accept an invite and create the account
+      description: |
+        Needs no credentials. Creates the user with the invited email address, their personal workspace and, if
+        the invite names a workspace, the membership with the invited role, in one transaction. Then it signs the
+        user in and sets the session cookie. The invitee cannot change the email address. A password under 12
+        characters returns 400 and leaves the invite usable. Unknown, expired, revoked and used tokens return the
+        same 404. Rate limited per IP address (10 in 15 minutes).
+      security: []
+      parameters:
+        - name: invite
+          in: path
+          required: true
+          description: The invite token.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInviteRequest"
+      responses:
+        "201":
+          description: Account created and signed in.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /invites/{invite}/resend:
+    post:
+      tags: [Invites]
+      operationId: resendInvite
+      summary: Replace an invite with a new link
+      description: |
+        Revokes the old token and issues a new invite with the same email, workspace and role, valid for 7 days.
+        The response has the same shape as creating an invite and shows the new link once. The caller needs the
+        same permission as for creating the invite. An accepted invite returns 409 `invite_accepted`. The body is
+        optional.
+      parameters:
+        - name: invite
+          in: path
+          required: true
+          description: The invite id.
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendInviteRequest"
+      responses:
+        "201":
+          description: New invite issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedInvite"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: '`invite_accepted`, or `email_registered` because the address has an account now.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/settings:
     get:
       tags: [Admin]
@@ -1304,6 +1686,142 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "415":
           $ref: "#/components/responses/BadRequest"
+  /admin/email/test:
+    post:
+      tags: [Admin]
+      operationId: sendTestEmail
+      summary: Send a test email to the root user
+      description: |
+        Root user only. Other users get 404 `not_found`. Sends a short message to the root user's address through
+        the configured provider. Rate limited to 5 calls per minute. A failure returns 502 `email_send_failed`
+        with a short reason in the message, such as "the server rejected the username or password". The reason
+        never includes a secret or the server's raw reply. Without working email settings the route returns 409
+        `email_not_configured`.
+      responses:
+        "200":
+          description: The message was handed to the provider.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailTestResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Email is not configured (`email_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          description: The provider refused or could not be reached (`email_send_failed`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/users:
+    get:
+      tags: [Admin]
+      operationId: listUsers
+      summary: List every account
+      description: Root user only. Other users get 404 `not_found`. Ordered by email address.
+      responses:
+        "200":
+          description: Accounts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/users/{id}:
+    patch:
+      tags: [Admin]
+      operationId: updateUser
+      summary: Disable or enable an account
+      description: |
+        Root user only. Other users get 404 `not_found`. A disabled user cannot sign in. Their sessions end and
+        their API keys stop working at once. Enabling restores the keys, not the sessions. The root user cannot
+        disable themselves (409 `cannot_disable_self`), and the last root user cannot be disabled (409
+        `last_root`). The API has no way to delete a user.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: The account after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: '`cannot_disable_self` or `last_root`.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+  /admin/users/{id}/password-reset:
+    post:
+      tags: [Admin]
+      operationId: createPasswordResetLink
+      summary: Generate a password reset link for an account
+      description: |
+        Root user only. Other users get 404 `not_found`. Works without email. The response shows the link once,
+        and the root user passes it on. The link works once and for one hour, and replaces earlier unused links of
+        that user. A disabled account returns 409 `user_disabled`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Link created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetLink"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The account is disabled (`user_disabled`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /admin/hosting/check:
     post:
       tags: [Admin]
@@ -1501,6 +2019,16 @@ components:
             - version_not_finalized
             - file_not_in_manifest
             - wildcard_not_verified
+            - account_disabled
+            - cannot_disable_self
+            - last_root
+            - user_disabled
+            - invite_accepted
+            - email_registered
+            - invalid_reset_token
+            - invalid_code
+            - email_not_configured
+            - email_send_failed
         message:
           type: string
         retry_after:
@@ -1550,12 +2078,15 @@ components:
           type: string
     User:
       type: object
-      required: [id, email, isRoot, createdAt]
+      required: [id, email, displayName, isRoot, createdAt]
       properties:
         id:
           type: string
         email:
           type: string
+        displayName:
+          type: string
+          description: Chosen when accepting an invite. Empty if none.
         isRoot:
           type: boolean
         createdAt:
@@ -2224,6 +2755,63 @@ components:
           description: |
             The access mode of sites created from now on. Existing sites keep theirs. `password` is not allowed as a
             default, because a password has to be set per site.
+        invites.whoCanInvite:
+          type: string
+          enum: [root, workspaceAdmins]
+          default: root
+          description: |
+            Who may create invites. With `workspaceAdmins`, a workspace admin may invite only into a workspace they
+            administer. The root user may always invite.
+        workspaces.whoCanCreate:
+          type: string
+          enum: [any, root]
+          default: any
+          description: Who may create shared workspaces.
+        email.provider:
+          type: string
+          enum: [none, smtp, resend]
+          default: none
+        email.fromAddress:
+          type: string
+          description: Sender address, stored in lower case. Both providers need it.
+        email.fromName:
+          type: string
+          maxLength: 100
+          description: Optional sender name.
+        email.smtp.host:
+          type: string
+          description: SMTP server host name or IP address.
+        email.smtp.port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          default: 587
+        email.smtp.security:
+          type: string
+          enum: [tls, starttls, none]
+          default: starttls
+          description: '`tls` is implicit TLS (usually port 465). `starttls` upgrades the connection (usually port 587).'
+        email.smtp.username:
+          type: string
+          description: Leave empty for a server without authentication.
+        email.smtp.password:
+          type: string
+          writeOnly: true
+          description: |
+            The SMTP password. Write-only: reads never return it. An empty string clears it. The server stores it
+            encrypted (AES-256-GCM).
+        email.smtp.passwordSet:
+          type: boolean
+          readOnly: true
+          description: Whether an SMTP password is stored.
+        email.resend.apiKey:
+          type: string
+          writeOnly: true
+          description: The Resend API key. Write-only. An empty string clears it. Stored encrypted.
+        email.resend.apiKeySet:
+          type: boolean
+          readOnly: true
+          description: Whether a Resend API key is stored.
     UpdateSettingsRequest:
       type: object
       additionalProperties: false
@@ -2231,6 +2819,246 @@ components:
       properties:
         settings:
           $ref: "#/components/schemas/Settings"
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          examples: [alex@example.com]
+    PasswordResetConfirm:
+      type: object
+      additionalProperties: false
+      required: [token, password]
+      properties:
+        token:
+          type: string
+          description: The token from the reset link.
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+    GenericStatus:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        message:
+          type: string
+    AgentRequestCode:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          examples: [alex@example.com]
+    AgentVerifyCode:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          examples: [alex@example.com]
+        code:
+          type: string
+          pattern: "^[0-9]{8}$"
+          examples: ["12345678"]
+        label:
+          type: string
+          maxLength: 64
+          default: agent
+          description: Label of the new key, shown in the key list.
+    AgentKey:
+      type: object
+      required: [key, apiKey, credentialsPath]
+      properties:
+        key:
+          type: string
+          description: The full key. Shown once.
+        apiKey:
+          $ref: "#/components/schemas/ApiKey"
+        credentialsPath:
+          type: string
+          description: Where agents store the key, as JSON with the instance URL and the key. The file mode is 0600.
+          examples: ["~/.selfhost/credentials"]
+    InviteWorkspace:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+    Invite:
+      type: object
+      required: [id, email, status, workspace, role, invitedBy, createdAt, expiresAt, acceptedAt, revokedAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, revoked, expired]
+        workspace:
+          oneOf:
+            - $ref: "#/components/schemas/InviteWorkspace"
+            - type: "null"
+        role:
+          oneOf:
+            - $ref: "#/components/schemas/Role"
+            - type: "null"
+          description: The workspace-wide role the invitee gets. Null when the invite names no workspace.
+        invitedBy:
+          type: string
+          description: Email address of the inviter.
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        acceptedAt:
+          type: [string, "null"]
+          format: date-time
+        revokedAt:
+          type: [string, "null"]
+          format: date-time
+    InviteList:
+      type: object
+      required: [invites]
+      properties:
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invite"
+    CreateInviteRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          examples: [kim@example.com]
+        workspace:
+          type: string
+          description: Slug or id of a shared workspace. Omit it to invite without a workspace.
+        role:
+          $ref: "#/components/schemas/Role"
+        sendEmail:
+          type: boolean
+          default: false
+          description: Email the link too. Ignored when email is not configured.
+    ResendInviteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        sendEmail:
+          type: boolean
+          default: false
+    CreatedInvite:
+      type: object
+      required: [invite, link, emailAvailable, emailSent, emailError]
+      properties:
+        invite:
+          $ref: "#/components/schemas/Invite"
+        link:
+          type: string
+          description: '`PUBLIC_URL/invite/<token>`. Shown once.'
+        emailAvailable:
+          type: boolean
+          description: Whether the instance can send email. A client hides its email option when this is false.
+        emailSent:
+          type: boolean
+        emailError:
+          type: [string, "null"]
+          description: A short reason when sending failed.
+    InvitePreview:
+      type: object
+      required: [email, workspaceName]
+      properties:
+        email:
+          type: string
+        workspaceName:
+          type: [string, "null"]
+    AcceptInviteRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        displayName:
+          type: string
+          maxLength: 64
+    EmailTestResult:
+      type: object
+      required: [sent, to]
+      properties:
+        sent:
+          type: boolean
+        to:
+          type: string
+    AdminUser:
+      type: object
+      required: [id, email, displayName, isRoot, disabled, disabledAt, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        isRoot:
+          type: boolean
+        disabled:
+          type: boolean
+        disabledAt:
+          type: [string, "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    AdminUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/AdminUser"
+    AdminUserList:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      required: [disabled]
+      properties:
+        disabled:
+          type: boolean
+    ResetLink:
+      type: object
+      required: [link, expiresAt]
+      properties:
+        link:
+          type: string
+          description: '`PUBLIC_URL/reset-password/<token>`. Shown once.'
+        expiresAt:
+          type: string
+          format: date-time
     WildcardCheckResult:
       type: object
       required: [wildcard, settings]
