@@ -117,6 +117,17 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - The product name appears in the dashboard only in `web/src/brand.ts` and `web/index.html`.
 - Checks: `pnpm --dir web lint`, `typecheck`, `test`, `build`. `pnpm --dir web e2e` drives a built binary in a real browser.
 
+## Dashboard
+
+- The dashboard has no upload or publish screen. Agents publish through the API.
+- `/admin` is for the root user only. Everyone else gets the same not-found page as for an unknown route, and the admin entry stays out of their menu.
+- Draw charts as plain SVG. The Content-Security-Policy forbids inline styles and scripts, so use no chart library that injects them, and use native `<dialog>` elements for dialogs.
+- Show a one-time secret (API key, invite link, reset link) only through `SecretDialog`, and call `reset()` on the mutation once the value has been handed over. Never render a stored secret. Show whether it is set.
+- Per-call `mutate` callbacks do not run after the calling component unmounts. Do not remount a form with a changing `key` after a save, and use `mutateAsync` where success removes the screen, as the delete flows do.
+- Build instance settings forms with `SettingsForm` and the `Setting*` fields. They send only the changed keys, map the API's validation message to its field by the setting key in the message, and ask for confirmation through `destructiveChanges`.
+- Keep rules in `web/src/lib` as plain functions with tests (ranges, chart scales, allowlists, member rules, settings diffs) and keep screens thin.
+- Set the browser tab title with `usePageTitle` on every page.
+
 ## Commands
 
 ```sh
