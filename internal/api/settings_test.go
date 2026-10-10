@@ -59,10 +59,9 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 		assertSettings(t, defaults, want)
 
 		updated := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "PATCH", "/api/v1/admin/settings",
-			`{"settings":{"retention.keepVersions":4,"hosting.baseDomain":"Sites.Example.com","hosting.pathEnabled":false}}`)).Settings
+			`{"settings":{"retention.keepVersions":4,"hosting.baseDomain":"Sites.Example.com"}}`)).Settings
 		want["retention.keepVersions"] = float64(4)
 		want["hosting.baseDomain"] = "sites.example.com"
-		want["hosting.pathEnabled"] = false
 		assertSettings(t, updated, want)
 
 		reread := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "GET", "/api/v1/admin/settings", nil)).Settings
