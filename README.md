@@ -6,7 +6,7 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain or by path, and gates them with per-site access modes (public, password or restricted). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. There is no dashboard yet.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain, by path or at custom domains the owner proves they control, and gates them with per-site access modes (public, password or restricted). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. There is no dashboard yet.
 
 **A new site is public.** Anyone who can reach the server and knows or guesses its slug can read its files, until you set another access mode with `PATCH /api/v1/publish/{slug}/access` or change the default with the `sites.defaultAccessMode` setting. See [Access control](#access-control).
 
@@ -38,7 +38,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 ### Rate limits
 
-Login and setup are limited per IP address and per email: login allows 30 attempts per IP and 10 per email in 15 minutes, setup allows 10 per IP and 5 per email. The account sign-in handoff allows 30 calls per user per minute. The counters live in process memory, so a restart resets them and each server process counts separately. A successful login resets that email's counter. The routes that work without credentials and can send email or issue credentials have their own limits per IP address and, where an email is involved, per email address: invite lookup 60 per minute and invite accept 10 per 15 minutes per IP, reset requests 5 per 15 minutes per IP and 3 per hour per email, reset confirmation 10 per 15 minutes per IP, agent code requests 10 per 15 minutes per IP, 3 per hour per email and 100 per hour for the whole instance, agent code verification 20 per 15 minutes per IP and 10 per 15 minutes per email. Creating or resending invites allows 30 per hour per user. The viewer gate has its own limits, listed under [Access control](#access-control).
+Login and setup are limited per IP address and per email: login allows 30 attempts per IP and 10 per email in 15 minutes, setup allows 10 per IP and 5 per email. The account sign-in handoff allows 30 calls per user per minute. Checking a custom domain allows 20 calls per user per minute, and claiming, changing or deleting domains allows 30 per user per minute. The counters live in process memory, so a restart resets them and each server process counts separately. A successful login resets that email's counter. The routes that work without credentials and can send email or issue credentials have their own limits per IP address and, where an email is involved, per email address: invite lookup 60 per minute and invite accept 10 per 15 minutes per IP, reset requests 5 per 15 minutes per IP and 3 per hour per email, reset confirmation 10 per 15 minutes per IP, agent code requests 10 per 15 minutes per IP, 3 per hour per email and 100 per hour for the whole instance, agent code verification 20 per 15 minutes per IP and 10 per 15 minutes per email. Creating or resending invites allows 30 per hour per user. The viewer gate has its own limits, listed under [Access control](#access-control).
 
 ### Running behind a reverse proxy
 
@@ -96,8 +96,9 @@ The server serves each site's live version in two ways. A public site needs no s
 |---|---|---|
 | Subdomain | `https://{slug}.{baseDomain}/` | `hosting.subdomainEnabled`, off until a wildcard check passes |
 | Path | `{PUBLIC_URL}/s/{slug}/` | `hosting.pathEnabled`, on by default |
+| Custom domain | `https://{your domain}/` | `hosting.customDomainsEnabled`, on by default. See [Custom domains](#custom-domains) |
 
-Every site response and every publish response carries a `url` field with the address the instance serves the site at right now: the subdomain address when subdomain mode is on, else the path address when path mode is on, else `null`.
+Every site response and every publish response carries a `url` field with the address the instance serves the site at right now: the primary custom domain when the site has one, else the subdomain address when subdomain mode is on, else the path address when path mode is on, else the first verified custom domain by name, else `null`.
 
 **Use subdomain mode.** Each site then gets its own browser origin, so its JavaScript can use cookies and `localStorage` and cannot touch the dashboard. Path mode puts sites on the dashboard's origin. To stop hosted JavaScript from acting as a signed-in user, the server sends `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation` on every `/s/` response. The policy omits `allow-same-origin`, so a path-mode page runs in an opaque origin. Its scripts run, but it cannot read cookies or `localStorage`, and it cannot call the API as the signed-in user. Path-mode responses also carry `Access-Control-Allow-Origin: *`, so module scripts and fonts load from the opaque origin. Subdomain-mode sites get no policy, because their owners control their own content. A path-mode site lives under `/s/{slug}/`, so its pages must use relative links. A link such as `/style.css` points at the dashboard host, not at the site.
 
@@ -107,9 +108,10 @@ The server normalises the request host (it drops the port and a trailing dot and
 
 - The host of `PUBLIC_URL` is the management host. It serves the API, and `/s/{slug}/...` serves a site in path mode. `/s/{slug}` redirects to `/s/{slug}/`. A site's files are never reachable on the management host except through `/s/`.
 - `{slug}.{baseDomain}` with subdomain mode on serves that site. The slug must be a single DNS label.
+- A host that is a verified custom domain, while `hosting.customDomainsEnabled` is on, serves the site that owns it exactly as subdomain mode does. The router checks the management host first, then the subdomain pattern, then the custom domains.
 - Every other host serves nothing from the API. Site hosts never run API authentication: they ignore session cookies and API keys. A gated site has its own viewer cookie, described under [Access control](#access-control).
 
-An unknown host, an unknown slug, a disabled mode and a site without a live version all return the same 404 response with the same headers and a one-line body, so a visitor cannot tell them apart. Only `GET` and `HEAD` work on site hosts and under `/s/`, apart from the `POST` forms of the gate on gated sites. Other methods return 405 with `Allow: GET, HEAD`.
+An unknown host, an unverified custom domain, a custom domain while the feature is off, an unknown slug, a disabled mode and a site without a live version all return the same 404 response with the same headers and a one-line body, so a visitor cannot tell them apart. Only `GET` and `HEAD` work on site hosts and under `/s/`, apart from the `POST` forms of the gate on gated sites. Other methods return 405 with `Allow: GET, HEAD`.
 
 `hosting.baseDomain` defaults to the host name of `PUBLIC_URL`. Changing it to a different value resets the wildcard check and switches subdomain mode off. If that would leave both modes off, the server switches path mode on in the same change and the response carries a notice with the code `path_mode_enabled`.
 
@@ -119,10 +121,10 @@ At least one mode stays on. A settings change that would leave `hosting.subdomai
 
 Every site response and publish response has a `hosting` object:
 
-- `reachable` is true when the site has a live version and at least one mode can serve it now. A site with a password or restricted access does not count path mode over plain HTTP, because the gate needs a secure connection there.
+- `reachable` is true when the site has a live version and at least one mode can serve it now. A site with a password or restricted access does not count path mode over plain HTTP, because the gate needs a secure connection there. A verified custom domain counts while custom domains are enabled, even when subdomain and path mode are off for the site.
 - `url` is the same address as the top-level `url`.
-- `modes.subdomain` and `modes.path` each have a `state` (`on` or `off`) and a `reason`. The reason is `switched_off`, `wildcard_check_failed`, `https_required` or `not_applicable`, and null when the mode is on and healthy.
-- `notices` lists `{code, message}` entries in plain language, such as "The subdomain address for this site is switched off." and "Nothing has been published to this site yet.". They carry no administrator detail.
+- `modes.subdomain`, `modes.path` and `modes.customDomains` each have a `state` (`on` or `off`) and a `reason`. The reason is `switched_off`, `wildcard_check_failed`, `https_required` or `not_applicable`, and null when the mode is on and healthy.
+- `notices` lists `{code, message}` entries in plain language, such as "The subdomain address for this site is switched off.", "Nothing has been published to this site yet." and "A custom domain is waiting for DNS verification.". They carry no administrator detail.
 
 Every user with read access to a site gets the same `hosting` object, root or not. A user sees nothing about sites they cannot read.
 
@@ -146,6 +148,40 @@ A failed check while subdomain mode is on does not stop it. The server keeps ser
 
 On a local setup with `PUBLIC_URL=http://localhost:8080`, the check fails unless your resolver maps `*.localhost` to the loopback address. Path mode still works.
 
+## Custom domains
+
+A site can have several custom domains, such as `docs.example.org`. Each domain belongs to one site on the whole instance. A verified domain serves the site exactly as its subdomain does: no sandbox policy, host-only cookies, and the same access modes and gate. No domain redirects to another. One verified domain can be the site's primary domain, which is the address the site reports in `url`.
+
+### Adding a domain
+
+1. `POST /api/v1/sites/{slug}/domains` with `{"domain": "docs.example.org"}`. The server lower-cases the name, removes a trailing dot and converts international names to punycode. It refuses IP addresses, wildcards, ports, `localhost`, reserved top-level domains (`.local`, `.internal`, `.test` and similar), single-label names, the host of `PUBLIC_URL`, the base domain and every name under it.
+2. The response is a `pending_verification` domain with a `challenge`: a TXT record to create at `_selfhost-challenge.docs.example.org`, whose value is a random 192-bit token. It also has a `target` hint: a CNAME to the host of `PUBLIC_URL`.
+3. Create the TXT record at your DNS provider, then call `POST /api/v1/sites/{slug}/domains/{id}/verify`. The server resolves the TXT records and marks the domain verified when one matches the token. The response says in plain language why a check failed (no record yet, a record with another value, or a lookup that failed or timed out). DNS changes can take a while to spread, so repeat the call. It is limited to 20 per minute per user.
+4. Optionally make it the primary domain with `PATCH /api/v1/sites/{slug}/domains/{id}` and `{"isPrimary": true}`. Setting a new primary clears the old one in the same step.
+
+Viewing domains needs read access to the site. Adding, verifying, changing and deleting need write access. `DELETE /api/v1/sites/{slug}/domains/{id}` stops serving at once and frees the name.
+
+### Why a TXT record
+
+The server proves control of the name, not of the address it points to. A domain behind a CDN or proxy resolves to the proxy, not to this server, so an A or CNAME check would fail for exactly the setups that need it. A TXT record at a name only the domain owner can edit works everywhere. Verification never looks at A, AAAA or CNAME records.
+
+### Pointing the domain at the server
+
+A visitor must still reach this server. Use a CNAME to the host of `PUBLIC_URL` for a subdomain such as `docs.example.org`. A domain with no subdomain part (an apex domain such as `example.org`) usually cannot hold a CNAME, so use A and AAAA records with the same addresses as the `PUBLIC_URL` host, or your DNS provider's alias or flattening feature. A CDN or proxy in front can sit between the visitor and this server if it forwards the original `Host` header.
+
+### Behind a reverse proxy
+
+The server does not obtain certificates for custom domains. The reverse proxy in front of it must route each custom domain's host to this server with the `Host` header intact, and must hold a certificate for each one. A wildcard certificate for the base domain does not cover a custom domain. With Traefik (including the one Coolify manages) or Caddy, add the custom domain as a host that the proxy routes to this server. Whether the proxy requests a certificate for it on its own depends on how you configured it, so check your proxy's documentation. Built-in TLS for custom domains is planned and is not part of this version.
+
+### Ownership rules
+
+- A claim blocks every other site from the same name while it is pending. A pending claim that has not been verified after 7 days is released by the maintenance task. A verified domain is released only by deleting it.
+- An unverified domain never serves. A request for it gets the same 404 as an unknown host.
+- The maintenance task re-checks every verified domain once a day. A lookup that succeeds without the token, or finds no record, counts as a miss. After 3 consecutive daily misses the domain goes back to `pending_verification`, stops serving and stops being primary. The site and its other domains are untouched. A timeout or resolver error is not a miss, so a DNS outage never takes domains down. The domain keeps `lastCheckedAt` and `lastCheckResult` for the last lookup, and the 7-day clock for pending claims restarts when a domain drops.
+- Verified domains work for gated sites. The gate page on a custom domain sends the sign-in link with a `host` parameter, and `GET /api/v1/access/handoff` returns to that domain only if it is a verified domain of the same site. The viewer cookie is host-only and named like the subdomain-mode cookie (`__Host-viewer` when the request arrived over HTTPS, `viewer` otherwise).
+
+`hosting.customDomainsEnabled` (default true) turns serving off for every custom domain at once without touching stored domains. `hosting.maxDomainsPerSite` (default 10, 1 to 50) caps the domains one site holds. Changing `hosting.baseDomain` to a name that equals or contains a custom domain returns 409 `base_domain_in_use`.
+
 ## Access control
 
 Every site has one access mode. New sites start in the mode of the `sites.defaultAccessMode` setting, which is `public` unless you change it.
@@ -168,7 +204,7 @@ A request for a gated site gets the gate page, an HTML page with status 401 and 
 - A **restricted** site shows a link that signs in an instance user, and, when the instance can send email, a form for allowlisted viewers. A viewer enters an email address and receives an 8-digit code that works once, for 10 minutes and for 5 attempts. The page answers the same way whether or not the address is on the allowlist, and only allowlisted addresses receive mail. Code requests are limited per address (3 per 10 minutes), per IP (10 per 15 minutes) and per site (60 per hour). Code checks are limited per address, per IP and per site as well.
 - **Email codes need an email sender.** SMTP and Resend senders arrive in a later step. Until then the instance reports `emailCodeAvailable: false`, the gate page says email sign-in is not available, and allowlisted addresses are stored but cannot sign in. Instance users can still use the account link.
 
-The account link goes to `GET /api/v1/access/handoff?site=<slug>&return=<path>` on the management host. A caller with a session or API key and read access gets a single-use token, valid for 60 seconds and for that site only, and a redirect to the site host, which exchanges it for the viewer cookie and redirects to `return`. A caller without credentials is redirected to `/login?next=...`. **The login page ships with the dashboard, so until then the interactive path works only for users who already have a session cookie in the browser.** The return path must be a path on the site: absolute URLs, protocol-relative URLs, backslashes, control characters, fragments and dot segments are refused, including percent-encoded forms.
+The account link goes to `GET /api/v1/access/handoff?site=<slug>&return=<path>` on the management host. On a custom domain it also carries `host=<domain>`, and the redirect goes back to that domain. A caller with a session or API key and read access gets a single-use token, valid for 60 seconds and for that site only, and a redirect to the site host, which exchanges it for the viewer cookie and redirects to `return`. A caller without credentials is redirected to `/login?next=...`. **The login page ships with the dashboard, so until then the interactive path works only for users who already have a session cookie in the browser.** The return path must be a path on the site: absolute URLs, protocol-relative URLs, backslashes, control characters, fragments and dot segments are refused, including percent-encoded forms.
 
 ### Viewer cookies
 
@@ -178,6 +214,8 @@ A successful sign-in sets a signed cookie (HMAC-SHA256 over the site id, the epo
 |---|---|---|
 | Subdomain, HTTPS | `__Host-viewer` | `Path=/`, `Secure`, `HttpOnly`, `SameSite=Lax`, no `Domain` |
 | Subdomain, plain HTTP | `viewer` | `Path=/`, `HttpOnly`, `SameSite=Lax` |
+| Custom domain, HTTPS | `__Host-viewer` | Same as subdomain mode over HTTPS |
+| Custom domain, plain HTTP | `viewer` | Same as subdomain mode over plain HTTP |
 | Path, HTTPS | `__Secure-viewer` | `Path=/s/<slug>/`, `Secure`, `HttpOnly`, `SameSite=None` |
 
 **Path mode behaves differently.** The sandbox gives a path-mode page an opaque origin, so the browser treats its requests for scripts, styles and images as cross-site and does not send `SameSite=Lax` cookies. The path-mode cookie therefore uses `SameSite=None; Secure`, scoped to the site's path. **Gated sites cannot work in path mode over plain HTTP**, because browsers refuse `Secure` cookies there. The server shows a page that says HTTPS is required instead of failing silently. Even over HTTPS, a browser that blocks third-party cookies may withhold the cookie from a path-mode page's own subresources. Use subdomain mode for gated sites.
@@ -205,6 +243,8 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `hosting.baseDomain` | host of `PUBLIC_URL` | Bare host name for site subdomains, such as `example.com`. An empty value means the default. |
 | `hosting.subdomainEnabled` | false | Serve sites at `{slug}.{baseDomain}`. Needs a successful wildcard check. At least one of the two modes must stay on. Subdomain mode is the recommended way to host sites. |
 | `hosting.pathEnabled` | true | Serve sites at `/s/{slug}/`. Path-mode pages run in a sandbox without cookies or `localStorage`. |
+| `hosting.customDomainsEnabled` | true | Serve verified custom domains. Switching it off makes every custom host answer with the unknown-host 404 and leaves stored domains alone. |
+| `hosting.maxDomainsPerSite` | 10 | Custom domains one site can hold, from 1 to 50. |
 | `hosting.wildcardStatus` | `unchecked` | Read-only. Outcome of the last wildcard check: `unchecked`, `ok` or `failed`. |
 | `hosting.wildcardCheckedAt` | null | Read-only. When the last check finished. |
 | `hosting.wildcardDetail` | empty | Read-only. Why the last check failed. |

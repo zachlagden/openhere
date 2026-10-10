@@ -25,6 +25,9 @@ info:
     manifest, one `PUT` per file to the returned upload URLs, then `POST .../finalize`. A version serves
     nothing until finalize succeeds.
 
+    A site can also be served at custom domains the owner proves they control with a DNS TXT record (see the
+    Domains tag). A domain serves nothing until its TXT record has been verified.
+
     Published sites are not part of this API. The server serves a site's live version at
     `https://{slug}.{baseDomain}/` (subdomain mode) and at `{publicUrl}/s/{slug}/` (path mode). A site is open
     to anyone with the link unless its access mode says otherwise (see the Access tag). Each site response
@@ -59,6 +62,7 @@ tags:
   - name: Sites
   - name: Publish
   - name: Access
+  - name: Domains
   - name: Invites
   - name: Hosting
   - name: Admin
@@ -1348,6 +1352,18 @@ paths:
           description: The path, with an optional query, to open after sign-in. Defaults to `/`.
           schema:
             type: string
+        - name: host
+          in: query
+          required: false
+          description: |
+            A verified custom domain of the site, such as `docs.example.org`. The gate page of a site opened on a
+            custom domain sends it so the redirect goes back to that domain. Without it the redirect goes to the
+            site's subdomain or path address (or, when neither is enabled, to a custom domain). The server accepts
+            exactly the site's own verified domains, and only while `hosting.customDomainsEnabled` is true. Any
+            other value, including a pending domain, a domain of another site and any value with a scheme, port,
+            path or credentials, returns 400 `validation_failed`. Nothing is redirected to an unlisted host.
+          schema:
+            type: string
       responses:
         "303":
           description: Redirect to the login page or to the site host.
@@ -1418,6 +1434,187 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "404":
           $ref: "#/components/responses/NotFound"
+  /sites/{slug}/domains:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+    get:
+      tags: [Domains]
+      operationId: listDomains
+      summary: List a site's custom domains
+      description: |
+        Needs read on the site. Domains are listed oldest first, pending and verified together.
+      responses:
+        "200":
+          description: The custom domains.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Domains]
+      operationId: createDomain
+      summary: Claim a custom domain for a site
+      description: |
+        Needs write on the site. The domain is normalised to lower case ASCII (internationalised names become
+        punycode) and a trailing dot is removed. The server rejects IP addresses, wildcards, names with a port,
+        scheme or path, names with fewer than two labels, `localhost`, reserved top-level domains such as
+        `.local`, `.internal` and `.test`, the host of `PUBLIC_URL`, and the base domain and every name under it,
+        with 400 `validation_failed`.
+
+        The new domain is `pending_verification` and serves nothing. Publish the `challenge` TXT record, then call
+        `POST /sites/{slug}/domains/{id}/verify`. A claim blocks every other site from the same name even while
+        it is pending. A pending claim that is not verified within 7 days is released.
+
+        A name another site already holds returns 409 `domain_taken`, whether that claim is pending or verified.
+        A site that already holds `hosting.maxDomainsPerSite` domains gets 409 `domain_limit_reached`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDomainRequest"
+      responses:
+        "201":
+          description: The claimed domain with its challenge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The domain is taken (`domain_taken`) or the site is at its limit (`domain_limit_reached`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /sites/{slug}/domains/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/DomainId"
+    get:
+      tags: [Domains]
+      operationId: getDomain
+      summary: Read a custom domain
+      description: Needs read on the site.
+      responses:
+        "200":
+          description: The domain.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Domains]
+      operationId: updateDomain
+      summary: Make a domain the site's primary domain, or clear it
+      description: |
+        Needs write on the site. At most one domain per site is primary, and setting a new one clears the old one
+        in the same step. Only a verified domain can be primary (409 `domain_not_verified` otherwise). A domain
+        that drops back to pending stops being primary. The primary domain is the address the site reports in
+        `url`. Every verified domain serves the site, and none redirects to another.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDomainRequest"
+      responses:
+        "200":
+          description: The domain after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The domain is not verified (`domain_not_verified`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+    delete:
+      tags: [Domains]
+      operationId: deleteDomain
+      summary: Delete a custom domain
+      description: |
+        Needs write on the site. The domain stops serving at once and its name is free for any site to claim.
+        Deleting is the only way to release a verified domain.
+      responses:
+        "204":
+          description: The domain is gone.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sites/{slug}/domains/{id}/verify:
+    parameters:
+      - $ref: "#/components/parameters/SiteSlug"
+      - $ref: "#/components/parameters/DomainId"
+    post:
+      tags: [Domains]
+      operationId: verifyDomain
+      summary: Check the domain's TXT record
+      description: |
+        Needs write on the site. The server looks up the TXT records at `challenge.name` and marks the domain
+        verified when one holds `challenge.value` exactly. It does not look at where the domain's A, AAAA or
+        CNAME records point, so a domain behind a CDN or proxy verifies as well.
+
+        The response is 200 whether or not the check passed. `verified` says which, and `message` explains a
+        failed check in plain language: no record yet, records that do not match, or a DNS lookup that failed
+        or timed out. DNS changes can take a while to spread, so a new record may need several tries. Calling
+        this on a verified domain re-checks it, records the result, and never removes the verification. The
+        daily re-verification does that. Calls are limited to 20 per minute per user.
+      responses:
+        "200":
+          description: The check ran.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainVerifyResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /invites:
     get:
       tags: [Invites]
@@ -1913,6 +2110,13 @@ components:
       description: A version id returned by a publish call.
       schema:
         type: string
+    DomainId:
+      name: id
+      in: path
+      required: true
+      description: A domain id from the domain list.
+      schema:
+        type: string
     Workspace:
       name: workspace
       in: path
@@ -1988,7 +2192,8 @@ components:
     HostingConflict:
       description: |
         Subdomain mode cannot be enabled until a wildcard check succeeds (`wildcard_not_verified`), or the change
-        would leave both hosting modes off (`no_hosting_mode`).
+        would leave both hosting modes off (`no_hosting_mode`), or the new base domain collides with a custom
+        domain (`base_domain_in_use`).
       content:
         application/json:
           schema:
@@ -2049,6 +2254,10 @@ components:
             - file_not_in_manifest
             - wildcard_not_verified
             - no_hosting_mode
+            - base_domain_in_use
+            - domain_taken
+            - domain_limit_reached
+            - domain_not_verified
             - account_disabled
             - cannot_disable_self
             - last_root
@@ -2403,6 +2612,107 @@ components:
         updatedAt:
           type: string
           format: date-time
+    Domain:
+      type: object
+      required: [id, domain, status, challenge, target, isPrimary, verifiedAt, lastCheckedAt, lastCheckResult, createdAt]
+      properties:
+        id:
+          type: string
+        domain:
+          type: string
+          description: The normalised name, in lower case ASCII.
+        status:
+          type: string
+          enum: [pending_verification, verified]
+          description: Only a verified domain serves the site.
+        challenge:
+          type: object
+          required: [recordType, name, value]
+          description: The DNS record that proves control of the domain.
+          properties:
+            recordType:
+              type: string
+              enum: [TXT]
+            name:
+              type: string
+              description: Always `_selfhost-challenge.` followed by the domain.
+            value:
+              type: string
+              description: A random token of 192 bits in hex. It is not a secret, but nobody can guess it.
+        target:
+          type: object
+          required: [recordType, value, note]
+          description: Where to point the domain so visitors reach this server. Verification does not depend on it.
+          properties:
+            recordType:
+              type: string
+              enum: [CNAME]
+            value:
+              type: string
+              description: The host name of `PUBLIC_URL`.
+            note:
+              type: string
+              description: Plain-language advice for apex domains and domains behind a CDN.
+        isPrimary:
+          type: boolean
+        verifiedAt:
+          type: [string, "null"]
+          format: date-time
+        lastCheckedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the TXT record was last looked up, by a verify call or the daily re-check.
+        lastCheckResult:
+          type: [string, "null"]
+          enum: [verified, record_not_found, token_mismatch, lookup_failed, null]
+          description: |
+            The outcome of the last lookup. `record_not_found` means the lookup succeeded and found no TXT record
+            (or the name does not exist). `token_mismatch` means TXT records exist and none holds the token.
+            `lookup_failed` means the lookup timed out or the resolver failed, which says nothing about the record.
+        createdAt:
+          type: string
+          format: date-time
+    DomainEnvelope:
+      type: object
+      required: [domain]
+      properties:
+        domain:
+          $ref: "#/components/schemas/Domain"
+    DomainList:
+      type: object
+      required: [domains]
+      properties:
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/Domain"
+    CreateDomainRequest:
+      type: object
+      additionalProperties: false
+      required: [domain]
+      properties:
+        domain:
+          type: string
+          description: A bare domain name such as `docs.example.org`.
+    UpdateDomainRequest:
+      type: object
+      additionalProperties: false
+      required: [isPrimary]
+      properties:
+        isPrimary:
+          type: boolean
+    DomainVerifyResult:
+      type: object
+      required: [domain, verified, message]
+      properties:
+        domain:
+          $ref: "#/components/schemas/Domain"
+        verified:
+          type: boolean
+          description: True when the domain is verified after this call.
+        message:
+          type: string
+          description: A plain-language account of the last lookup.
     AccessMode:
       type: string
       enum: [public, password, restricted]
@@ -2467,8 +2777,10 @@ components:
     SiteUrl:
       type: [string, "null"]
       description: |
-        Where the instance serves the site right now: `https://{slug}.{baseDomain}/` when subdomain mode is
-        enabled, else `{publicUrl}/s/{slug}/` when path mode is enabled, else null. The URL does not say whether
+        Where the instance serves the site right now. In order: the primary custom domain (`https://{domain}/`)
+        when custom domains are enabled and one is primary, else `https://{slug}.{baseDomain}/` when subdomain
+        mode is enabled, else `{publicUrl}/s/{slug}/` when path mode is enabled, else the first verified custom
+        domain by name, else null. A custom domain uses the scheme of `PUBLIC_URL` and no port. The URL does not say whether
         the site has a live version. A site without one answers 404.
     SiteEnvelope:
       type: object
@@ -2740,7 +3052,9 @@ components:
       properties:
         code:
           type: string
-          description: A stable code such as `path_mode_enabled`, `no_live_version` or `subdomain_off`.
+          description: |
+            A stable code such as `path_mode_enabled`, `no_live_version`, `subdomain_off`, `custom_domain_pending`
+            (a custom domain is waiting for DNS verification) or `custom_domains_off`.
         message:
           type: string
           description: A plain-language sentence for any user. It contains no administrator detail.
@@ -2761,11 +3075,13 @@ components:
             HTTP. `not_applicable`: subdomain mode has no base domain to use.
     HostingModes:
       type: object
-      required: [subdomain, path]
+      required: [subdomain, path, customDomains]
       properties:
         subdomain:
           $ref: "#/components/schemas/HostingMode"
         path:
+          $ref: "#/components/schemas/HostingMode"
+        customDomains:
           $ref: "#/components/schemas/HostingMode"
     SiteHosting:
       type: object
@@ -2775,7 +3091,8 @@ components:
           type: boolean
           description: |
             True when the site has a live version and at least one mode can serve it now. A gated site does not
-            count path mode over plain HTTP.
+            count path mode over plain HTTP. A verified custom domain counts while custom domains are enabled,
+            even when subdomain and path modes are off.
         url:
           $ref: "#/components/schemas/SiteUrl"
         modes:
@@ -2853,7 +3170,8 @@ components:
           description: |
             A bare host name such as `example.com`. Stored in lower case. Sites are served at `{slug}.{baseDomain}`.
             An empty value means the host name of the server's `PUBLIC_URL`, which is also what a new instance
-            reports.
+            reports. A change is refused with 409 `base_domain_in_use` while a custom domain equals the new base
+            domain or sits under it.
         hosting.subdomainEnabled:
           type: boolean
           default: false
@@ -2871,6 +3189,21 @@ components:
             sends a `sandbox` Content-Security-Policy without `allow-same-origin` on every `/s/` response. The pages
             cannot use cookies, localStorage or the dashboard session. A change that leaves it and
             `hosting.subdomainEnabled` both false returns 409 `no_hosting_mode`.
+        hosting.customDomainsEnabled:
+          type: boolean
+          default: true
+          description: |
+            Serve verified custom domains. Switching it off makes every custom host answer with the same 404 as an
+            unknown host. Stored domains stay as they are, and the domain endpoints keep working. It has no effect
+            on the rule that subdomain and path mode cannot both be off.
+        hosting.maxDomainsPerSite:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: |
+            The most custom domains one site can hold, pending and verified together. Lowering it keeps the
+            domains a site already has and blocks new claims until it is under the limit.
         hosting.wildcardStatus:
           type: string
           enum: [unchecked, ok, failed]
