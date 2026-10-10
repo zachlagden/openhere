@@ -28,7 +28,7 @@ type instanceResponse struct {
 	AgentCredentialsPath string                `json:"agentCredentialsPath"`
 }
 
-func (s *Server) registerInstanceRoutes(mux *http.ServeMux) {
+func (s *Server) registerInstanceRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/instance", s.protected(s.handleInstance))
 	mux.Handle("GET "+basePath+"/docs/openapi.yaml", s.protected(s.handleDocsOpenAPI))
 	mux.Handle("GET "+basePath+"/docs/agent-guide.md", s.protected(s.handleDocsAgentGuide))

@@ -9,7 +9,7 @@ import (
 
 const workspaceHeader = "X-Workspace"
 
-func (s *Server) registerPublishRoutes(mux *http.ServeMux) {
+func (s *Server) registerPublishRoutes(mux *routeMux) {
 	versions := basePath + "/publish/{slug}/versions"
 	mux.Handle("POST "+basePath+"/publish", s.protected(s.handlePublish))
 	mux.Handle("PUT "+basePath+"/publish/{slug}", s.protected(s.handleRepublish))

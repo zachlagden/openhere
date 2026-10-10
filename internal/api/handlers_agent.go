@@ -28,7 +28,7 @@ type agentVerifyCode struct {
 	Label string `json:"label"`
 }
 
-func (s *Server) registerAgentRoutes(mux *http.ServeMux) {
+func (s *Server) registerAgentRoutes(mux *routeMux) {
 	mux.Handle("POST "+basePath+"/auth/agent/request-code", s.identify(http.HandlerFunc(s.handleAgentRequestCode)))
 	mux.Handle("POST "+basePath+"/auth/agent/verify-code", s.identify(http.HandlerFunc(s.handleAgentVerifyCode)))
 }

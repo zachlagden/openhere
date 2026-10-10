@@ -232,8 +232,27 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 	}
 }
 
+type routeMux struct {
+	*http.ServeMux
+	patterns []string
+}
+
+func newRouteMux() *routeMux {
+	return &routeMux{ServeMux: http.NewServeMux()}
+}
+
+func (m *routeMux) Handle(pattern string, handler http.Handler) {
+	m.patterns = append(m.patterns, pattern)
+	m.ServeMux.Handle(pattern, handler)
+}
+
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
+	handler, _ := s.build()
+	return handler
+}
+
+func (s *Server) build() (http.Handler, []string) {
+	mux := newRouteMux()
 	mux.Handle("GET "+basePath+"/setup/status", s.identify(http.HandlerFunc(s.handleSetupStatus)))
 	mux.Handle("POST "+basePath+"/setup", s.identify(http.HandlerFunc(s.handleSetup)))
 	mux.Handle("POST "+basePath+"/auth/login", s.identify(http.HandlerFunc(s.handleLogin)))
@@ -260,7 +279,7 @@ func (s *Server) Handler() http.Handler {
 
 	notFound := s.protected(s.handleNotFound)
 	mux.Handle("/", notFound)
-	return securityHeaders(rejectUncleanPaths(mux, notFound))
+	return securityHeaders(rejectUncleanPaths(mux, notFound)), mux.patterns
 }
 
 func rejectUncleanPaths(next, notFound http.Handler) http.Handler {

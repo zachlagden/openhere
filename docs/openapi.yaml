@@ -2,6 +2,9 @@ openapi: 3.1.0
 info:
   title: selfhost API
   version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
   description: |
     REST API of the selfhost server. Every route except `GET /setup/status`, `POST /setup`,
     `POST /auth/login`, `GET /invites/{token}`, `POST /invites/{token}/accept`,
@@ -58,20 +61,35 @@ security:
   - sessionCookie: []
 tags:
   - name: Setup
+    description: First-run setup of a new instance.
   - name: Auth
+    description: Sign-in, sign-out, password reset and agent sign-in.
   - name: Account
+    description: The signed-in user and their API keys.
   - name: Instance
+    description: Facts about this instance and its built-in documentation.
   - name: Workspaces
+    description: Personal and shared workspaces.
   - name: Members
+    description: Roles and scoped grants inside a workspace.
   - name: Folders
+    description: Flat folders that group sites in a workspace.
   - name: Sites
+    description: Listing, reading, changing and deleting sites, and reading their live files.
   - name: Publish
+    description: Creating versions, uploading files, finalizing, restoring and deleting versions.
   - name: Access
+    description: Per-site access modes and the sign-in handoff for viewers.
   - name: Domains
+    description: Custom domains and their DNS verification.
   - name: Invites
+    description: Invitations that create instance accounts.
   - name: Hosting
+    description: Which hosting modes are on and whether they work.
   - name: Analytics
+    description: Cookieless page view reports.
   - name: Admin
+    description: Instance settings and user management. Root user only.
 paths:
   /setup/status:
     get:

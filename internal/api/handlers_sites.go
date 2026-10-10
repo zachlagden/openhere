@@ -24,7 +24,7 @@ type updateSiteRequest struct {
 	FolderID    optionalString `json:"folderId"`
 }
 
-func (s *Server) registerSiteRoutes(mux *http.ServeMux) {
+func (s *Server) registerSiteRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/sites", s.protected(s.handleListSites))
 	mux.Handle("POST "+basePath+"/workspaces/{workspace}/sites", s.protected(s.handleCreateSite))
 	mux.Handle("GET "+basePath+"/sites/{slug}", s.protected(s.handleGetSite))

@@ -16,7 +16,7 @@ type domainUpdateRequest struct {
 	IsPrimary *bool `json:"isPrimary"`
 }
 
-func (s *Server) registerDomainRoutes(mux *http.ServeMux) {
+func (s *Server) registerDomainRoutes(mux *routeMux) {
 	if s.domains == nil {
 		return
 	}

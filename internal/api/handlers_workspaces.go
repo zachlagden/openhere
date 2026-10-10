@@ -13,7 +13,7 @@ type renameWorkspaceRequest struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) registerWorkspaceRoutes(mux *http.ServeMux) {
+func (s *Server) registerWorkspaceRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/workspaces", s.protected(s.handleListWorkspaces))
 	mux.Handle("POST "+basePath+"/workspaces", s.protected(s.handleCreateWorkspace))
 	mux.Handle("GET "+basePath+"/workspaces/{workspace}", s.protected(s.handleGetWorkspace))

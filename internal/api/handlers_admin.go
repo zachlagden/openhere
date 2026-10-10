@@ -19,7 +19,7 @@ type emailTestResponse struct {
 	To   string `json:"to"`
 }
 
-func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
+func (s *Server) registerAdminRoutes(mux *routeMux) {
 	mux.Handle("POST "+basePath+"/admin/email/test", s.protected(s.handleEmailTest))
 	mux.Handle("GET "+basePath+"/admin/users", s.protected(s.handleListUsers))
 	mux.Handle("PATCH "+basePath+"/admin/users/{id}", s.protected(s.handleUpdateUser))
