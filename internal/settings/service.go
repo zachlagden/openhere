@@ -124,36 +124,61 @@ func build(stored map[string]string) (Settings, error) {
 	return settings, nil
 }
 
+type Outcome struct {
+	Settings Settings
+	Notices  []Notice
+}
+
 func (s *Service) Update(ctx context.Context, patch map[string]json.RawMessage) (Settings, error) {
-	if len(patch) == 0 {
-		return Settings{}, validate.Invalid("Send at least one setting to change.")
+	outcome, err := s.Apply(ctx, patch)
+	return outcome.Settings, err
+}
+
+func (s *Service) Apply(ctx context.Context, patch map[string]json.RawMessage) (Outcome, error) {
+	changes, err := s.prepareAll(patch)
+	if err != nil {
+		return Outcome{}, err
 	}
-	changes := make(map[string]string, len(patch))
-	for key, raw := range patch {
-		def, ok := findDefinition(key)
-		if !ok {
-			return Settings{}, validate.Invalid(fmt.Sprintf("Unknown setting %q.", key))
-		}
-		if def.readOnly {
-			return Settings{}, validate.Invalid(fmt.Sprintf("Setting %s is read-only.", key))
-		}
-		stored, err := s.prepare(def, raw)
-		if err != nil {
-			return Settings{}, err
-		}
-		changes[key] = stored
-	}
-	err := store.WithTx(ctx, s.db, func(q store.Querier) error {
-		if err := s.applyHostingRules(ctx, q, changes); err != nil {
-			return err
+	var notices []Notice
+	err = store.WithTx(ctx, s.db, func(q store.Querier) error {
+		var rulesErr error
+		notices, rulesErr = s.applyHostingRules(ctx, q, changes)
+		if rulesErr != nil {
+			return rulesErr
 		}
 		return s.write(ctx, q, changes)
 	})
 	s.invalidate()
 	if err != nil {
-		return Settings{}, err
+		return Outcome{}, err
 	}
-	return s.Get(ctx)
+	updated, err := s.Get(ctx)
+	if err != nil {
+		return Outcome{}, err
+	}
+	return Outcome{Settings: updated, Notices: notices}, nil
+}
+
+func (s *Service) prepareAll(patch map[string]json.RawMessage) (map[string]string, error) {
+	if len(patch) == 0 {
+		return nil, validate.Invalid("Send at least one setting to change.")
+	}
+	changes := make(map[string]string, len(patch))
+	for key, raw := range patch {
+		def, ok := findDefinition(key)
+		if !ok {
+			return nil, validate.Invalid(fmt.Sprintf("Unknown setting %q.", key))
+		}
+		if def.readOnly {
+			return nil, validate.Invalid(fmt.Sprintf("Setting %s is read-only.", key))
+		}
+		stored, err := s.prepare(def, raw)
+		if err != nil {
+			return nil, err
+		}
+		changes[key] = stored
+	}
+	return changes, nil
 }
 
 func (s *Service) prepare(def definition, raw json.RawMessage) (string, error) {

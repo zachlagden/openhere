@@ -152,19 +152,19 @@ func (s *Server) handleLiveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writePending(w http.ResponseWriter, r *http.Request, pending publish.Pending) {
-	urlFor, err := s.siteURLs(r.Context())
+	hostingFor, err := s.siteHosting(r.Context())
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toPublishResponse(pending, urlFor(pending.Site.Slug)))
+	writeJSON(w, http.StatusCreated, toPublishResponse(pending, hostingFor(pending.Site)))
 }
 
 func (s *Server) writeResult(w http.ResponseWriter, r *http.Request, result publish.Result) {
-	urlFor, err := s.siteURLs(r.Context())
+	hostingFor, err := s.siteHosting(r.Context())
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, resultResponse{Slug: result.Site.Slug, URL: urlFor(result.Site.Slug), Version: toVersionResponse(result.Version)})
+	writeJSON(w, http.StatusOK, toResultResponse(result, hostingFor(result.Site)))
 }

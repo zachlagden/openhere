@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -68,13 +67,10 @@ func TestSiteURLFollowsTheHostingSettings(t *testing.T) {
 			t.Errorf("restore url = %v", again.URL)
 		}
 
-		root.setSettings(`{"settings":{"hosting.subdomainEnabled":false,"hosting.pathEnabled":false}}`)
+		root.setSettings(`{"settings":{"hosting.subdomainEnabled":false}}`)
 		site = decodeBody[siteEnvelope](t, root.expect(http.StatusOK, "GET", "/api/v1/sites/acme-docs", nil)).Site
-		if site.URL != nil {
-			t.Errorf("url with every mode off = %q, want null", *site.URL)
-		}
-		if raw := root.expect(http.StatusOK, "GET", "/api/v1/sites/acme-docs", nil).Body.String(); !strings.Contains(raw, `"url":null`) {
-			t.Errorf("the url field must be present as null: %s", raw)
+		if site.URL == nil || *site.URL != "https://example.com/s/acme-docs/" {
+			t.Errorf("url with only path mode on = %v", site.URL)
 		}
 	})
 }
@@ -106,8 +102,8 @@ func TestSubdomainModeNeedsAVerifiedWildcard(t *testing.T) {
 			t.Fatal(err)
 		}
 		off := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "GET", "/api/v1/admin/settings", nil)).Settings
-		if off["hosting.subdomainEnabled"] != false {
-			t.Errorf("a failed check left subdomain mode on: %v", off)
+		if off["hosting.subdomainEnabled"] != true || off["hosting.wildcardStatus"] != "failed" || off["hosting.wildcardFailures"] != float64(0) {
+			t.Errorf("a failed manual check changed the mode or the counter: %v", off)
 		}
 	})
 }
@@ -267,4 +263,48 @@ func lastUsedOf(t *testing.T, h *harness, session *http.Cookie) *time.Time {
 	}
 	t.Fatal("test key not found")
 	return nil
+}
+
+func TestSettingsRefuseToSwitchEveryHostingModeOff(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		root := h.rootActor()
+		path := "/api/v1/admin/settings"
+
+		root.expectError(http.StatusConflict, codeNoHostingMode, "PATCH", path, `{"settings":{"hosting.pathEnabled":false}}`)
+		got := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "GET", path, nil)).Settings
+		if got["hosting.pathEnabled"] != true {
+			t.Errorf("a refused change was stored: %v", got)
+		}
+		if _, err := h.settings.RecordWildcard(context.Background(), true, ""); err != nil {
+			t.Fatal(err)
+		}
+		swapped := decodeBody[updateSettingsEnvelope](t, root.expect(http.StatusOK, "PATCH", path,
+			`{"settings":{"hosting.subdomainEnabled":true,"hosting.pathEnabled":false}}`))
+		if swapped.Settings["hosting.subdomainEnabled"] != true || swapped.Settings["hosting.pathEnabled"] != false || len(swapped.Notices) != 0 {
+			t.Errorf("a swap in one patch = %+v", swapped)
+		}
+		root.expectError(http.StatusConflict, codeNoHostingMode, "PATCH", path, `{"settings":{"hosting.subdomainEnabled":false}}`)
+	})
+}
+
+func TestChangingTheBaseDomainReportsThatPathModeWasSwitchedOn(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		h := newHarness(t, db, harnessOptions{})
+		root := h.rootActor()
+		root.setSettings(`{"settings":{"hosting.baseDomain":"sites.example.com"}}`)
+		if _, err := h.settings.RecordWildcard(context.Background(), true, ""); err != nil {
+			t.Fatal(err)
+		}
+		root.setSettings(`{"settings":{"hosting.subdomainEnabled":true,"hosting.pathEnabled":false}}`)
+
+		moved := decodeBody[updateSettingsEnvelope](t, root.expect(http.StatusOK, "PATCH", "/api/v1/admin/settings",
+			`{"settings":{"hosting.baseDomain":"sites.example.org"}}`))
+		if moved.Settings["hosting.subdomainEnabled"] != false || moved.Settings["hosting.pathEnabled"] != true {
+			t.Errorf("settings = %v", moved.Settings)
+		}
+		if len(moved.Notices) != 1 || moved.Notices[0].Code != "path_mode_enabled" || moved.Notices[0].Message == "" {
+			t.Errorf("notices = %+v", moved.Notices)
+		}
+	})
 }

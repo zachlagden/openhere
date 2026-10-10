@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/access"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/selfhost/internal/sites"
 )
 
 type WildcardChecker interface {
@@ -26,6 +28,7 @@ type wildcardEnvelope struct {
 
 func (s *Server) registerHostingRoutes(mux *http.ServeMux) {
 	mux.Handle("POST "+basePath+"/admin/hosting/check", s.protected(s.handleWildcardCheck))
+	mux.Handle("GET "+basePath+"/hosting/status", s.protected(s.handleHostingStatus))
 }
 
 func (s *Server) handleWildcardCheck(w http.ResponseWriter, r *http.Request) {
@@ -56,12 +59,13 @@ func toWildcardResponse(cfg settings.Settings) wildcardResponse {
 	return response
 }
 
-func (s *Server) siteURLs(ctx context.Context) (func(slug string) *string, error) {
+func (s *Server) siteHosting(ctx context.Context) (func(site sites.Site) hosting.SiteAvailability, error) {
 	cfg, err := s.settings.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return func(slug string) *string {
-		return optional(hosting.SiteURL(s.public, cfg, slug))
+	return func(site sites.Site) hosting.SiteAvailability {
+		facts := hosting.SiteFacts{Slug: site.Slug, Live: site.CurrentVersionID != "", Gated: access.Mode(site.AccessMode).Gated()}
+		return hosting.SiteHosting(s.public, cfg, facts)
 	}, nil
 }

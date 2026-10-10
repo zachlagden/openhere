@@ -73,9 +73,7 @@ func TestDisabledModesServeNothing(t *testing.T) {
 		expectBody(t, e.site("/"), 200, "<h1>demo</h1>")
 
 		e.set(`{"hosting.pathEnabled": true}`)
-		if _, err := e.settings.RecordWildcard(t.Context(), false, "broken"); err != nil {
-			t.Fatal(err)
-		}
+		e.set(`{"hosting.subdomainEnabled": false}`)
 		expectBody(t, e.site("/"), 404, "Not found\n")
 		expectBody(t, e.get(managementHost, "/s/demo/"), 200, "<h1>demo</h1>")
 	})
@@ -117,9 +115,7 @@ func TestEveryNotFoundCauseLooksTheSame(t *testing.T) {
 		assertIdentical(t, paths)
 
 		e.set(`{"hosting.pathEnabled": true}`)
-		if _, err := e.settings.RecordWildcard(t.Context(), false, "broken"); err != nil {
-			t.Fatal(err)
-		}
+		e.set(`{"hosting.subdomainEnabled": false}`)
 		disabled := capture(e.get(siteHost, "/"))
 		if disabled != subdomain["unknown slug"] {
 			t.Errorf("subdomain mode off differs from an unknown slug:\n%+v\n%+v", disabled, subdomain["unknown slug"])

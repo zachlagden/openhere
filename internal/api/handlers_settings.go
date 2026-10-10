@@ -11,6 +11,16 @@ type settingsEnvelope struct {
 	Settings map[string]any `json:"settings"`
 }
 
+type noticeResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type updateSettingsEnvelope struct {
+	Settings map[string]any   `json:"settings"`
+	Notices  []noticeResponse `json:"notices"`
+}
+
 type updateSettingsRequest struct {
 	Settings map[string]json.RawMessage `json:"settings"`
 }
@@ -49,10 +59,14 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	updated, err := s.settings.Update(r.Context(), req.Settings)
+	outcome, err := s.settings.Apply(r.Context(), req.Settings)
 	if err != nil {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, settingsEnvelope{Settings: settings.Values(updated)})
+	notices := make([]noticeResponse, 0, len(outcome.Notices))
+	for _, notice := range outcome.Notices {
+		notices = append(notices, noticeResponse(notice))
+	}
+	writeJSON(w, http.StatusOK, updateSettingsEnvelope{Settings: settings.Values(outcome.Settings), Notices: notices})
 }

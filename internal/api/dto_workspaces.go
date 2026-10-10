@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/workspaces"
 )
@@ -89,21 +90,22 @@ func toFolderResponse(f sites.Folder) folderResponse {
 }
 
 type siteResponse struct {
-	ID               string          `json:"id"`
-	WorkspaceID      string          `json:"workspaceId"`
-	WorkspaceSlug    string          `json:"workspaceSlug"`
-	FolderID         *string         `json:"folderId"`
-	Slug             string          `json:"slug"`
-	DisplayName      string          `json:"displayName"`
-	Description      string          `json:"description"`
-	CreatedBy        *string         `json:"createdBy"`
-	SpaMode          bool            `json:"spaMode"`
-	AccessMode       string          `json:"accessMode"`
-	CurrentVersionID *string         `json:"currentVersionId"`
-	URL              *string         `json:"url"`
-	Role             workspaces.Role `json:"role"`
-	CreatedAt        time.Time       `json:"createdAt"`
-	UpdatedAt        time.Time       `json:"updatedAt"`
+	ID               string              `json:"id"`
+	WorkspaceID      string              `json:"workspaceId"`
+	WorkspaceSlug    string              `json:"workspaceSlug"`
+	FolderID         *string             `json:"folderId"`
+	Slug             string              `json:"slug"`
+	DisplayName      string              `json:"displayName"`
+	Description      string              `json:"description"`
+	CreatedBy        *string             `json:"createdBy"`
+	SpaMode          bool                `json:"spaMode"`
+	AccessMode       string              `json:"accessMode"`
+	CurrentVersionID *string             `json:"currentVersionId"`
+	URL              *string             `json:"url"`
+	Hosting          siteHostingResponse `json:"hosting"`
+	Role             workspaces.Role     `json:"role"`
+	CreatedAt        time.Time           `json:"createdAt"`
+	UpdatedAt        time.Time           `json:"updatedAt"`
 }
 
 type siteEnvelope struct {
@@ -115,12 +117,13 @@ type siteListResponse struct {
 	NextCursor *string        `json:"nextCursor"`
 }
 
-func toSiteResponse(s sites.Site, siteURL *string) siteResponse {
+func toSiteResponse(s sites.Site, availability hosting.SiteAvailability) siteResponse {
 	return siteResponse{
 		ID: s.ID, WorkspaceID: s.WorkspaceID, WorkspaceSlug: s.WorkspaceSlug, FolderID: optional(s.FolderID),
 		Slug: s.Slug, DisplayName: s.DisplayName, Description: s.Description, CreatedBy: optional(s.CreatedBy),
-		SpaMode: s.SpaMode, AccessMode: s.AccessMode, CurrentVersionID: optional(s.CurrentVersionID), URL: siteURL,
-		Role: s.Role, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		SpaMode: s.SpaMode, AccessMode: s.AccessMode, CurrentVersionID: optional(s.CurrentVersionID), URL: optional(availability.URL),
+		Hosting: toSiteHostingResponse(availability),
+		Role:    s.Role, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }
 

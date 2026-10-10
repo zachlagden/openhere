@@ -58,11 +58,11 @@ func TestUpdateStoresAndReturnsValues(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		ctx := context.Background()
 		svc := New(db, Options{Now: func() time.Time { return time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC) }})
-		updated, err := svc.Update(ctx, patch(t, `{"retention.keepVersions": 3, "hosting.baseDomain": "  Sites.Example.COM ", "hosting.pathEnabled": false, "limits.maxFileBytes": 1024}`))
+		updated, err := svc.Update(ctx, patch(t, `{"retention.keepVersions": 3, "hosting.baseDomain": "  Sites.Example.COM ", "hosting.pathEnabled": true, "limits.maxFileBytes": 1024}`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if updated.KeepVersions != 3 || updated.BaseDomain != "sites.example.com" || updated.PathEnabled || updated.MaxFileBytes != 1024 {
+		if updated.KeepVersions != 3 || updated.BaseDomain != "sites.example.com" || !updated.PathEnabled || updated.MaxFileBytes != 1024 {
 			t.Errorf("updated = %+v", updated)
 		}
 		if updated.MaxFilesPerVer != 2500 || updated.SubdomainEnabled {
@@ -106,14 +106,14 @@ func TestCacheIsInvalidatedOnWrite(t *testing.T) {
 		if cached.KeepVersions != 10 {
 			t.Errorf("read bypassed the cache: KeepVersions = %d", cached.KeepVersions)
 		}
-		if _, err := svc.Update(ctx, patch(t, `{"hosting.pathEnabled": false}`)); err != nil {
+		if _, err := svc.Update(ctx, patch(t, `{"limits.maxFileBytes": 2048}`)); err != nil {
 			t.Fatal(err)
 		}
 		after, err := svc.Get(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if after.KeepVersions != 99 || after.PathEnabled {
+		if after.KeepVersions != 99 || after.MaxFileBytes != 2048 {
 			t.Errorf("cache survived a write: %+v", after)
 		}
 	})

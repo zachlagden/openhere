@@ -53,6 +53,7 @@ const (
 	codeNotFinalized        = "version_not_finalized"
 	codeFileNotInManifest   = "file_not_in_manifest"
 	codeWildcardNotVerified = "wildcard_not_verified"
+	codeNoHostingMode       = "no_hosting_mode"
 )
 
 type errorBody struct {

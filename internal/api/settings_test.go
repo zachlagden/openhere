@@ -33,36 +33,37 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 
 		defaults := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "GET", "/api/v1/admin/settings", nil)).Settings
 		want := map[string]any{
-			"retention.keepVersions":    float64(10),
-			"limits.maxFilesPerVersion": float64(2500),
-			"limits.maxVersionBytes":    float64(1 << 30),
-			"limits.maxFileBytes":       float64(256 << 20),
-			"hosting.baseDomain":        "",
-			"hosting.subdomainEnabled":  false,
-			"hosting.pathEnabled":       true,
-			"hosting.wildcardStatus":    "unchecked",
-			"hosting.wildcardCheckedAt": nil,
-			"hosting.wildcardDetail":    "",
-			"sites.defaultAccessMode":   "public",
-			"invites.whoCanInvite":      "root",
-			"workspaces.whoCanCreate":   "any",
-			"email.provider":            "none",
-			"email.fromAddress":         "",
-			"email.fromName":            "",
-			"email.smtp.host":           "",
-			"email.smtp.port":           float64(587),
-			"email.smtp.security":       "starttls",
-			"email.smtp.username":       "",
-			"email.smtp.passwordSet":    false,
-			"email.resend.apiKeySet":    false,
+			"retention.keepVersions":          float64(10),
+			"limits.maxFilesPerVersion":       float64(2500),
+			"limits.maxVersionBytes":          float64(1 << 30),
+			"limits.maxFileBytes":             float64(256 << 20),
+			"hosting.baseDomain":              "",
+			"hosting.subdomainEnabled":        false,
+			"hosting.pathEnabled":             true,
+			"hosting.wildcardFailures":        float64(0),
+			"hosting.subdomainDisabledReason": nil,
+			"hosting.wildcardStatus":          "unchecked",
+			"hosting.wildcardCheckedAt":       nil,
+			"hosting.wildcardDetail":          "",
+			"sites.defaultAccessMode":         "public",
+			"invites.whoCanInvite":            "root",
+			"workspaces.whoCanCreate":         "any",
+			"email.provider":                  "none",
+			"email.fromAddress":               "",
+			"email.fromName":                  "",
+			"email.smtp.host":                 "",
+			"email.smtp.port":                 float64(587),
+			"email.smtp.security":             "starttls",
+			"email.smtp.username":             "",
+			"email.smtp.passwordSet":          false,
+			"email.resend.apiKeySet":          false,
 		}
 		assertSettings(t, defaults, want)
 
 		updated := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "PATCH", "/api/v1/admin/settings",
-			`{"settings":{"retention.keepVersions":4,"hosting.baseDomain":"Sites.Example.com","hosting.pathEnabled":false}}`)).Settings
+			`{"settings":{"retention.keepVersions":4,"hosting.baseDomain":"Sites.Example.com"}}`)).Settings
 		want["retention.keepVersions"] = float64(4)
 		want["hosting.baseDomain"] = "sites.example.com"
-		want["hosting.pathEnabled"] = false
 		assertSettings(t, updated, want)
 
 		reread := decodeBody[settingsEnvelope](t, root.expect(http.StatusOK, "GET", "/api/v1/admin/settings", nil)).Settings

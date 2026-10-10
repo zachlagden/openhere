@@ -51,7 +51,8 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - The session cookie is `__Host-session` when the request is HTTPS (the `PUBLIC_URL` scheme or a trusted proxy) and `session` otherwise. Read only the form that fits the request.
 - Code that changes a site's live version, SPA mode or existence must call the `OnSiteChange` callback of `publish` or `sites` after the change commits. `main` wires it to `hosting.Resolver.Invalidate`.
 - Files are opened only through `sitefiles.Store.Open`, never by joining paths in `hosting`.
-- The wildcard check writes its outcome through `settings.Service.RecordWildcard`. A failed check switches `hosting.subdomainEnabled` off, and enabling it needs status `ok`.
+- The wildcard check writes its outcome through `settings.Service.RecordWildcard` (manual) or `RecordScheduledWildcard` (startup and scheduled). A failed check keeps subdomain mode serving, and a scheduled one adds to `hosting.wildcardFailures` while `hosting.subdomainEnabled` is on. A retry runs every 15 minutes until a check passes. After 3 consecutive failures the check switches `hosting.subdomainEnabled` off and records `hosting.subdomainDisabledReason`, only when `hosting.pathEnabled` is on. Manual checks never count. No settings write or automatic change may leave both modes off (`ErrNoHostingMode`). Enabling subdomain mode needs status `ok`.
+- Per-site and instance availability come from `hosting.SiteHosting` and `hosting.InstanceHosting`. Notices are plain language with no administrator detail, and the root-only detail of `GET /api/v1/hosting/status` stays out of every other response.
 
 ## Access
 
