@@ -111,7 +111,22 @@ The server normalises the request host (it drops the port and a trailing dot and
 
 An unknown host, an unknown slug, a disabled mode and a site without a live version all return the same 404 response with the same headers and a one-line body, so a visitor cannot tell them apart. Only `GET` and `HEAD` work on site hosts and under `/s/`, apart from the `POST` forms of the gate on gated sites. Other methods return 405 with `Allow: GET, HEAD`.
 
-`hosting.baseDomain` defaults to the host name of `PUBLIC_URL`. Changing it to a different value resets the wildcard check and switches subdomain mode off.
+`hosting.baseDomain` defaults to the host name of `PUBLIC_URL`. Changing it to a different value resets the wildcard check and switches subdomain mode off. If that would leave both modes off, the server switches path mode on in the same change and the response carries a notice with the code `path_mode_enabled`.
+
+At least one mode stays on. A settings change that would leave `hosting.subdomainEnabled` and `hosting.pathEnabled` both false returns 409 `no_hosting_mode`. The server judges the stored values merged with the patch, so one patch can switch one mode on and the other off.
+
+### What users see
+
+Every site response and publish response has a `hosting` object:
+
+- `reachable` is true when the site has a live version and at least one mode can serve it now. A site with a password or restricted access does not count path mode over plain HTTP, because the gate needs a secure connection there.
+- `url` is the same address as the top-level `url`.
+- `modes.subdomain` and `modes.path` each have a `state` (`on` or `off`) and a `reason`. The reason is `switched_off`, `wildcard_check_failed`, `https_required` or `not_applicable`, and null when the mode is on and healthy.
+- `notices` lists `{code, message}` entries in plain language, such as "The subdomain address for this site is switched off." and "Nothing has been published to this site yet.". They carry no administrator detail.
+
+Every user with read access to a site gets the same `hosting` object, root or not. A user sees nothing about sites they cannot read.
+
+`GET /api/v1/hosting/status` gives any signed-in user the instance view: the state and reason of each mode, notices, and `degraded`, which is true while subdomain mode is on and its last wildcard check failed. The root user also gets a `detail` object with the check status, when it last ran, the failure text, the consecutive failure count and the reason subdomain mode was switched off. Other users never get `detail`.
 
 ### Which file a path serves
 
@@ -125,7 +140,9 @@ Subdomain mode needs wildcard DNS, which the server cannot see from inside. The 
 
 The token route is the one unauthenticated path this feature adds. It exists only on site hosts, only while a check is running, accepts each token once for 60 seconds and returns the plain 404 otherwise.
 
-The server runs the check shortly after startup (with up to three attempts) and every 6 hours. The root user can run it at any time with `POST /api/v1/admin/hosting/check`, limited to 6 calls per minute. The result lands in the read-only settings `hosting.wildcardStatus` (`unchecked`, `ok` or `failed`), `hosting.wildcardCheckedAt` and `hosting.wildcardDetail`. A failed check switches `hosting.subdomainEnabled` off. Setting it to true while the status is not `ok` returns 409 `wildcard_not_verified`.
+The server runs the check shortly after startup (with up to three attempts) and every 6 hours. The root user can run it at any time with `POST /api/v1/admin/hosting/check`, limited to 6 calls per minute. The result lands in the read-only settings `hosting.wildcardStatus` (`unchecked`, `ok` or `failed`), `hosting.wildcardCheckedAt` and `hosting.wildcardDetail`. Setting `hosting.subdomainEnabled` to true while the status is not `ok` returns 409 `wildcard_not_verified`.
+
+A failed check while subdomain mode is on does not stop it. The server keeps serving, records status `failed` with the detail, and adds 1 to `hosting.wildcardFailures`. It then retries every 15 minutes until a check passes. After 3 consecutive failed startup or scheduled checks it switches `hosting.subdomainEnabled` off and sets `hosting.subdomainDisabledReason` to `wildcard_check_failed`, but only when path mode is on. It never leaves both modes off. A passing check resets the counter and clears the reason. It does not switch subdomain mode back on, so enable it again after fixing DNS. A check run through `POST /api/v1/admin/hosting/check` records its result but does not count toward the 3.
 
 On a local setup with `PUBLIC_URL=http://localhost:8080`, the check fails unless your resolver maps `*.localhost` to the loopback address. Path mode still works.
 
@@ -186,11 +203,13 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `limits.maxVersionBytes` | 1073741824 | Total bytes in one version. |
 | `limits.maxFileBytes` | 268435456 | Bytes in one file. Also caps the upload body. |
 | `hosting.baseDomain` | host of `PUBLIC_URL` | Bare host name for site subdomains, such as `example.com`. An empty value means the default. |
-| `hosting.subdomainEnabled` | false | Serve sites at `{slug}.{baseDomain}`. Needs a successful wildcard check. Subdomain mode is the recommended way to host sites. |
+| `hosting.subdomainEnabled` | false | Serve sites at `{slug}.{baseDomain}`. Needs a successful wildcard check. At least one of the two modes must stay on. Subdomain mode is the recommended way to host sites. |
 | `hosting.pathEnabled` | true | Serve sites at `/s/{slug}/`. Path-mode pages run in a sandbox without cookies or `localStorage`. |
 | `hosting.wildcardStatus` | `unchecked` | Read-only. Outcome of the last wildcard check: `unchecked`, `ok` or `failed`. |
 | `hosting.wildcardCheckedAt` | null | Read-only. When the last check finished. |
 | `hosting.wildcardDetail` | empty | Read-only. Why the last check failed. |
+| `hosting.wildcardFailures` | 0 | Read-only. Consecutive failed startup or scheduled checks while subdomain mode was on. |
+| `hosting.subdomainDisabledReason` | null | Read-only. `wildcard_check_failed` when the server switched subdomain mode off after 3 failed checks. |
 | `sites.defaultAccessMode` | `public` | Access mode of sites created from now on: `public` or `restricted`. Existing sites keep theirs. `password` is not allowed, because a password is set per site. |
 | `invites.whoCanInvite` | `root` | Who may create invites: `root` or `workspaceAdmins`. With `workspaceAdmins`, a workspace admin may invite only into a workspace they administer. |
 | `workspaces.whoCanCreate` | `any` | Who may create shared workspaces: `any` user or only `root`. |
