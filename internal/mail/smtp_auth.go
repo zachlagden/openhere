@@ -2,8 +2,11 @@ package mail
 
 import (
 	"errors"
+	"net/netip"
 	"net/smtp"
 	"strings"
+
+	"github.com/zachlagden/selfhost/internal/settings"
 )
 
 type plainAuth struct{ username, password string }
@@ -57,4 +60,19 @@ func chooseAuth(advertised, username, password string) (smtp.Auth, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func requireEncryptedAuth(cfg SMTPConfig) error {
+	if cfg.Username == "" || cfg.Security != settings.SecurityNone || isLoopbackHost(cfg.Host) {
+		return nil
+	}
+	return sendError("the connection is not encrypted, so the server would receive the password in clear text; choose TLS or STARTTLS", nil)
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(strings.TrimSuffix(host, "."), "localhost") {
+		return true
+	}
+	address, err := netip.ParseAddr(strings.Trim(host, "[]"))
+	return err == nil && address.IsLoopback()
 }

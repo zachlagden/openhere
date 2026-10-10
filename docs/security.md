@@ -30,7 +30,7 @@ Every other path under `/api/` returns a JSON 401, or a JSON 404 once signed in.
 - Scripts and agents send `Authorization: Bearer <key>`. The server stores only the SHA-256 hash of a key, and shows the full key once. Each user can hold 50 active keys. A key has the full access of its user.
 - Passwords need 12 to 128 characters and are stored as argon2id hashes. Site passwords need 8 to 128 characters, and the same hash applies. Each hash takes 64 MiB, so the server computes at most `ARGON2_CONCURRENCY` (default 2) at once. A request that waits more than 5 seconds for a slot gets 503 `server_busy`.
 - A disabled user fails every session and key lookup immediately.
-- Tokens for invites, password resets and sign-in handoffs are stored as hashes. Email codes are stored as HMACs.
+- The server sends SMTP credentials only over TLS or STARTTLS, or to a loopback host. Tokens for invites, password resets and sign-in handoffs are stored as hashes. Email codes are stored as HMACs.
 
 ## Rate limits
 
@@ -95,7 +95,7 @@ The sealing key comes from `SECRET_KEY` when set. Otherwise the server creates `
 
 With PostgreSQL the database and `DATA_DIR` are separate, so a database dump alone does not carry `secret.key` unless it is in the same backup set.
 
-The server creates `DATA_DIR` and its subdirectories with mode 0700 and the SQLite database, its `-wal` and `-shm` files and `secret.key` with mode 0600. At every start it tightens the modes of existing ones and logs a warning if it cannot. A backup job that runs as another user needs its own access to the directory, for example through a group-readable copy that the job makes. Certificate private keys live in `TLS_STORAGE` (default `DATA_DIR/certs`) with mode 0600, unencrypted. The setup token appears once in the server log at startup, while the instance has no users. Treat the log as sensitive until setup is complete. Never log a code, token, reset link, invite link, API key or password: the server does not.
+The server creates `DATA_DIR` and its subdirectories with mode 0700 and the SQLite database, its `-wal` and `-shm` files and `secret.key` with mode 0600. At every start it tightens the modes of existing ones and logs a warning if it cannot. A backup job that runs as another user needs its own access to the directory, for example through a group-readable copy that the job makes. Certificate private keys live in `TLS_STORAGE` (default `DATA_DIR/certs`) with mode 0600, unencrypted. The setup token appears once in the server log at startup, while the instance has no users. That is the bootstrap design: whoever can read the log can finish setup. Treat the log as sensitive until setup is complete. Server error lines name the route pattern, such as `GET /api/v1/invites/{token}`, and never the request path or query, so invite and reset tokens stay out of the log. Never log a code, token, reset link, invite link, API key or password: the server does not.
 
 ## Analytics privacy
 

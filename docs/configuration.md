@@ -91,7 +91,7 @@ At least one of `hosting.subdomainEnabled` and `hosting.pathEnabled` must stay o
 | `email.fromName` | empty | Up to 100 characters | Sender name. |
 | `email.smtp.host` | empty | Host name or IP address | SMTP server. |
 | `email.smtp.port` | 587 | 1 to 65535 | SMTP port. |
-| `email.smtp.security` | `starttls` | `tls`, `starttls`, `none` | `tls` is implicit TLS, usually port 465. |
+| `email.smtp.security` | `starttls` | `tls`, `starttls`, `none` | `tls` is implicit TLS, usually port 465. `none` sends mail without encryption, and the server then refuses to log in with a user name and password unless the host is `localhost` or a loopback address. |
 | `email.smtp.username` | empty | Up to 255 characters | Leave empty for a server without authentication. |
 | `email.smtp.password` | write-only | Up to 1024 characters | Reads return `email.smtp.passwordSet`. An empty string clears it. |
 | `email.resend.apiKey` | write-only | Up to 1024 characters | Reads return `email.resend.apiKeySet`. An empty string clears it. |

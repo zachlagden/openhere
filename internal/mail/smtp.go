@@ -27,6 +27,9 @@ func (s smtpSender) send(ctx context.Context, cfg Config, msg Message) error {
 	if err != nil {
 		return err
 	}
+	if err := requireEncryptedAuth(cfg.SMTP); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	client, err := s.connect(ctx, cfg.SMTP)
