@@ -12,7 +12,9 @@ import { OverviewTab } from "@/features/site-detail/overview-tab";
 import { SiteLayout } from "@/features/site-detail/site-layout";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { SitesPage } from "@/features/sites/sites-page";
+import { InvitesTab } from "@/features/workspaces/invites-tab";
 import { MembersTab } from "@/features/workspaces/members-tab";
+import { WorkspaceSettingsTab } from "@/features/workspaces/workspace-settings-tab";
 import { WorkspaceLayout } from "@/features/workspaces/workspace-layout";
 import { WorkspaceSitesTab } from "@/features/workspaces/workspace-sites-tab";
 import { AppShell } from "@/layout/app-shell";
@@ -21,6 +23,7 @@ import { RequireAuth } from "@/layout/require-auth";
 import { Spinner } from "@/components/ui/spinner";
 
 const AnalyticsTab = lazy(() => import("@/features/site-detail/analytics-tab").then((module) => ({ default: module.AnalyticsTab })));
+const WorkspaceAnalyticsTab = lazy(() => import("@/features/workspaces/workspace-analytics-tab").then((module) => ({ default: module.WorkspaceAnalyticsTab })));
 const DocsPage = lazy(() => import("@/features/docs/docs-page").then((module) => ({ default: module.DocsPage })));
 
 export function App(): JSX.Element {
@@ -37,6 +40,9 @@ export function App(): JSX.Element {
           <Route path="workspaces/:workspace" element={<WorkspaceLayout />}>
             <Route index element={<WorkspaceSitesTab />} />
             <Route path="members" element={<MembersTab />} />
+            <Route path="invites" element={<InvitesTab />} />
+            <Route path="analytics" element={<Suspense fallback={<Spinner label="Loading analytics…" />}><WorkspaceAnalyticsTab /></Suspense>} />
+            <Route path="settings" element={<WorkspaceSettingsTab />} />
           </Route>
           <Route path="sites/:slug" element={<SiteLayout />}>
             <Route index element={<OverviewTab />} />
