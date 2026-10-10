@@ -73,6 +73,14 @@ type Summary struct {
 	Total    int
 	Verified int
 	Primary  string
+	Fallback string
+}
+
+func (s Summary) Address() string {
+	if s.Primary != "" {
+		return s.Primary
+	}
+	return s.Fallback
 }
 
 type Target struct {

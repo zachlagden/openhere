@@ -122,10 +122,10 @@ func TestSummaries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got[first] != (Summary{Total: 2, Verified: 1, Primary: "a.example.org"}) {
+		if got[first] != (Summary{Total: 2, Verified: 1, Primary: "a.example.org", Fallback: "a.example.org"}) {
 			t.Errorf("first = %+v", got[first])
 		}
-		if got[second] != (Summary{Total: 1, Verified: 1}) {
+		if got[second] != (Summary{Total: 1, Verified: 1, Fallback: "c.example.org"}) {
 			t.Errorf("second = %+v", got[second])
 		}
 		if _, present := got[empty]; present {
@@ -134,5 +134,26 @@ func TestSummaries(t *testing.T) {
 		if none, err := e.svc.Summaries(context.Background(), nil); err != nil || len(none) != 0 {
 			t.Errorf("Summaries(nil) = %v, %v", none, err)
 		}
+	})
+}
+
+func TestServesSiteMatchesOnlyTheOwningSiteAndHonoursTheSwitch(t *testing.T) {
+	each(t, func(t *testing.T, e *env) {
+		owner, other := e.site("launch"), e.site("guides")
+		e.verified(owner, "live.example.org")
+		pending := e.claim(owner, "pending.example.org")
+		check := func(siteID, host string, want bool) {
+			t.Helper()
+			got, err := e.svc.ServesSite(context.Background(), siteID, host)
+			if err != nil || got != want {
+				t.Errorf("ServesSite(%q) = %v, %v, want %v", host, got, err, want)
+			}
+		}
+		check(owner, "live.example.org", true)
+		check(other, "live.example.org", false)
+		check(owner, pending.Name, false)
+		check(owner, "unknown.example.org", false)
+		e.set(`{"hosting.customDomainsEnabled": false}`)
+		check(owner, "live.example.org", false)
 	})
 }

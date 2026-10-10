@@ -41,3 +41,18 @@ func (s *Service) load(ctx context.Context, host string) (Target, bool, error) {
 	}
 	return target, true, nil
 }
+
+func (s *Service) ServesSite(ctx context.Context, siteID, host string) (bool, error) {
+	cfg, err := s.settings.Get(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !cfg.CustomDomainsEnabled {
+		return false, nil
+	}
+	target, serves, err := s.Lookup(ctx, host)
+	if err != nil {
+		return false, err
+	}
+	return serves && target.SiteID == siteID, nil
+}

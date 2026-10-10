@@ -64,6 +64,9 @@ func (s *Service) Summaries(ctx context.Context, siteIDs []string) (map[string]S
 		summary.Total++
 		if verified {
 			summary.Verified++
+			if summary.Fallback == "" || name < summary.Fallback {
+				summary.Fallback = name
+			}
 		}
 		if primary {
 			summary.Primary = name
