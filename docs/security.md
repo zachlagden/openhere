@@ -101,7 +101,7 @@ The server creates `DATA_DIR` and its subdirectories with mode 0700 and the SQLi
 
 The server stores coarse values derived from each request, a keyed daily visitor hash and, only when you configure GeoLite2, a country and city. It never stores the IP address. See [Analytics](analytics.md) for the exact list.
 
-## Known limits
+## Known limits and trade-offs
 
 - Rate limit counters and the upload and finalize locks live in process memory. Run one server process per `DATA_DIR`. Horizontal scaling is unsupported: two processes on one data directory break the locks, and two processes with separate directories would each hold different files.
 - A process restart resets rate limits.
@@ -110,3 +110,7 @@ The server stores coarse values derived from each request, a keyed daily visitor
 - A path-mode site runs with the dashboard's origin as its parent, protected only by the sandbox policy.
 - The gate page of a gated site reveals that the slug exists.
 - Built-in HTTPS accepts the certificate authority's terms of service on your behalf.
+- A gated site in path mode sets its viewer cookie with `SameSite=None`, because the sandboxed page has an opaque origin. A page on another site that a signed-in viewer visits can therefore load that site's gated scripts and styles with the viewer's cookie attached. Use subdomain or custom domain mode for gated sites that hold anything private.
+- Tenant sites on subdomains of the dashboard host are siblings of the dashboard. JavaScript on one of them can set cookies for the parent domain. The `__Host-` prefix keeps the session cookie safe, but other cookies on that domain are not. Use a separate registrable base domain for sites, for example `example.net` for sites and `example.com` for the dashboard.
+- The response time of a code request differs slightly between an address on the allowlist and one that is not, because the server sends mail for the first. The bodies, status codes and rate limits are identical, so a caller needs many timed requests to learn anything, and the per-address and per-IP limits cap those.
+- A person who creates an invite sees the invite link, so they can accept it themselves and set the password of the new account. The invitee can recover the account with a password reset. Invite errors such as `email_registered` and `user_not_found` also tell the people allowed to invite which addresses already have an account.
