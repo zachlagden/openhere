@@ -113,11 +113,18 @@ func writeServerBusy(w http.ResponseWriter) {
 	})
 }
 
+func routeLabel(r *http.Request) string {
+	if r.Pattern == "" {
+		return "unmatched"
+	}
+	return r.Pattern
+}
+
 func (s *Server) writeInternal(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, hashlimit.ErrBusy) {
 		writeServerBusy(w)
 		return
 	}
-	s.logger.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
+	s.logger.Error("request failed", "method", r.Method, "route", routeLabel(r), "error", err)
 	writeError(w, http.StatusInternalServerError, codeInternal, "Something went wrong.")
 }
