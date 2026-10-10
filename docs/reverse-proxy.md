@@ -13,6 +13,8 @@ Statements about the server come from its code and tests. Statements about Traef
 
 Do not set `TRUSTED_PROXIES` to a range that clients can reach. A client in that range could then forge its address.
 
+The server does not warn at startup when `X-Forwarded-For` or `X-Real-IP` arrives from an address outside `TRUSTED_PROXIES`, and it ignores those headers. Check your setup once: if every client shares one rate limit, or the analytics show one visitor, the proxy's address is missing from `TRUSTED_PROXIES`.
+
 ## Which names the proxy must route
 
 | Mode | Hosts to route to the server |

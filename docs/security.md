@@ -62,7 +62,7 @@ Publishing is limited by quota instead of rate. A site may hold 3 pending versio
 
 Authenticated API calls outside this table, such as publishing and listing, have no rate limit. Put a limit on the proxy if you need one.
 
-The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.
+The server tracks up to 50,000 limit keys at a time. When that many are in use, it first drops expired ones, then the 5% with the oldest windows. A flood of unique keys can therefore reset the oldest counters but never a newer one. The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.
 
 ## Connection timeouts
 
