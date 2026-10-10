@@ -1,5 +1,5 @@
 import { check } from "./checks.mjs";
-import { publishSite } from "./publish.mjs";
+import { apiCall, publishSite } from "./publish.mjs";
 
 export const CREDENTIALS = { email: "alex@example.com", password: "a long example password" };
 
@@ -108,4 +108,27 @@ export async function fullFlow(page, server, shot) {
   await signOut(page);
   await shot("login");
   await signIn(page, server.baseUrl);
+  return key;
+}
+
+export async function prepareServer(page, server) {
+  await page.goto(`${server.baseUrl}/`);
+  await page.getByRole("heading", { name: "Set up your server" }).waitFor();
+  await page.getByLabel("Setup token").fill(server.setupToken);
+  await page.getByLabel("Email").fill(CREDENTIALS.email);
+  await page.getByLabel("Password", { exact: true }).fill(CREDENTIALS.password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("heading", { name: "Sites", level: 1 }).waitFor();
+  const key = await createApiKey(page, server.baseUrl);
+  const { workspaces } = await apiCall(server.baseUrl, key, "GET", "/workspaces");
+  const personal = workspaces.find((workspace) => workspace.kind === "personal");
+  await apiCall(server.baseUrl, key, "POST", `/workspaces/${personal.slug}/folders`, { name: "Reports" });
+  await publishSite(server.baseUrl, key, {
+    slug: "launch-page",
+    displayName: "Launch page",
+    folder: "Reports",
+    files: { "index.html": "<!doctype html><title>Launch</title><h1>Launch</h1>" },
+  });
+  await page.reload();
+  return key;
 }

@@ -4,9 +4,13 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { accountFlow } from "./account-flow.mjs";
+import { adminFlow } from "./admin-flow.mjs";
 import { watchConsole } from "./checks.mjs";
-import { fullFlow, signIn } from "./flow.mjs";
+import { fullFlow, prepareServer } from "./flow.mjs";
+import { siteFlow } from "./site-flow.mjs";
 import { startServer } from "./server.mjs";
+import { teamFlow } from "./team-flow.mjs";
 import { tour } from "./tour.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -38,37 +42,56 @@ const COMBOS = [
   { name: "phone-dark", viewport: { width: 390, height: 844 }, colorScheme: "dark", mobile: true },
 ];
 
+async function runCombo(browser, combo, index, problems) {
+  const server = await startServer(buildBinary());
+  const context = await browser.newContext({
+    viewport: combo.viewport,
+    colorScheme: combo.colorScheme,
+    isMobile: combo.mobile ?? false,
+    hasTouch: combo.mobile ?? false,
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  try {
+    const page = await context.newPage();
+    watchConsole(page, combo.name, problems);
+    const shot = (name) => page.screenshot({ path: path.join(outDir, `${combo.name}-${name}.png`), fullPage: true });
+    const key = index === 0 ? await fullFlow(page, server, shot) : await prepareServer(page, server);
+    const flowContext = {
+      page,
+      server,
+      shot,
+      key,
+      browser,
+      combo,
+      problems,
+      watch: (other, name) => watchConsole(other, `${combo.name} ${name}`, problems),
+      shotOf: (other, name) => other.screenshot({ path: path.join(outDir, `${combo.name}-${name}.png`), fullPage: true }),
+    };
+    await siteFlow(flowContext);
+    await accountFlow(flowContext);
+    await teamFlow(flowContext);
+    await adminFlow(flowContext);
+    await tour(page, combo.name, shot, problems);
+  } finally {
+    await context.close();
+    await server.stop();
+  }
+}
+
 async function main() {
   const { chromium } = loadPlaywright();
   mkdirSync(outDir, { recursive: true });
-  const server = await startServer(buildBinary());
+  const binary = buildBinary();
+  process.env.SELFHOST_BIN = binary;
   const browser = await chromium.launch({ executablePath: chromePath, headless: true });
   const problems = [];
   try {
     for (const [index, combo] of COMBOS.entries()) {
-      const context = await browser.newContext({
-        viewport: combo.viewport,
-        colorScheme: combo.colorScheme,
-        isMobile: combo.mobile ?? false,
-        hasTouch: combo.mobile ?? false,
-        permissions: ["clipboard-read", "clipboard-write"],
-      });
-      const page = await context.newPage();
-      watchConsole(page, combo.name, problems);
-      const shot = (name) => page.screenshot({ path: path.join(outDir, `${combo.name}-${name}.png`), fullPage: true });
-      if (index === 0) {
-        await fullFlow(page, server, shot);
-      } else {
-        await page.goto(`${server.baseUrl}/`);
-        await signIn(page, server.baseUrl);
-      }
-      await tour(page, combo.name, shot, problems);
-      await context.close();
+      await runCombo(browser, combo, index, problems);
       console.log(`ok ${combo.name}`);
     }
   } finally {
     await browser.close();
-    await server.stop();
   }
   if (problems.length > 0) {
     console.error(problems.join("\n"));
