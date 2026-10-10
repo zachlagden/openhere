@@ -1,4 +1,4 @@
-import type { Folder, Site, User, Workspace } from "@/api/types";
+import type { Domain, Folder, Instance, Site, User, Workspace } from "@/api/types";
 
 export const alex: User = {
   id: "u1",
@@ -56,6 +56,34 @@ export function makeSite(overrides: Partial<Site> = {}): Site {
     role: "admin",
     createdAt: "2026-03-01T10:00:00Z",
     updatedAt: "2026-03-01T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export const instanceInfo: Instance = {
+  publicUrl: "https://sites.example.com",
+  version: "1.0.0",
+  emailAvailable: false,
+  canCreateWorkspaces: true,
+  hostingModes: { subdomain: false, path: true, customDomains: true },
+  maxDomainsPerSite: 3,
+  whoCanInvite: "root",
+  agentCredentialsDir: ".selfhost",
+  agentCredentialsPath: "~/.selfhost/credentials",
+};
+
+export function makeDomain(overrides: Partial<Domain> = {}): Domain {
+  return {
+    id: "d1",
+    domain: "docs.example.org",
+    status: "pending_verification",
+    challenge: { recordType: "TXT", name: "_selfhost-challenge.docs.example.org", value: "ab12cd34ef56" },
+    target: { recordType: "CNAME", value: "sites.example.com", note: "Use an ALIAS or flattened CNAME record on an apex domain." },
+    isPrimary: false,
+    verifiedAt: null,
+    lastCheckedAt: null,
+    lastCheckResult: null,
+    createdAt: "2026-03-01T10:00:00Z",
     ...overrides,
   };
 }

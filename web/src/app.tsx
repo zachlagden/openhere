@@ -6,6 +6,7 @@ import { ResetConfirmPage } from "@/features/auth/reset-confirm-page";
 import { ResetRequestPage } from "@/features/auth/reset-request-page";
 import { SetupPage } from "@/features/auth/setup-page";
 import { AccessTab } from "@/features/site-detail/access-tab";
+import { DomainsTab } from "@/features/site-detail/domains-tab";
 import { OverviewTab } from "@/features/site-detail/overview-tab";
 import { SiteLayout } from "@/features/site-detail/site-layout";
 import { SettingsPage } from "@/features/settings/settings-page";
@@ -32,6 +33,7 @@ export function App(): JSX.Element {
           <Route path="sites/:slug" element={<SiteLayout />}>
             <Route index element={<OverviewTab />} />
             <Route path="access" element={<AccessTab />} />
+            <Route path="domains" element={<DomainsTab />} />
           </Route>
           <Route
             path="docs/*"
