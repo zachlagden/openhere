@@ -1569,10 +1569,12 @@ paths:
         with 400 `validation_failed`.
 
         The new domain is `pending_verification` and serves nothing. Publish the `challenge` TXT record, then call
-        `POST /sites/{slug}/domains/{id}/verify`. A claim blocks every other site from the same name even while
-        it is pending. A pending claim that is not verified within 7 days is released.
+        `POST /sites/{slug}/domains/{id}/verify`. Other sites can claim the same name while it is pending, so a pending claim
+        cannot block the real owner. The first site whose TXT record verifies takes the name, and the server deletes
+        every competing pending claim. A pending claim that is not verified within 7 days is released.
 
-        A name another site already holds returns 409 `domain_taken`, whether that claim is pending or verified.
+        A name that a site has already verified returns 409 `domain_taken`, and so does a second claim of the same
+        name by the same site. The response does not say which site holds the name.
         A site that already holds `hosting.maxDomainsPerSite` domains gets 409 `domain_limit_reached`.
       requestBody:
         required: true

@@ -69,7 +69,9 @@ func TestDomainValidationAndConflicts(t *testing.T) {
 		}
 		s.alex.addDomain("guarded", customName)
 		s.alex.expectError(http.StatusConflict, "domain_taken", "POST", domainsPath("guarded"), domainCreateRequest{Domain: customName})
-		s.alex.expectError(http.StatusConflict, "domain_taken", "POST", domainsPath("other"), domainCreateRequest{Domain: "WWW.example.org"})
+		s.alex.addDomain("other", "WWW.example.org")
+		s.alex.verifiedDomain("guarded", "taken.example.org")
+		s.alex.expectError(http.StatusConflict, "domain_taken", "POST", domainsPath("other"), domainCreateRequest{Domain: "Taken.example.org"})
 		s.alex.expectError(http.StatusBadRequest, "invalid_json", "POST", domainsPath("guarded"), `{"domain": "a.example.org", "extra": 1}`)
 	})
 }
@@ -244,4 +246,22 @@ func TestBaseDomainCannotMoveOverACustomDomain(t *testing.T) {
 
 func settingsPatch(key string, value any) map[string]any {
 	return map[string]any{"settings": map[string]any{key: value}}
+}
+
+func TestAVerifyingSiteDisplacesAnUnverifiedClaimOnTheSameName(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		s := newAccessSetup(t, newHarness(t, db, harnessOptions{}))
+		s.alex.publishLive("other", siteFiles{"index.html": "other"})
+		squatted := s.alex.addDomain("other", customName)
+		owner := s.alex.addDomain("guarded", customName)
+		if squatted.Status != owner.Status {
+			t.Errorf("claims differ in status: %q and %q", squatted.Status, owner.Status)
+		}
+		s.h.dns.publish(owner.Challenge.Name, owner.Challenge.Value)
+		if result := s.alex.verifyDomain("guarded", owner.ID); !result.Verified {
+			t.Fatalf("owner did not verify: %+v", result)
+		}
+		s.alex.expectError(http.StatusNotFound, "not_found", "GET", domainsPath("other")+"/"+squatted.ID, nil)
+		s.alex.expectError(http.StatusConflict, "domain_taken", "POST", domainsPath("other"), domainCreateRequest{Domain: customName})
+	})
 }

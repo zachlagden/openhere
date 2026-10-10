@@ -140,11 +140,14 @@ func TestVerifyAllowsOnlyOneClaimantToTakeADomain(t *testing.T) {
 		first, second := e.site("launch"), e.site("guides")
 		a := e.claim(first, "www.example.org")
 		e.publishChallenge(a)
-		if _, err := e.svc.Claim(context.Background(), second, "www.example.org"); !isErr(err, ErrTaken) {
+		if _, err := e.svc.Claim(context.Background(), second, "www.example.org"); err != nil {
 			t.Fatalf("second claim = %v", err)
 		}
 		if _, err := e.svc.Verify(context.Background(), first, a.ID); err != nil {
 			t.Fatal(err)
+		}
+		if _, err := e.svc.Claim(context.Background(), second, "www.example.org"); !isErr(err, ErrTaken) {
+			t.Fatalf("claim after verification = %v", err)
 		}
 		target, ok, err := e.svc.Lookup(context.Background(), "www.example.org")
 		if err != nil || !ok || target.SiteID != first || target.Slug != "launch" {
