@@ -11,7 +11,23 @@ import (
 	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/selfhost/internal/ui"
 )
+
+func newDashboard(logger *slog.Logger) (*ui.Shell, error) {
+	files, err := ui.Dist()
+	if err != nil {
+		return nil, err
+	}
+	shell, err := ui.New(files)
+	if err != nil {
+		return nil, err
+	}
+	if !shell.Built() {
+		logger.Warn("the dashboard is not built into this binary; run \"pnpm --dir web build\" and rebuild")
+	}
+	return shell, nil
+}
 
 type application struct {
 	handler        http.Handler

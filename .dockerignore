@@ -1,8 +1,5 @@
 .git
-.github
-.env
-.env.*
-data
-*.db
-IDEA.md
-research
+web/node_modules
+web/e2e/output
+internal/ui/bundle/*
+!internal/ui/bundle/.gitkeep

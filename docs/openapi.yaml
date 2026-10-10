@@ -28,6 +28,10 @@ info:
     A site can also be served at custom domains the owner proves they control with a DNS TXT record (see the
     Domains tag). A domain serves nothing until its TXT record has been verified.
 
+    The server also serves the dashboard, a single page app, on the management host at every path outside
+    `/api/`, `/s/` and `/.well-known/`. Those files are public static files and hold nothing specific to the
+    instance.
+
     Published sites are not part of this API. The server serves a site's live version at
     `https://{slug}.{baseDomain}/` (subdomain mode) and at `{publicUrl}/s/{slug}/` (path mode). A site is open
     to anyone with the link unless its access mode says otherwise (see the Access tag). Each site response
@@ -56,6 +60,7 @@ tags:
   - name: Setup
   - name: Auth
   - name: Account
+  - name: Instance
   - name: Workspaces
   - name: Members
   - name: Folders
@@ -426,6 +431,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /instance:
+    get:
+      tags: [Instance]
+      operationId: getInstance
+      summary: Describe the instance for a signed-in user
+      description: |
+        Facts a client needs to set itself up: the public URL, the version, whether the instance can send email,
+        which hosting modes are on, whether the caller may create shared workspaces (the
+        `workspaces.whoCanCreate` setting) and where agents keep their credentials. It holds nothing only the
+        root user may see.
+      responses:
+        "200":
+          description: The instance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instance"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /docs/openapi.yaml:
+    get:
+      tags: [Instance]
+      operationId: getOpenApiDocument
+      summary: Download this OpenAPI document
+      description: The document the running server was built with. Needs a signed-in user or an API key.
+      responses:
+        "200":
+          description: The OpenAPI document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /docs/agent-guide.md:
+    get:
+      tags: [Instance]
+      operationId: getAgentGuide
+      summary: Download the guide for agents
+      description: |
+        A Markdown guide that tells an agent how to authenticate, publish a folder and manage sites. Needs a
+        signed-in user or an API key.
+      responses:
+        "200":
+          description: The guide.
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
   /workspaces:
     get:
       tags: [Workspaces]
@@ -1971,8 +2027,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "415":
           $ref: "#/components/responses/BadRequest"
-        "415":
-          $ref: "#/components/responses/BadRequest"
   /admin/email/test:
     post:
       tags: [Admin]
@@ -2161,8 +2215,6 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-        "429":
-          $ref: "#/components/responses/RateLimited"
         "429":
           $ref: "#/components/responses/RateLimited"
 
@@ -2403,6 +2455,39 @@ components:
           items:
             type: string
           description: Paths to upload again. Present on `missing_files`.
+    Instance:
+      type: object
+      required: [publicUrl, version, emailAvailable, canCreateWorkspaces, hostingModes, agentCredentialsDir, agentCredentialsPath]
+      properties:
+        publicUrl:
+          type: string
+          description: The address people use for the dashboard and the API, without a trailing slash.
+          examples: ["https://sites.example.com"]
+        version:
+          type: string
+          description: The server version, or `dev` for a development build.
+        emailAvailable:
+          type: boolean
+          description: Whether the instance can send email now.
+        canCreateWorkspaces:
+          type: boolean
+          description: Whether the caller may create shared workspaces. False when `workspaces.whoCanCreate` is `root` and the caller is not the root user.
+        hostingModes:
+          type: object
+          required: [subdomain, path, customDomains]
+          properties:
+            subdomain:
+              type: boolean
+            path:
+              type: boolean
+            customDomains:
+              type: boolean
+        agentCredentialsDir:
+          type: string
+          examples: [".selfhost"]
+        agentCredentialsPath:
+          type: string
+          examples: ["~/.selfhost/credentials"]
     SetupStatus:
       type: object
       required: [setupRequired]

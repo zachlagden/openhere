@@ -1,0 +1,135 @@
+# Agent guide
+
+This guide tells an AI agent how to publish and manage static sites on this instance. A site is a folder of already built files. The instance serves it at an address it returns to you.
+
+All paths below are relative to the instance URL and start with `/api/v1`. Bodies are JSON unless a step says otherwise. The full reference is `GET /api/v1/docs/openapi.yaml`.
+
+## Authenticate
+
+Read `~/.selfhost/credentials` first. It is a JSON file with the instance URL and an API key:
+
+```json
+{"url": "https://sites.example.com", "key": "sk_..."}
+```
+
+If the file exists, use its `url` and send the key with every request as `Authorization: Bearer <key>`. If a request returns 401, the key was revoked, so ask the user for access again.
+
+If the file does not exist, get a key in one of two ways.
+
+### Email code
+
+Use this when the instance can send email.
+
+1. `POST /api/v1/auth/agent/request-code` with `{"email": "<the user's email>"}`. The response is the same for every address.
+2. Ask the user for the 8-digit code that arrives in their inbox. A code lasts 10 minutes and works once.
+3. `POST /api/v1/auth/agent/verify-code` with `{"email": "...", "code": "12345678", "label": "<your agent name>"}`. The response holds the key once.
+4. Save `{"url": "<instance URL>", "key": "<key>"}` to `~/.selfhost/credentials`. Create the directory with mode 0700 and the file with mode 0600.
+
+If `request-code` returns 409 `email_not_configured`, the instance cannot send email. Use an API key instead.
+
+### API key
+
+Ask the user to create a key in the dashboard under Settings, API keys, and to paste it to you. Save it to `~/.selfhost/credentials` as shown above.
+
+A key has the full access of its user. Never print it, log it or commit it.
+
+## Publish a folder
+
+Publishing takes three calls. Nothing goes live until the last one succeeds.
+
+### 1. Describe the files
+
+Walk the built folder. For every file, work out its path relative to the folder (use `/` separators), its size in bytes, its SHA-256 as 64 hex characters and, if you know it, its content type.
+
+For a new site:
+
+```
+POST /api/v1/publish
+{
+  "displayName": "Launch page",
+  "spaMode": false,
+  "files": [
+    {"path": "index.html", "size": 1204, "sha256": "<64 hex characters>", "contentType": "text/html; charset=utf-8"},
+    {"path": "assets/app.js", "size": 53211, "sha256": "<64 hex characters>"}
+  ]
+}
+```
+
+All body fields except `files` are optional:
+
+- `slug` picks the site name. The server generates one such as `quiet-meadow-k3p7` when you leave it out. A slug uses lowercase letters, digits and hyphens, and cannot change later.
+- `workspace` is a workspace slug or id. Without it the server uses the `X-Workspace` header, then the user's personal workspace.
+- `folder` is a folder id or name in that workspace.
+- `spaMode` serves `index.html` for unknown paths that have no file extension. Turn it on for single page apps.
+
+To publish a new version of an existing site, send `PUT /api/v1/publish/{slug}` with `files` and, to detect conflicts, `"baseVersionId": "<the live version id>"`. List every file of the new version, not only the changed ones.
+
+The response holds `slug`, `versionId`, `url`, an `uploads` array and a `finalizeUrl`.
+
+### 2. Upload every file
+
+For each entry in `uploads`, send `PUT <url>` with the raw file bytes as the body. Use the same `Authorization` header and add the headers the entry lists. The server checks the size and hash against the manifest and stores nothing on a mismatch. The upload `url` is a path on the instance, so prefix it with the instance URL.
+
+### 3. Finalize
+
+`POST <finalizeUrl>` makes the version live. If any file is missing or damaged, the response is 409 `missing_files` and `missing` lists the paths. Upload those files again and call finalize again. Calling finalize on a finalized version returns the same result.
+
+The response includes the site `url` and a `hosting` object. Tell the user the `url`. If `hosting.reachable` is false, read `hosting.notices` and tell the user what they say.
+
+A pending version that is not finalized within 24 hours expires.
+
+## Manage sites
+
+| Task | Call |
+|---|---|
+| List sites you can reach | `GET /api/v1/sites?q=<text>&workspace=<slug>&folder=<id or none>&limit=50&cursor=<nextCursor>` |
+| Read one site | `GET /api/v1/sites/{slug}` |
+| Rename, move or change SPA mode | `PATCH /api/v1/sites/{slug}` with `displayName`, `description`, `folderId` (null for unfiled), `spaMode`, `analyticsEnabled` |
+| Delete a site | `DELETE /api/v1/sites/{slug}` |
+| List versions | `GET /api/v1/publish/{slug}/versions` |
+| Make an older version live | `POST /api/v1/publish/{slug}/versions/{versionId}/restore` |
+| Delete a version | `DELETE /api/v1/publish/{slug}/versions/{versionId}` |
+| List live files | `GET /api/v1/sites/{slug}/files` |
+
+## Workspaces and folders
+
+Every user has a personal workspace. Shared workspaces have members with the roles `admin`, `write` and `read`.
+
+| Task | Call |
+|---|---|
+| List workspaces | `GET /api/v1/workspaces` |
+| Create a shared workspace | `POST /api/v1/workspaces` with `{"name": "Acme Ltd"}` |
+| List folders | `GET /api/v1/workspaces/{workspace}/folders` |
+| Create a folder | `POST /api/v1/workspaces/{workspace}/folders` with `{"name": "Reports"}` |
+| Rename a folder | `PATCH /api/v1/workspaces/{workspace}/folders/{folder}` with `{"name": "..."}` |
+| Delete a folder | `DELETE /api/v1/workspaces/{workspace}/folders/{folder}` (its sites become unfiled) |
+
+Folders are flat and belong to one workspace. Names are unique per workspace regardless of case.
+
+## Access modes
+
+A new site is open to anyone with the link unless the instance default says otherwise. Change a site with `PATCH /api/v1/publish/{slug}/access`.
+
+| Mode | Who can open the site |
+|---|---|
+| `public` | Anyone with the link |
+| `password` | Anyone with the site's password. Send `{"mode": "password", "password": "<8 to 128 characters>"}` |
+| `restricted` | Instance users with read access, plus the addresses and domains on the allowlists. Send `emailAllowlist` and `domainAllowlist` to replace those lists |
+
+`GET /api/v1/publish/{slug}/access` shows the current settings. It never returns the password.
+
+## Errors
+
+Errors are JSON: `{"code": "...", "message": "...", "retry_after": 30}`. Branch on `code`, not on `message`.
+
+| Status | Meaning |
+|---|---|
+| 400 | `validation_failed`, `invalid_json` or `invalid_path`. Fix the request. |
+| 401 | `unauthenticated`. The key is missing or revoked. |
+| 403 | `forbidden`. The user can see the resource but their role does not allow the action. |
+| 404 | `not_found`. The resource does not exist or the user cannot see it. |
+| 409 | A conflict such as `slug_taken`, `version_conflict`, `missing_files` or `email_not_configured`. |
+| 413 | A limit was exceeded: `too_many_files`, `file_too_large`, `version_too_large` or `body_too_large`. |
+| 429 | `rate_limited`. Wait `retry_after` seconds before you try again. |
+
+On `version_conflict`, the site changed since you read it. Read `currentVersionId`, list the live files with `GET /api/v1/sites/{slug}/files`, rebuild your manifest and publish again.

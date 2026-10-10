@@ -15,6 +15,10 @@ type Users interface {
 	UserByID(ctx context.Context, id string) (auth.User, error)
 }
 
+func CanCreateShared(cfg settings.Settings, user auth.User) bool {
+	return cfg.WhoCanCreate != settings.CreateRoot || user.IsRoot
+}
+
 func MayCreateShared(settingsSvc *settings.Service, users Users) func(ctx context.Context, userID string) error {
 	return func(ctx context.Context, userID string) error {
 		current, err := settingsSvc.Get(ctx)
@@ -28,7 +32,7 @@ func MayCreateShared(settingsSvc *settings.Service, users Users) func(ctx contex
 		if err != nil {
 			return fmt.Errorf("load user for workspace creation: %w", err)
 		}
-		if !user.IsRoot {
+		if !CanCreateShared(current, user) {
 			return ErrSharedCreationRestricted
 		}
 		return nil
