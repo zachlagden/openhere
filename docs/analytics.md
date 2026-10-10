@@ -6,7 +6,7 @@ The server counts page views itself, from the requests it serves. It injects no 
 
 A view is an HTML document served to a `GET` request with status 200, or a custom `404.html` served with status 404. For each view the server stores:
 
-- the site, the time (to the second) and the request path without its query string or fragment, at most 200 characters. For a single-page app the path is the one the visitor asked for.
+- the site, the time (to the second) and the request path without its query string or fragment, at most 200 characters. The server counts a view only for a path that exists in the live version. A single-page app route that falls back to `index.html` counts as `/`, and a custom `404.html` counts under the path `/(not found)`, which appears in the status list and never in the page list. A request for a path that exists nowhere creates no view of its own. Each site stores at most 1000 distinct paths per day. Further paths count under `/(other)`. One visitor can add 120 views a minute, and bots 600 a minute per site. The server drops the rest.
 - the status class, `2xx` or `4xx`.
 - the host of the referring page, such as `news.example.org`, never the path or query. It is empty when the visitor came from the same host or sent no `Referer`.
 - the browser family, the operating system family and the device type (`desktop`, `mobile`, `tablet`, `bot` or `other`), parsed from the `User-Agent` header.

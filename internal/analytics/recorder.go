@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zachlagden/selfhost/internal/ratelimit"
 	"github.com/zachlagden/selfhost/internal/store"
 )
 
@@ -17,6 +18,11 @@ const (
 	DefaultFlushInterval = 5 * time.Second
 	insertTimeout        = 30 * time.Second
 	maxCityLength        = 100
+
+	DefaultMaxPathsPerDay = 1000
+	DefaultVisitorPerMin  = 120
+	DefaultBotPerMin      = 600
+	rateWindow            = time.Minute
 )
 
 type Locator interface {
@@ -31,16 +37,23 @@ type RecorderOptions struct {
 	BufferSize    int
 	BatchSize     int
 	FlushInterval time.Duration
+
+	MaxPathsPerDay int
+	VisitorPerMin  int
+	BotPerMin      int
 }
 
 type Recorder struct {
-	db      store.Store
-	hasher  *Hasher
-	locator Locator
-	logger  *slog.Logger
-	now     func() time.Time
-	batch   int
-	every   time.Duration
+	db       store.Store
+	hasher   *Hasher
+	locator  Locator
+	logger   *slog.Logger
+	now      func() time.Time
+	batch    int
+	every    time.Duration
+	maxPaths int
+	visitors *ratelimit.Limiter
+	bots     *ratelimit.Limiter
 
 	mu      sync.RWMutex
 	closed  bool
@@ -72,8 +85,18 @@ func NewRecorder(db store.Store, opts RecorderOptions) *Recorder {
 	if size <= 0 {
 		size = DefaultBufferSize
 	}
+	r.maxPaths = valueOrDefault(opts.MaxPathsPerDay, DefaultMaxPathsPerDay)
+	r.visitors = ratelimit.New(valueOrDefault(opts.VisitorPerMin, DefaultVisitorPerMin), rateWindow, r.now)
+	r.bots = ratelimit.New(valueOrDefault(opts.BotPerMin, DefaultBotPerMin), rateWindow, r.now)
 	r.hits = make(chan Hit, size)
 	return r
+}
+
+func valueOrDefault(value, fallback int) int {
+	if value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func (r *Recorder) Start() {
@@ -187,7 +210,20 @@ func (r *Recorder) add(pending []Event, hit Hit) []Event {
 		r.dropped.Add(1)
 		return pending
 	}
+	if !r.withinRate(event) {
+		r.dropped.Add(1)
+		return pending
+	}
 	return append(pending, event)
+}
+
+func (r *Recorder) withinRate(event Event) bool {
+	if event.Visitor == "" {
+		allowed, _ := r.bots.Allow(event.SiteID)
+		return allowed
+	}
+	allowed, _ := r.visitors.Allow(event.Visitor)
+	return allowed
 }
 
 func (r *Recorder) write(events []Event) {
@@ -196,6 +232,7 @@ func (r *Recorder) write(events []Event) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), insertTimeout)
 	defer cancel()
+	events = r.foldPaths(ctx, events)
 	for start := 0; start < len(events); start += r.batch {
 		end := min(start+r.batch, len(events))
 		r.insert(ctx, events[start:end])

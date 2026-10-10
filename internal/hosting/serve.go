@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/zachlagden/selfhost/internal/analytics"
 	"github.com/zachlagden/selfhost/internal/proxy"
 	"github.com/zachlagden/selfhost/internal/sitefiles"
 )
@@ -44,7 +45,7 @@ func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, req
 		return
 	}
 	if found {
-		s.respondWithFile(w, r, fileResponse{site: site, rec: resolved.record, path: requestPath, status: http.StatusOK, private: target.private})
+		s.respondWithFile(w, r, fileResponse{site: site, rec: resolved.record, viewPath: requestPath, status: http.StatusOK, private: target.private})
 		return
 	}
 	s.serveMissing(w, r, site, requestPath, target.private)
@@ -52,11 +53,11 @@ func (s siteServer) serve(w http.ResponseWriter, r *http.Request, site Site, req
 
 func (s siteServer) serveMissing(w http.ResponseWriter, r *http.Request, site Site, requestPath string, private bool) {
 	if site.SPAMode && lacksExtension(requestPath) {
-		if s.serveNamed(w, r, fileResponse{site: site, path: requestPath, status: http.StatusOK, private: private}, indexFile) {
+		if s.serveNamed(w, r, fileResponse{site: site, viewPath: analytics.PathRoot, status: http.StatusOK, private: private}, indexFile) {
 			return
 		}
 	}
-	if s.serveNamed(w, r, fileResponse{site: site, path: requestPath, status: http.StatusNotFound, private: private}, notFoundFile) {
+	if s.serveNamed(w, r, fileResponse{site: site, viewPath: analytics.PathNotFound, status: http.StatusNotFound, private: private}, notFoundFile) {
 		return
 	}
 	writeNotFound(w, r)
@@ -77,11 +78,11 @@ func (s siteServer) serveNamed(w http.ResponseWriter, r *http.Request, resp file
 }
 
 type fileResponse struct {
-	site    Site
-	rec     fileRecord
-	path    string
-	status  int
-	private bool
+	site     Site
+	rec      fileRecord
+	viewPath string
+	status   int
+	private  bool
 }
 
 func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, resp fileResponse) {
@@ -110,7 +111,7 @@ func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, resp
 	} else {
 		writeStatusWithBody(recorded, r, file, info.Size(), resp.status)
 	}
-	s.countView(r, site, resp.path, contentType, recorded.status)
+	s.countView(r, site, resp.viewPath, contentType, recorded.status)
 }
 
 func writeStatusWithBody(w http.ResponseWriter, r *http.Request, file *os.File, size int64, status int) {
