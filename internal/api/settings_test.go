@@ -59,6 +59,8 @@ func TestSettingsReadAndUpdate(t *testing.T) {
 			"email.smtp.username":             "",
 			"email.smtp.passwordSet":          false,
 			"email.resend.apiKeySet":          false,
+			"tls.dnsProvider":                 "none",
+			"tls.cloudflareApiTokenSet":       false,
 		}
 		assertSettings(t, defaults, want)
 

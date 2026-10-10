@@ -221,3 +221,103 @@ func TestAgentCredentialsPath(t *testing.T) {
 		t.Errorf("AgentCredentialsPath = %q", got)
 	}
 }
+
+func tlsValues(overrides map[string]string) map[string]string {
+	values := map[string]string{
+		"TLS_ENABLED": "true",
+		"ACME_EMAIL":  "admin@example.com",
+		"PUBLIC_URL":  "https://sites.example.com",
+		"DATA_DIR":    "/srv/data",
+	}
+	for key, value := range overrides {
+		values[key] = value
+	}
+	return values
+}
+
+func TestTLSIsOffByDefault(t *testing.T) {
+	cfg, err := Load(lookupFrom(nil))
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.TLS.Enabled {
+		t.Errorf("TLS enabled by default: %+v", cfg.TLS)
+	}
+}
+
+func TestTLSDefaultsWhenEnabled(t *testing.T) {
+	cfg, err := Load(lookupFrom(tlsValues(nil)))
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	want := TLS{
+		Enabled: true, HTTPAddr: ":80", HTTPSAddr: ":443", Email: "admin@example.com",
+		CA: "https://acme-v02.api.letsencrypt.org/directory", Storage: "/srv/data/certs",
+	}
+	if cfg.TLS != want {
+		t.Errorf("TLS = %+v, want %+v", cfg.TLS, want)
+	}
+	if cfg.TLS.HTTPPort() != "80" || cfg.TLS.HTTPSPort() != "443" {
+		t.Errorf("ports = %s, %s", cfg.TLS.HTTPPort(), cfg.TLS.HTTPSPort())
+	}
+}
+
+func TestTLSOverrides(t *testing.T) {
+	cfg, err := Load(lookupFrom(tlsValues(map[string]string{
+		"TLS_HTTP_ADDR":  "0.0.0.0:8080",
+		"TLS_HTTPS_ADDR": "[::]:8443",
+		"ACME_CA":        "https://acme-staging-v02.api.letsencrypt.org/directory",
+		"ACME_CA_ROOT":   "/etc/ssl/ca.pem",
+		"TLS_STORAGE":    "/var/lib/certs",
+		"LISTEN_ADDR":    ":9999",
+	})))
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.TLS.HTTPAddr != "0.0.0.0:8080" || cfg.TLS.HTTPSAddr != "[::]:8443" || cfg.TLS.CARoot != "/etc/ssl/ca.pem" ||
+		cfg.TLS.Storage != "/var/lib/certs" || !strings.Contains(cfg.TLS.CA, "staging") {
+		t.Errorf("unexpected TLS config: %+v", cfg.TLS)
+	}
+}
+
+func TestTLSValidation(t *testing.T) {
+	cases := []struct {
+		name      string
+		overrides map[string]string
+		remove    string
+		want      string
+	}{
+		{"missing email", nil, "ACME_EMAIL", "ACME_EMAIL is required"},
+		{"bad email", map[string]string{"ACME_EMAIL": "Alex <admin@example.com>"}, "", "ACME_EMAIL must be a plain email"},
+		{"http public url", map[string]string{"PUBLIC_URL": "http://sites.example.com"}, "", "PUBLIC_URL must be set to an https://"},
+		{"missing public url", nil, "PUBLIC_URL", "PUBLIC_URL must be set to an https://"},
+		{"ip public url", map[string]string{"PUBLIC_URL": "https://203.0.113.5"}, "", "host name, not an IP address"},
+		{"bad http addr", map[string]string{"TLS_HTTP_ADDR": "eighty"}, "", "TLS_HTTP_ADDR"},
+		{"bad https addr", map[string]string{"TLS_HTTPS_ADDR": "443"}, "", "TLS_HTTPS_ADDR"},
+		{"same port", map[string]string{"TLS_HTTP_ADDR": ":8443", "TLS_HTTPS_ADDR": "127.0.0.1:8443"}, "", "different ports"},
+		{"bad ca", map[string]string{"ACME_CA": "ftp://ca.example.com"}, "", "ACME_CA must be"},
+		{"bad flag", map[string]string{"TLS_ENABLED": "maybe"}, "", "TLS_ENABLED"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			values := tlsValues(tc.overrides)
+			if tc.remove != "" {
+				delete(values, tc.remove)
+			}
+			_, err := Load(lookupFrom(values))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %v, want one containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestTLSSettingsAreIgnoredWhenDisabled(t *testing.T) {
+	cfg, err := Load(lookupFrom(map[string]string{"TLS_HTTP_ADDR": "bad", "ACME_CA": "bad"}))
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.TLS.Enabled {
+		t.Errorf("TLS should stay off: %+v", cfg.TLS)
+	}
+}

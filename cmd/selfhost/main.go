@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -89,40 +87,39 @@ func serve(cfg config.Config, logger *slog.Logger) error {
 	}
 	defer closeStore(db, logger)
 
-	handler, stopMaintenance, err := buildHandler(ctx, cfg, db, logger)
+	app, err := buildApp(ctx, cfg, db, logger)
 	if err != nil {
 		return err
 	}
-	defer stopMaintenance()
+	defer app.stop()
 
-	srv := &http.Server{
-		Addr:              cfg.ListenAddr,
-		Handler:           handler,
-		ReadHeaderTimeout: readHeaderTimeout,
-	}
-	return runServer(ctx, srv, logger)
+	return runServers(ctx, app.servers(cfg), app.start, logger)
 }
 
-func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger *slog.Logger) (http.Handler, func(), error) {
+func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *slog.Logger) (*application, error) {
 	svc, err := auth.New(db, auth.Options{KeyPrefix: cfg.APIKeyPrefix, Logger: logger})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	gate, err := newSetupGate(ctx, svc, logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	files, err := sitefiles.New(cfg.DataDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	box, err := secrets.Resolve(cfg.SecretKey, cfg.DataDir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load secret key: %w", err)
+		return nil, fmt.Errorf("load secret key: %w", err)
 	}
 	resolver := hosting.NewResolver(db, nil)
 	settingsSvc := settings.New(db, settings.Options{DefaultBaseDomain: cfg.PublicURL.Host, Secrets: box})
 	domainSvc := domains.New(db, settingsSvc, domains.Options{ManagementHost: cfg.PublicURL.Host, Logger: logger})
+	certManager, err := newCertManager(cfg, settingsSvc, box, domainSvc, logger)
+	if err != nil {
+		return nil, err
+	}
 	siteChanged := func(slug string) {
 		resolver.Invalidate(slug)
 		domainSvc.Invalidate()
@@ -143,11 +140,12 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
 		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
+		TLS: tlsReporter(certManager),
 	})
 	router := hosting.New(server.Handler(), settingsSvc, db, files,
 		hosting.Options{
 			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
-			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc,
+			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled,
 		})
 
 	stop := startBackground(ctx, svc, checker,
@@ -156,7 +154,7 @@ func buildHandler(ctx context.Context, cfg config.Config, db store.Store, logger
 		auth.MaintenanceTask{Name: "access", Run: accessSvc.Purge},
 		auth.MaintenanceTask{Name: "password reset", Run: resetSvc.Purge},
 		auth.MaintenanceTask{Name: "agent codes", Run: agentSvc.Purge})
-	return router, stop, nil
+	return &application{handler: router, certs: certManager, stopBackground: stop}, nil
 }
 
 func startBackground(ctx context.Context, svc *auth.Service, checker *hosting.Checker, tasks ...auth.MaintenanceTask) func() {
@@ -226,33 +224,4 @@ func closeStore(db store.Store, logger *slog.Logger) {
 	if err := db.Close(); err != nil {
 		logger.Error("close store", "error", err)
 	}
-}
-
-func runServer(ctx context.Context, srv *http.Server, logger *slog.Logger) error {
-	failed := make(chan error, 1)
-	go func() {
-		logger.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			failed <- err
-		}
-		close(failed)
-	}()
-
-	select {
-	case err := <-failed:
-		if err != nil {
-			return fmt.Errorf("listen: %w", err)
-		}
-		return nil
-	case <-ctx.Done():
-		logger.Info("shutting down")
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown: %w", err)
-	}
-	logger.Info("stopped")
-	return nil
 }

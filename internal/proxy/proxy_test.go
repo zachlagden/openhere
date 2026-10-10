@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
@@ -78,5 +79,34 @@ func TestLimiterKeyAggregatesIPv6Subnets(t *testing.T) {
 	}
 	if got := LimiterKey(netip.Addr{}); got != "unknown" {
 		t.Errorf("invalid key = %s", got)
+	}
+}
+
+func TestIsHTTPSCountsTheRequestsOwnTLSState(t *testing.T) {
+	cases := []struct {
+		name   string
+		trust  Trust
+		remote string
+		proto  string
+	}{
+		{"no proxies configured", Trust{}, "203.0.113.5:443", ""},
+		{"untrusted peer sends http", Trust{}, "203.0.113.5:443", "http"},
+		{"trusted peer sends http", Trust{Prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}}, "10.0.0.2:443", "http"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/", nil)
+			req.RemoteAddr = tc.remote
+			if tc.proto != "" {
+				req.Header.Set("X-Forwarded-Proto", tc.proto)
+			}
+			if tc.trust.IsHTTPS(req) {
+				t.Fatal("plain request counted as HTTPS")
+			}
+			req.TLS = &tls.ConnectionState{}
+			if !tc.trust.IsHTTPS(req) {
+				t.Error("a request with its own TLS state did not count as HTTPS")
+			}
+		})
 	}
 }

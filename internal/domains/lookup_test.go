@@ -157,3 +157,23 @@ func TestServesSiteMatchesOnlyTheOwningSiteAndHonoursTheSwitch(t *testing.T) {
 		check(owner, "live.example.org", false)
 	})
 }
+
+func TestVerifiedNamesListsOnlyVerifiedDomains(t *testing.T) {
+	each(t, func(t *testing.T, e *env) {
+		siteID := e.site("launch")
+		e.claim(siteID, "pending.example.org")
+		e.verified(siteID, "b.example.org")
+		e.verified(siteID, "a.example.org")
+		names, err := e.svc.VerifiedNames(context.Background(), 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(names) != 2 || names[0] != "a.example.org" || names[1] != "b.example.org" {
+			t.Errorf("names = %v", names)
+		}
+		limited, err := e.svc.VerifiedNames(context.Background(), 1)
+		if err != nil || len(limited) != 1 {
+			t.Errorf("limited = %v, %v", limited, err)
+		}
+	})
+}

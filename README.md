@@ -48,6 +48,93 @@ Set `PUBLIC_URL` to the address people use for the dashboard and API, for exampl
 
 For subdomain mode the proxy needs two more things. Create a wildcard DNS record, such as `*.sites.example.com`, that points to the server, and obtain a wildcard certificate for `*.sites.example.com` (DNS-01 validation) if the sites use HTTPS. Route every host under the wildcard to this server and keep the `Host` header.
 
+To let the server handle HTTPS itself and drop the proxy, see [Built-in HTTPS](#built-in-https).
+
+## Built-in HTTPS
+
+The server can terminate HTTPS itself and obtain its own certificates from an ACME certificate authority, so it runs without a reverse proxy. It is off by default. Behind a proxy such as Traefik on Coolify, leave `TLS_ENABLED` unset: the proxy owns TLS and nothing in this section applies.
+
+Built-in HTTPS changes which ports the process listens on, so you switch it on with environment variables, not with a setting. When it is on, `LISTEN_ADDR` is ignored and the server opens two listeners:
+
+- `TLS_HTTPS_ADDR` (default `:443`) serves everything over HTTPS, with HTTP/2 and TLS 1.2 or newer.
+- `TLS_HTTP_ADDR` (default `:80`) answers ACME HTTP-01 challenges and redirects every other request to the same host and path over HTTPS (301). It never reaches the API or any site.
+
+| Variable | Default | Description |
+|---|---|---|
+| `TLS_ENABLED` | `false` | Switches built-in HTTPS on. `PUBLIC_URL` must then be an `https://` URL. |
+| `TLS_HTTP_ADDR` | `:80` | Address of the challenge and redirect listener. |
+| `TLS_HTTPS_ADDR` | `:443` | Address of the HTTPS listener. |
+| `ACME_EMAIL` | none | Contact address for the ACME account. Required when `TLS_ENABLED` is true. |
+| `ACME_CA` | Let's Encrypt production | URL of the ACME directory. Use `https://acme-staging-v02.api.letsencrypt.org/directory` to test without hitting the production rate limits. |
+| `ACME_CA_ROOT` | unset | Path to a PEM file with the root certificate of a private CA, for an ACME server whose certificate the system does not trust, such as Pebble. |
+| `TLS_STORAGE` | `DATA_DIR/certs` | Directory for the ACME account key and the certificates. The server creates it with mode 0700, and certmagic writes key files with mode 0600. Back it up with `DATA_DIR`. |
+
+Setting `TLS_ENABLED` accepts the certificate authority's terms of service on your behalf.
+
+Start with the staging CA, confirm that the dashboard loads over HTTPS, then remove `ACME_CA`:
+
+```sh
+docker run -d --name selfhost \
+  -p 80:80 -p 443:443 \
+  -v selfhost-data:/data \
+  -e TLS_ENABLED=true \
+  -e PUBLIC_URL=https://sites.example.com \
+  -e ACME_EMAIL=alex@example.com \
+  -e ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory \
+  selfhost
+```
+
+The default `TLS_STORAGE` lives inside the `/data` volume, so the certificates survive a restart. Binding ports 80 and 443 needs no extra setup in Docker. When you run the binary directly as a non-root user, grant it the capability with `setcap 'cap_net_bind_service=+ep' ./selfhost` or choose higher ports and forward to them.
+
+### Which names get a certificate
+
+1. **The management host** (the host of `PUBLIC_URL`) gets a certificate when the server starts and renews it on its own.
+2. **Verified custom domains** get a certificate the first time a visitor connects, through on-demand issuance. The server issues one only when `domains.Service.Lookup` reports the name as a verified custom domain and `hosting.customDomainsEnabled` is on. Every other name is refused before any ACME request, so a visitor cannot make the server contact the CA by sending an arbitrary host name. Refused names are never logged individually. The server logs a count of refusals at debug level at most once a minute. On-demand issuance is also limited to 5 attempts per name per hour and 50 per hour in total, which keeps the server within the CA's limits. Removing a domain or switching the feature off stops renewal.
+3. **Site subdomains** use one wildcard certificate for `*.{baseDomain}`. The server never requests a certificate for a single subdomain name, because that would let any visitor trigger issuance. A subdomain name without a wildcard certificate gets a failed TLS handshake.
+
+### Wildcard certificates for subdomain mode
+
+A wildcard certificate needs DNS-01 validation: the server adds a TXT record at `_acme-challenge.{baseDomain}` through your DNS provider's API. Cloudflare is the first supported provider. The root user configures it with two settings:
+
+```sh
+curl -X PATCH https://sites.example.com/api/v1/admin/settings \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"settings":{"tls.dnsProvider":"cloudflare","tls.cloudflareApiToken":"<token>"}}'
+```
+
+The token is write-only and stored encrypted, like the SMTP password. The server reads it again for every DNS call, so a replaced token applies within about 20 seconds without a restart, and a failed issuance retries with the new token at once. It never appears in a log or response.
+
+Create the token in the Cloudflare dashboard under My Profile, API Tokens, with the least privilege that works:
+
+- Permissions: Zone, DNS, Edit and Zone, Zone, Read.
+- Zone Resources: Include, Specific zone, the one zone that holds the base domain.
+
+The server asks for the wildcard certificate as soon as the base domain is known (`hosting.baseDomain`, which defaults to the host of `PUBLIC_URL`) and the provider is configured, so the certificate can exist before you enable subdomain mode. The wildcard check probes over HTTPS and needs it. Without a provider, the server starts normally and serves subdomain sites over HTTPS only for names that already have a certificate in `TLS_STORAGE`. Root sees the wildcard state `none` in `GET /api/v1/hosting/status`, and every user sees the notice "Subdomain addresses may show certificate warnings." while subdomain mode is on and the wildcard certificate is missing or failing.
+
+**Subdomain mode under a subdomain needs its own wildcard.** If `hosting.baseDomain` is `artifacts.example.com`, sites live at `{slug}.artifacts.example.com`, and the certificate must cover `*.artifacts.example.com`. A wildcard for `*.example.com` covers one label only, so it does not apply. Cloudflare's free universal certificate covers `example.com` and `*.example.com` only, so a proxied (orange cloud) record for `*.artifacts.example.com` shows a certificate warning. Built-in DNS-01 issues the right certificate, provided the wildcard DNS record is DNS-only (grey cloud, not proxied) so that visitors reach this server and see its certificate.
+
+### Security headers and cookies
+
+Over built-in HTTPS the server sends `Strict-Transport-Security: max-age=31536000` on the management host, on custom domains and on subdomain-mode sites. It sets no `includeSubDomains` and no `preload`, so each host only commits itself. It sends no HSTS over plain HTTP or when built-in HTTPS is off, because a reverse proxy may add its own. A request that arrives on the TLS listener counts as HTTPS for cookies without `TRUSTED_PROXIES`, so the session cookie is `__Host-session` and Secure.
+
+### Port 80 and the unauthenticated surface
+
+Built-in HTTPS adds no unauthenticated API route. The ACME challenge path `/.well-known/acme-challenge/{token}` is answered by the certificate library on the port-80 listener before the redirect, and only for tokens the server itself issued. The API router never sees port 80. The TLS-ALPN challenge is answered inside the TLS handshake on `TLS_HTTPS_ADDR`.
+
+### Status
+
+Root sees `detail.tls` in `GET /api/v1/hosting/status`:
+
+- `enabled` is true when the server runs with `TLS_ENABLED`.
+- `managementCertificateExpiresAt` is the expiry of the management host certificate.
+- `wildcard.state` is `none`, `pending`, `ok` or `failed`, with a short `reason` for `none` and `failed`. The full error is in the server log.
+- `customDomains.count` and `customDomains.soonestExpiresAt` cover verified custom domains with a loaded certificate.
+- `dnsProviderConfigured` is true when a provider and a token are stored.
+
+### Testing against a local ACME server
+
+The tests in `internal/certs` run certmagic against Pebble when `PEBBLE_DIRECTORY`, `PEBBLE_CA_ROOT` and `PEBBLE_DNS` are set, and skip otherwise. Start Pebble with `docker run --rm --network host -e PEBBLE_VA_NOSLEEP=1 ghcr.io/letsencrypt/pebble:latest -config /test/config/pebble-config.json -dnsserver 127.0.0.1:8054`, copy `/test/certs/pebble.minica.pem` out of the image, and point `PEBBLE_CA_ROOT` at it. `PEBBLE_DIRECTORY` is `https://localhost:14000/dir` and `PEBBLE_DNS` is `127.0.0.1:8054`. The tests use ports 5001 and 5002.
+
 ## Workspaces and sites
 
 Every user has a personal workspace, created together with the account. It has one member, its owner, and cannot be deleted or shared. Any signed-in user can create shared workspaces with `POST /api/v1/workspaces` and becomes their admin.
@@ -128,7 +215,7 @@ Every site response and publish response has a `hosting` object:
 
 Every user with read access to a site gets the same `hosting` object, root or not. A user sees nothing about sites they cannot read.
 
-`GET /api/v1/hosting/status` gives any signed-in user the instance view: the state and reason of each mode, notices, and `degraded`, which is true while subdomain mode is on and its last wildcard check failed. The root user also gets a `detail` object with the check status, when it last ran, the failure text, the consecutive failure count and the reason subdomain mode was switched off. Other users never get `detail`.
+`GET /api/v1/hosting/status` gives any signed-in user the instance view: the state and reason of each mode, notices, and `degraded`, which is true while subdomain mode is on and its last wildcard check failed. The root user also gets a `detail` object with the check status, when it last ran, the failure text, the consecutive failure count, the reason subdomain mode was switched off and a `tls` object with the certificate state (see [Built-in HTTPS](#built-in-https)). Other users never get `detail`.
 
 ### Which file a path serves
 
@@ -169,9 +256,11 @@ The server proves control of the name, not of the address it points to. A domain
 
 A visitor must still reach this server. Use a CNAME to the host of `PUBLIC_URL` for a subdomain such as `docs.example.org`. A domain with no subdomain part (an apex domain such as `example.org`) usually cannot hold a CNAME, so use A and AAAA records with the same addresses as the `PUBLIC_URL` host, or your DNS provider's alias or flattening feature. A CDN or proxy in front can sit between the visitor and this server if it forwards the original `Host` header.
 
-### Behind a reverse proxy
+### Certificates for custom domains
 
-The server does not obtain certificates for custom domains. The reverse proxy in front of it must route each custom domain's host to this server with the `Host` header intact, and must hold a certificate for each one. A wildcard certificate for the base domain does not cover a custom domain. With Traefik (including the one Coolify manages) or Caddy, add the custom domain as a host that the proxy routes to this server. Whether the proxy requests a certificate for it on its own depends on how you configured it, so check your proxy's documentation. Built-in TLS for custom domains is planned and is not part of this version.
+With built-in HTTPS on, the server requests a certificate for each verified custom domain the first time a visitor connects. See [Built-in HTTPS](#built-in-https).
+
+Behind a reverse proxy, the proxy owns TLS. It must route each custom domain's host to this server with the `Host` header intact, and it must hold a certificate for each one. A wildcard certificate for the base domain does not cover a custom domain. With Traefik (including the one Coolify manages) or Caddy, add the custom domain as a host that the proxy routes to this server. Whether the proxy requests a certificate for it on its own depends on how you configured it, so check your proxy's documentation.
 
 ### Ownership rules
 
@@ -262,6 +351,8 @@ The root user reads and changes instance settings with `GET` and `PATCH /api/v1/
 | `email.smtp.username` | empty | SMTP user name. Leave empty for a server without authentication. |
 | `email.smtp.password` | write-only | SMTP password. Reads return `email.smtp.passwordSet` (true or false) instead. An empty string clears it. |
 | `email.resend.apiKey` | write-only | Resend API key. Reads return `email.resend.apiKeySet` instead. An empty string clears it. |
+| `tls.dnsProvider` | `none` | DNS provider for the wildcard certificate: `none` or `cloudflare`. Only used with built-in HTTPS. |
+| `tls.cloudflareApiToken` | write-only | Cloudflare API token with Zone:DNS:Edit and Zone:Zone:Read on the base domain's zone. Reads return `tls.cloudflareApiTokenSet` instead. An empty string clears it. |
 
 Changes take effect on the next request. Email settings need no restart.
 
@@ -352,6 +443,13 @@ The server reads these environment variables.
 | `PUBLIC_URL` | `http://localhost` plus the port of `LISTEN_ADDR` | Address of the dashboard and API, such as `https://sites.example.com`: scheme, host and optional port, no path. The scheme decides whether cookies are Secure and which scheme the wildcard check uses. The host is the management host and the default `hosting.baseDomain`. |
 | `SECRET_KEY` | unset | 32 random bytes, base64 encoded, used to encrypt stored secrets. When unset, the server uses `DATA_DIR/secret.key` and creates it on first start. See [Secrets at rest](#secrets-at-rest). |
 | `TRUSTED_PROXIES` | unset | Comma-separated IP addresses or CIDR ranges of reverse proxies. The server reads `X-Forwarded-For` and `X-Forwarded-Proto` only from these peers. |
+| `TLS_ENABLED` | `false` | Built-in HTTPS. See [Built-in HTTPS](#built-in-https) for this and the six variables below. |
+| `TLS_HTTP_ADDR` | `:80` | Challenge and redirect listener when built-in HTTPS is on. |
+| `TLS_HTTPS_ADDR` | `:443` | HTTPS listener when built-in HTTPS is on. It replaces `LISTEN_ADDR`. |
+| `ACME_EMAIL` | unset | ACME account contact. Required when built-in HTTPS is on. |
+| `ACME_CA` | Let's Encrypt production | ACME directory URL. |
+| `ACME_CA_ROOT` | unset | PEM file with the root certificate of a private ACME server. |
+| `TLS_STORAGE` | `DATA_DIR/certs` | Account key and certificate directory. |
 
 `.env.example` lists the same keys with fake values. The server does not load `.env` files itself, so export the variables or pass them to Docker.
 
@@ -361,6 +459,8 @@ The server reads these environment variables.
 docker build -t selfhost .
 docker run -p 8080:8080 -v selfhost-data:/data selfhost
 ```
+
+For HTTPS without a proxy, publish ports 80 and 443 and set the variables from [Built-in HTTPS](#built-in-https).
 
 To use PostgreSQL, add `-e DATABASE_URL=postgres://user:password@host:5432/dbname`.
 

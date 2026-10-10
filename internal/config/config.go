@@ -33,6 +33,7 @@ type Config struct {
 	TrustedProxies []netip.Prefix
 	PublicURL      PublicURL
 	SecretKey      []byte
+	TLS            TLS
 }
 
 type Lookup func(key string) (string, bool)
@@ -64,9 +65,14 @@ func Load(lookup Lookup) (Config, error) {
 	problems = appendIf(problems, err)
 	cfg.TrustedProxies = proxies
 
-	public, err := parsePublicURL(values.get("PUBLIC_URL", ""), cfg.ListenAddr)
+	rawPublicURL := values.get("PUBLIC_URL", "")
+	public, err := parsePublicURL(rawPublicURL, cfg.ListenAddr)
 	problems = appendIf(problems, err)
 	cfg.PublicURL = public
+
+	tlsConfig, err := parseTLS(values, cfg.DataDir, rawPublicURL, public)
+	problems = appendIf(problems, err)
+	cfg.TLS = tlsConfig
 
 	secretKey, err := parseSecretKey(values.get("SECRET_KEY", ""))
 	problems = appendIf(problems, err)

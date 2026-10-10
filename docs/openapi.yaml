@@ -2033,8 +2033,10 @@ paths:
       description: |
         Any signed-in user. Reports the state of each hosting mode, plain-language notices and whether hosting is
         degraded. It names no site. The root user also gets a `detail` object with the wildcard check status, when
-        it last ran, the failure text, the consecutive failure count and the reason subdomain mode was switched
-        off. Other users never get `detail`.
+        it last ran, the failure text, the consecutive failure count, the reason subdomain mode was switched
+        off and the certificate state under `detail.tls`. Other users never get `detail`. When built-in TLS is on,
+        subdomain mode is on and the wildcard certificate is missing or failing, every user gets the notice
+        `tls_wildcard_unavailable`.
       responses:
         "200":
           description: The hosting status.
@@ -3105,10 +3107,53 @@ components:
             Plain-language messages about this site's addresses, such as "The subdomain address for this site is
             switched off." and "Nothing has been published to this site yet." Every user with read access to the
             site gets the same notices.
+    TlsDetail:
+      type: object
+      required: [enabled, managementCertificateExpiresAt, wildcard, customDomains, dnsProviderConfigured]
+      description: |
+        Certificate state for the root user. With built-in TLS off, `enabled` is false and the rest holds empty
+        values, except `dnsProviderConfigured`, which still reflects the stored settings.
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the server runs with `TLS_ENABLED`.
+        managementCertificateExpiresAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the certificate for the host of `PUBLIC_URL` expires. Null until one is loaded.
+        wildcard:
+          type: object
+          required: [state, reason]
+          properties:
+            state:
+              type: string
+              enum: [none, pending, ok, failed]
+              description: |
+                `none` when no wildcard certificate is requested or held, `pending` while issuing, `ok` when a valid
+                `*.{baseDomain}` certificate is loaded, `failed` after an issuance error (the server keeps retrying).
+            reason:
+              type: [string, "null"]
+              description: A short plain-language reason for `none` or `failed`, with no provider output.
+        customDomains:
+          type: object
+          required: [count, soonestExpiresAt]
+          properties:
+            count:
+              type: integer
+              minimum: 0
+              description: Verified custom domains that have a valid certificate loaded.
+            soonestExpiresAt:
+              type: [string, "null"]
+              format: date-time
+        dnsProviderConfigured:
+          type: boolean
+          description: Whether `tls.dnsProvider` names a provider and a token is stored.
     HostingDetail:
       type: object
-      required: [wildcardStatus, wildcardCheckedAt, wildcardDetail, consecutiveFailures, subdomainDisabledReason]
+      required: [wildcardStatus, wildcardCheckedAt, wildcardDetail, consecutiveFailures, subdomainDisabledReason, tls]
       properties:
+        tls:
+          $ref: "#/components/schemas/TlsDetail"
         wildcardStatus:
           type: string
           enum: [unchecked, ok, failed]
@@ -3296,6 +3341,25 @@ components:
           type: boolean
           readOnly: true
           description: Whether a Resend API key is stored.
+        tls.dnsProvider:
+          type: string
+          enum: [none, cloudflare]
+          default: none
+          description: |
+            The DNS provider that proves control of `*.{hosting.baseDomain}` for the wildcard certificate (DNS-01).
+            Only used when the server runs with `TLS_ENABLED`. With `none`, no wildcard certificate is requested and
+            subdomain sites are served over HTTPS only for names that already have a certificate.
+        tls.cloudflareApiToken:
+          type: string
+          writeOnly: true
+          description: |
+            A Cloudflare API token with Zone:DNS:Edit and Zone:Zone:Read on the zone of the base domain. Write-only:
+            reads never return it. An empty string clears it. Stored encrypted (AES-256-GCM) and read on every DNS
+            call, so a new token applies without a restart.
+        tls.cloudflareApiTokenSet:
+          type: boolean
+          readOnly: true
+          description: Whether a Cloudflare API token is stored.
     UpdateSettingsRequest:
       type: object
       additionalProperties: false

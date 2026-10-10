@@ -13,6 +13,6 @@ COPY --from=build --chown=nonroot:nonroot /out/data /data
 ENV DATA_DIR=/data
 ENV LISTEN_ADDR=:8080
 VOLUME /data
-EXPOSE 8080
+EXPOSE 8080 80 443
 USER nonroot:nonroot
 ENTRYPOINT ["/selfhost"]

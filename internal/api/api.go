@@ -118,6 +118,7 @@ type Options struct {
 	PasswordReset  *passwordreset.Service
 	AgentCodes     *agentcode.Service
 	Domains        *domains.Service
+	TLS            TLSReporter
 }
 
 type Server struct {
@@ -137,6 +138,7 @@ type Server struct {
 	reset      *passwordreset.Service
 	agents     *agentcode.Service
 	domains    *domains.Service
+	tls        TLSReporter
 	now        func() time.Time
 
 	agentReqIP     *ratelimit.Limiter
@@ -197,6 +199,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		reset:      opts.PasswordReset,
 		agents:     opts.AgentCodes,
 		domains:    opts.Domains,
+		tls:        opts.TLS,
 		now:        now,
 
 		agentReqIP:     limiter(limits.AgentRequestIP),

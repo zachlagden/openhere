@@ -90,6 +90,7 @@ type envOptions struct {
 	public  config.PublicURL
 	limits  *GateLimits
 	proxies proxy.Trust
+	hsts    bool
 }
 
 func newEnv(t *testing.T, db store.Store) *env {
@@ -141,7 +142,7 @@ func newEnvWith(t *testing.T, db store.Store, opts envOptions) *env {
 	}
 	e.router = New(management, e.settings, db, files, Options{
 		Public: public, Probes: e.probes, Resolver: e.resolver, Logger: logger, Access: e.access, Proxies: opts.proxies,
-		Limits: opts.limits, Now: e.clock.Now, Domains: e.domains,
+		Limits: opts.limits, Now: e.clock.Now, Domains: e.domains, HSTS: opts.hsts,
 	})
 	return e
 }
