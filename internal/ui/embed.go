@@ -9,11 +9,11 @@ import (
 	"log/slog"
 )
 
-//go:embed all:dist
+//go:embed all:bundle
 var embedded embed.FS
 
 func Dist() (fs.FS, error) {
-	sub, err := fs.Sub(embedded, "dist")
+	sub, err := fs.Sub(embedded, "bundle")
 	if err != nil {
 		return nil, fmt.Errorf("open embedded dashboard: %w", err)
 	}

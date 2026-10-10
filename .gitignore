@@ -14,8 +14,8 @@ coverage.out
 .idea/
 .vscode/
 .DS_Store
-/internal/ui/dist/*
-!/internal/ui/dist/.gitkeep
+/internal/ui/bundle/*
+!/internal/ui/bundle/.gitkeep
 node_modules/
 /web/coverage/
 /web/e2e/output/

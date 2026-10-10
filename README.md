@@ -147,7 +147,7 @@ pnpm --dir web build
 go build ./cmd/selfhost
 ```
 
-The build writes to `internal/ui/dist`, which the Go build embeds with `go:embed`. The built files are not committed. A fresh clone still compiles, and the management host then answers its dashboard routes with a plain "dashboard not built" text and status 503. The Docker image builds the dashboard in its own stage. For development, run the server and then `pnpm --dir web dev`, which proxies `/api` to `127.0.0.1:8080`.
+The build writes to `internal/ui/bundle`, which the Go build embeds with `go:embed`. The built files are not committed. A fresh clone still compiles, and the management host then answers its dashboard routes with a plain "dashboard not built" text and status 503. The Docker image builds the dashboard in its own stage. For development, run the server and then `pnpm --dir web dev`, which proxies `/api` to `127.0.0.1:8080`.
 
 The management host serves the shell and its hashed assets to anyone, so that the sign-in screens can load. They hold nothing about your instance. Hashed files under `/assets/` are cached for a year, and the shell is revalidated on every load. Every response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and a Content-Security-Policy that allows only the server's own scripts, styles, fonts and requests. Site hosts never serve the shell.
 

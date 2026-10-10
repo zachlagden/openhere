@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,7 +35,7 @@ func (e *env) routerWithDashboard() *Router {
 }
 
 func serveVia(router *Router, host, target string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "https://"+host+target, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "https://"+host+target, nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	return rec

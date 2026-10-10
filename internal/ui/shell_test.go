@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,7 +38,7 @@ func wrapped(t *testing.T, files fstest.MapFS) http.Handler {
 }
 
 func get(h http.Handler, method, target string, headers ...string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, "http://example.com"+target, nil)
+	req := httptest.NewRequestWithContext(context.Background(), method, "http://example.com"+target, nil)
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
 	}

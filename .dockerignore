@@ -1,5 +1,5 @@
 .git
 web/node_modules
 web/e2e/output
-internal/ui/dist/*
-!internal/ui/dist/.gitkeep
+internal/ui/bundle/*
+!internal/ui/bundle/.gitkeep

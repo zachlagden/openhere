@@ -7,7 +7,7 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const outDir = path.resolve(root, "../internal/ui/dist");
+const outDir = path.resolve(root, "../internal/ui/bundle");
 
 function keepEmbedPlaceholder(): Plugin {
   return {

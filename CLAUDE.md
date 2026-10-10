@@ -108,7 +108,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 
 ## Dashboard
 
-- The dashboard is a single page app in `web/` (Vite, React, TypeScript, Tailwind, react-router, TanStack Query). `pnpm --dir web build` writes it to `internal/ui/dist`, which `go:embed` compiles into the binary. The built files are not committed. `internal/ui/dist/.gitkeep` keeps the embed directive compiling on a fresh clone, and without a build the shell routes answer 503 with a plain "dashboard not built" text.
+- The dashboard is a single page app in `web/` (Vite, React, TypeScript, Tailwind, react-router, TanStack Query). `pnpm --dir web build` writes it to `internal/ui/bundle`, which `go:embed` compiles into the binary. The built files are not committed. `internal/ui/bundle/.gitkeep` keeps the embed directive compiling on a fresh clone, and without a build the shell routes answer 503 with a plain "dashboard not built" text.
 - `ui.Shell.Wrap` goes around the API handler, inside `hosting.Router`, so only the management host can serve it. It serves the shell for every GET and HEAD path except `/api/`, `/s/` and `/.well-known/`, serves files from the build at their own path, and answers 404 JSON for a missing path with a file extension. Site hosts never reach it.
 - This is the one deliberate exception to "nothing without auth". The shell and its hashed assets must hold nothing specific to the instance: no site names, users, settings or inline secrets. Keep scripts out of the HTML (`script-src 'self'`), and keep the strict Content-Security-Policy in `internal/ui/shell.go`.
 - Hashed files under `assets/` are `public, max-age=31536000, immutable`. Every other file, the shell included, is `no-cache`.
