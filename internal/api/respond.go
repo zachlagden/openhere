@@ -55,6 +55,9 @@ const (
 	codeWildcardNotVerified = "wildcard_not_verified"
 	codeNoHostingMode       = "no_hosting_mode"
 	codeBaseDomainInUse     = "base_domain_in_use"
+	codeDomainTaken         = "domain_taken"
+	codeDomainLimitReached  = "domain_limit_reached"
+	codeDomainNotVerified   = "domain_not_verified"
 )
 
 type errorBody struct {

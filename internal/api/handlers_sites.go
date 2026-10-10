@@ -43,7 +43,7 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	hostingFor, err := s.siteHosting(r.Context())
+	hostingFor, err := s.siteHosting(r.Context(), page.Sites...)
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return
@@ -131,7 +131,7 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeSite(w http.ResponseWriter, r *http.Request, status int, site sites.Site) {
-	hostingFor, err := s.siteHosting(r.Context())
+	hostingFor, err := s.siteHosting(r.Context(), site)
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return

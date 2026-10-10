@@ -152,7 +152,7 @@ func (s *Server) handleLiveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writePending(w http.ResponseWriter, r *http.Request, pending publish.Pending) {
-	hostingFor, err := s.siteHosting(r.Context())
+	hostingFor, err := s.siteHosting(r.Context(), pending.Site)
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return
@@ -161,7 +161,7 @@ func (s *Server) writePending(w http.ResponseWriter, r *http.Request, pending pu
 }
 
 func (s *Server) writeResult(w http.ResponseWriter, r *http.Request, result publish.Result) {
-	hostingFor, err := s.siteHosting(r.Context())
+	hostingFor, err := s.siteHosting(r.Context(), result.Site)
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return

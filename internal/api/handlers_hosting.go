@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/settings"
 	"github.com/zachlagden/selfhost/internal/sites"
@@ -59,13 +60,30 @@ func toWildcardResponse(cfg settings.Settings) wildcardResponse {
 	return response
 }
 
-func (s *Server) siteHosting(ctx context.Context) (func(site sites.Site) hosting.SiteAvailability, error) {
+func (s *Server) siteHosting(ctx context.Context, listed ...sites.Site) (func(site sites.Site) hosting.SiteAvailability, error) {
 	cfg, err := s.settings.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
+	summaries, err := s.domainSummaries(ctx, listed)
+	if err != nil {
+		return nil, err
+	}
 	return func(site sites.Site) hosting.SiteAvailability {
-		facts := hosting.SiteFacts{Slug: site.Slug, Live: site.CurrentVersionID != "", Gated: access.Mode(site.AccessMode).Gated()}
+		facts := hosting.SiteFacts{
+			Slug: site.Slug, Live: site.CurrentVersionID != "", Gated: access.Mode(site.AccessMode).Gated(), Domains: summaries[site.ID],
+		}
 		return hosting.SiteHosting(s.public, cfg, facts)
 	}, nil
+}
+
+func (s *Server) domainSummaries(ctx context.Context, listed []sites.Site) (map[string]domains.Summary, error) {
+	if s.domains == nil || len(listed) == 0 {
+		return nil, nil
+	}
+	siteIDs := make([]string, len(listed))
+	for i, site := range listed {
+		siteIDs[i] = site.ID
+	}
+	return s.domains.Summaries(ctx, siteIDs)
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/agentcode"
 	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/selfhost/internal/domains"
 	"github.com/zachlagden/selfhost/internal/invites"
 	"github.com/zachlagden/selfhost/internal/passwordreset"
 	"github.com/zachlagden/selfhost/internal/policy"
@@ -35,6 +36,10 @@ var domainFailures = []domainFailure{
 	{settings.ErrWildcardNotVerified, http.StatusConflict, codeWildcardNotVerified, "Subdomain mode needs a successful wildcard check. Run POST /admin/hosting/check first."},
 	{settings.ErrNoHostingMode, http.StatusConflict, codeNoHostingMode, "At least one hosting mode must stay on. Switch the other mode on in the same change."},
 	{settings.ErrBaseDomainInUse, http.StatusConflict, codeBaseDomainInUse, "A custom domain already uses that base domain or a name under it. Delete the domain first."},
+	{domains.ErrNotFound, http.StatusNotFound, codeNotFound, "Not found."},
+	{domains.ErrTaken, http.StatusConflict, codeDomainTaken, "That domain name is already in use."},
+	{domains.ErrLimitReached, http.StatusConflict, codeDomainLimitReached, "This site has reached its limit of custom domains. Delete one first."},
+	{domains.ErrNotVerified, http.StatusConflict, codeDomainNotVerified, "Verify the domain before making it the primary domain."},
 	{policy.ErrSharedCreationRestricted, http.StatusForbidden, codeForbidden, "Only the root user can create workspaces on this instance."},
 	{invites.ErrInviteInvalid, http.StatusNotFound, codeNotFound, "Not found."},
 	{invites.ErrInviteNotFound, http.StatusNotFound, codeNotFound, "Not found."},

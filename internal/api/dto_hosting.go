@@ -13,8 +13,9 @@ type modeResponse struct {
 }
 
 type modesResponse struct {
-	Subdomain modeResponse `json:"subdomain"`
-	Path      modeResponse `json:"path"`
+	Subdomain     modeResponse `json:"subdomain"`
+	Path          modeResponse `json:"path"`
+	CustomDomains modeResponse `json:"customDomains"`
 }
 
 type siteHostingResponse struct {
@@ -43,8 +44,8 @@ func toModeResponse(m hosting.ModeStatus) modeResponse {
 	return modeResponse{State: m.State, Reason: optional(m.Reason)}
 }
 
-func toModesResponse(subdomain, path hosting.ModeStatus) modesResponse {
-	return modesResponse{Subdomain: toModeResponse(subdomain), Path: toModeResponse(path)}
+func toModesResponse(subdomain, path, custom hosting.ModeStatus) modesResponse {
+	return modesResponse{Subdomain: toModeResponse(subdomain), Path: toModeResponse(path), CustomDomains: toModeResponse(custom)}
 }
 
 func toNoticeResponses(notices []hosting.Notice) []noticeResponse {
@@ -57,13 +58,13 @@ func toNoticeResponses(notices []hosting.Notice) []noticeResponse {
 
 func toSiteHostingResponse(a hosting.SiteAvailability) siteHostingResponse {
 	return siteHostingResponse{
-		Reachable: a.Reachable, URL: optional(a.URL), Modes: toModesResponse(a.Subdomain, a.Path), Notices: toNoticeResponses(a.Notices),
+		Reachable: a.Reachable, URL: optional(a.URL), Modes: toModesResponse(a.Subdomain, a.Path, a.CustomDomains), Notices: toNoticeResponses(a.Notices),
 	}
 }
 
 func toHostingStatusResponse(a hosting.InstanceAvailability) hostingStatusResponse {
 	return hostingStatusResponse{
-		Degraded: a.Degraded, Modes: toModesResponse(a.Subdomain, a.Path), Notices: toNoticeResponses(a.Notices),
+		Degraded: a.Degraded, Modes: toModesResponse(a.Subdomain, a.Path, a.CustomDomains), Notices: toNoticeResponses(a.Notices),
 	}
 }
 
