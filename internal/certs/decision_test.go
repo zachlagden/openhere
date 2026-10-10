@@ -3,9 +3,12 @@ package certs
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,17 +27,25 @@ func (f *fakeSettings) Get(context.Context) (settings.Settings, error) {
 }
 
 type fakeLookup struct {
+	mu       sync.Mutex
 	verified map[string]bool
+	sites    map[string]string
 	err      error
 	calls    int
 }
 
 func (f *fakeLookup) Lookup(_ context.Context, host string) (domains.Target, bool, error) {
+	f.mu.Lock()
 	f.calls++
+	f.mu.Unlock()
 	if f.err != nil {
 		return domains.Target{}, false, f.err
 	}
-	return domains.Target{Domain: host}, f.verified[host], nil
+	siteID := f.sites[host]
+	if siteID == "" {
+		siteID = "site-" + host
+	}
+	return domains.Target{Domain: host, SiteID: siteID}, f.verified[host], nil
 }
 
 type clock struct{ now time.Time }
@@ -59,7 +70,7 @@ func newPolicyEnv(t *testing.T, limits Limits) *policyEnv {
 	cfg.CustomDomainsEnabled = true
 	env := &policyEnv{
 		settings: &fakeSettings{cfg: cfg},
-		lookup:   &fakeLookup{verified: map[string]bool{"www.example.org": true, "shop.example.org": true}},
+		lookup:   &fakeLookup{verified: map[string]bool{"www.example.org": true, "shop.example.org": true}, sites: map[string]string{}},
 		clock:    clk,
 		logs:     logs,
 	}
@@ -173,28 +184,131 @@ func TestRefusalLoggingIsRateLimited(t *testing.T) {
 	}
 }
 
+func (e *policyEnv) reserve(name string) error {
+	return e.policy.Reserve(context.Background(), name)
+}
+
+func TestDecisionsDoNotUseUpTheIssuanceQuota(t *testing.T) {
+	limits := Limits{
+		Total:   ratelimit.Rule{Max: 1, Window: time.Hour},
+		PerName: ratelimit.Rule{Max: 1, Window: time.Hour},
+		PerSite: ratelimit.Rule{Max: 1, Window: time.Hour},
+	}
+	env := newPolicyEnv(t, limits)
+	for range 200 {
+		if err := env.allow("www.example.org"); err != nil {
+			t.Fatalf("decision refused: %v", err)
+		}
+	}
+	if err := env.reserve("www.example.org"); err != nil {
+		t.Errorf("the quota was spent by decisions: %v", err)
+	}
+}
+
 func TestIssuanceIsRateLimitedPerNameAndInTotal(t *testing.T) {
 	limits := Limits{
 		Total:   ratelimit.Rule{Max: 3, Window: time.Hour},
 		PerName: ratelimit.Rule{Max: 2, Window: time.Hour},
+		PerSite: ratelimit.Rule{Max: 100, Window: time.Hour},
 	}
 	env := newPolicyEnv(t, limits)
 	for range 2 {
-		if err := env.allow("www.example.org"); err != nil {
+		if err := env.reserve("www.example.org"); err != nil {
 			t.Fatalf("within the per-name limit: %v", err)
 		}
 	}
-	if err := env.allow("www.example.org"); !errors.Is(err, ErrRefused) {
+	if err := env.reserve("www.example.org"); !errors.Is(err, errRateLimited) {
 		t.Errorf("per-name limit not enforced: %v", err)
 	}
-	if err := env.allow("shop.example.org"); err != nil {
+	if err := env.reserve("shop.example.org"); err != nil {
 		t.Fatalf("third issuance in total: %v", err)
 	}
-	if err := env.allow("shop.example.org"); !errors.Is(err, ErrRefused) {
+	if err := env.reserve("shop.example.org"); !errors.Is(err, errRateLimited) {
 		t.Errorf("total limit not enforced: %v", err)
 	}
 	env.clock.now = env.clock.now.Add(time.Hour)
-	if err := env.allow("www.example.org"); err != nil {
+	if err := env.reserve("www.example.org"); err != nil {
 		t.Errorf("limit did not reset: %v", err)
+	}
+}
+
+func TestOneSiteCannotUseMoreThanItsShareOfTheQuota(t *testing.T) {
+	limits := Limits{
+		Total:   ratelimit.Rule{Max: 50, Window: time.Hour},
+		PerName: ratelimit.Rule{Max: 5, Window: time.Hour},
+		PerSite: ratelimit.Rule{Max: 3, Window: time.Hour},
+	}
+	env := newPolicyEnv(t, limits)
+	names := []string{"a.example.org", "b.example.org", "c.example.org", "d.example.org"}
+	for _, name := range names {
+		env.lookup.verified[name] = true
+		env.lookup.sites[name] = "greedy"
+	}
+	for _, name := range names[:3] {
+		if err := env.reserve(name); err != nil {
+			t.Fatalf("within the site share: %v", err)
+		}
+	}
+	if err := env.reserve(names[3]); !errors.Is(err, errRateLimited) {
+		t.Errorf("site share not enforced: %v", err)
+	}
+	if err := env.reserve("www.example.org"); err != nil {
+		t.Errorf("another site was blocked by the greedy one: %v", err)
+	}
+}
+
+func TestARefusedReservationSpendsNoQuota(t *testing.T) {
+	limits := Limits{
+		Total:   ratelimit.Rule{Max: 2, Window: time.Hour},
+		PerName: ratelimit.Rule{Max: 1, Window: time.Hour},
+		PerSite: ratelimit.Rule{Max: 100, Window: time.Hour},
+	}
+	env := newPolicyEnv(t, limits)
+	if err := env.reserve("www.example.org"); err != nil {
+		t.Fatal(err)
+	}
+	for range 20 {
+		if err := env.reserve("www.example.org"); !errors.Is(err, errRateLimited) {
+			t.Fatalf("reservation over the per-name limit = %v", err)
+		}
+		if err := env.reserve("unknown.example.org"); !errors.Is(err, errNotVerified) {
+			t.Fatalf("reservation for an unverified name = %v", err)
+		}
+	}
+	if err := env.reserve("shop.example.org"); err != nil {
+		t.Errorf("refusals used up the total quota: %v", err)
+	}
+}
+
+func TestTheIssuerRefusesBeforeReachingTheACMEClient(t *testing.T) {
+	env := newPolicyEnv(t, Limits{})
+	issuer := limitedIssuer{policy: env.policy}
+	_, err := issuer.Issue(context.Background(), &x509.CertificateRequest{DNSNames: []string{"unknown.example.org"}})
+	if !errors.Is(err, errNotVerified) {
+		t.Errorf("Issue = %v, want errNotVerified before any ACME call", err)
+	}
+}
+
+func TestConcurrentReservationsCannotPassTheLimit(t *testing.T) {
+	limits := Limits{
+		Total:   ratelimit.Rule{Max: 50, Window: time.Hour},
+		PerName: ratelimit.Rule{Max: 5, Window: time.Hour},
+		PerSite: ratelimit.Rule{Max: 50, Window: time.Hour},
+	}
+	env := newPolicyEnv(t, limits)
+	var granted atomic.Int32
+	var wg sync.WaitGroup
+	for range 40 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if env.reserve("www.example.org") == nil {
+				granted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if granted.Load() != 5 {
+		t.Errorf("granted %d reservations under a limit of 5", granted.Load())
 	}
 }

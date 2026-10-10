@@ -55,7 +55,7 @@ The limits below count in process memory. A restart resets every counter, and tw
 | Site password unlock | 10 per IP and 100 per site in 15 minutes |
 | Site email code request | 3 per address in 10 minutes, 10 per IP in 15 minutes, 60 per site per hour |
 | Site email code check | 10 per address, 20 per IP and 200 per site in 15 minutes |
-| Certificates on demand | 5 per name and 50 in total per hour |
+| Certificates on demand | 5 per name, 10 per site and 50 in total per hour, counting only requests that reach the certificate authority |
 
 Publishing is limited by quota instead of rate. A site may hold 3 pending versions, a user 10, and all pending versions together may declare `limits.maxPendingBytes` (4 GiB by default). A manifest over a limit gets 429 `too_many_pending`. Pending versions expire after 24 hours.
 
