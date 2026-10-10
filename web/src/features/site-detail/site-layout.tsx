@@ -94,6 +94,7 @@ export function SiteLayout(): JSX.Element {
           { to: `${base}/access`, label: "Access" },
           { to: `${base}/domains`, label: "Domains" },
           { to: `${base}/analytics`, label: "Analytics" },
+          { to: `${base}/versions`, label: "Versions" },
         ]}
       />
       <Outlet context={context} />

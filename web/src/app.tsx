@@ -7,6 +7,7 @@ import { ResetRequestPage } from "@/features/auth/reset-request-page";
 import { SetupPage } from "@/features/auth/setup-page";
 import { AccessTab } from "@/features/site-detail/access-tab";
 import { DomainsTab } from "@/features/site-detail/domains-tab";
+import { VersionsTab } from "@/features/site-detail/versions-tab";
 import { OverviewTab } from "@/features/site-detail/overview-tab";
 import { SiteLayout } from "@/features/site-detail/site-layout";
 import { SettingsPage } from "@/features/settings/settings-page";
@@ -35,6 +36,7 @@ export function App(): JSX.Element {
             <Route index element={<OverviewTab />} />
             <Route path="access" element={<AccessTab />} />
             <Route path="domains" element={<DomainsTab />} />
+            <Route path="versions" element={<VersionsTab />} />
             <Route path="analytics" element={<Suspense fallback={<Spinner label="Loading analytics…" />}><AnalyticsTab /></Suspense>} />
           </Route>
           <Route
