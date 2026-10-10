@@ -2027,8 +2027,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "415":
           $ref: "#/components/responses/BadRequest"
-        "415":
-          $ref: "#/components/responses/BadRequest"
   /admin/email/test:
     post:
       tags: [Admin]
@@ -2217,8 +2215,6 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-        "429":
-          $ref: "#/components/responses/RateLimited"
         "429":
           $ref: "#/components/responses/RateLimited"
 
