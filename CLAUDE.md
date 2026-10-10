@@ -40,7 +40,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - A version is `pending` or `finalized`. Whether it is live comes from `sites.current_version_id`, never from a stored flag. Only `publish` changes that pointer, in one transaction that also re-checks the base version.
 - A finalized version directory never changes. Upload and finalize take a per-version lock, so a file cannot land after finalize.
 - Return stored files only as `application/octet-stream` with `Content-Disposition: attachment` from the API. Only `hosting` serves them with their real type.
-- Add an instance setting by adding a field to `settings.Settings` and one entry to `definitions` in `internal/settings/definitions.go`, then document it in `docs/openapi.yaml` and the README table.
+- Add an instance setting by adding a field to `settings.Settings` and one entry to `definitions` in `internal/settings/definitions.go`, then document it in `docs/openapi.yaml` and `docs/configuration.md`.
 - Add maintenance work by passing an `auth.MaintenanceTask` to `RunMaintenance` in `cmd/selfhost`.
 
 ## Hosting
