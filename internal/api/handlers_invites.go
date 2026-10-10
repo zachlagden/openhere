@@ -60,7 +60,7 @@ type acceptInviteRequest struct {
 	DisplayName string `json:"displayName"`
 }
 
-func (s *Server) registerInviteRoutes(mux *http.ServeMux) {
+func (s *Server) registerInviteRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/invites", s.protected(s.handleListInvites))
 	mux.Handle("POST "+basePath+"/invites", s.protected(s.handleCreateInvite))
 	mux.Handle("DELETE "+basePath+"/invites/{id}", s.protected(s.handleRevokeInvite))

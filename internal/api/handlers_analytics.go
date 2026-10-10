@@ -6,7 +6,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/analytics"
 )
 
-func (s *Server) registerAnalyticsRoutes(mux *http.ServeMux) {
+func (s *Server) registerAnalyticsRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/sites/{slug}/analytics", s.protected(s.handleSiteAnalytics))
 	mux.Handle("GET "+basePath+"/workspaces/{workspace}/analytics", s.protected(s.handleWorkspaceAnalytics))
 	mux.Handle("GET "+basePath+"/admin/analytics", s.protected(s.handleInstanceAnalytics))

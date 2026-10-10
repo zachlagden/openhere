@@ -25,7 +25,7 @@ type updateSettingsRequest struct {
 	Settings map[string]json.RawMessage `json:"settings"`
 }
 
-func (s *Server) registerSettingsRoutes(mux *http.ServeMux) {
+func (s *Server) registerSettingsRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/admin/settings", s.protected(s.handleGetSettings))
 	mux.Handle("PATCH "+basePath+"/admin/settings", s.protected(s.handleUpdateSettings))
 }

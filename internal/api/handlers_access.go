@@ -38,7 +38,7 @@ type accessEnvelope struct {
 	Access accessResponse `json:"access"`
 }
 
-func (s *Server) registerAccessRoutes(mux *http.ServeMux) {
+func (s *Server) registerAccessRoutes(mux *routeMux) {
 	mux.Handle("GET "+basePath+"/publish/{slug}/access", s.protected(s.handleGetAccess))
 	mux.Handle("PATCH "+basePath+"/publish/{slug}/access", s.protected(s.handleUpdateAccess))
 	mux.Handle("GET "+hosting.HandoffPath, s.identify(http.HandlerFunc(s.handleHandoff)))

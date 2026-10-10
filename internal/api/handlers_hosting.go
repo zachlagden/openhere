@@ -27,7 +27,7 @@ type wildcardEnvelope struct {
 	Settings map[string]any   `json:"settings"`
 }
 
-func (s *Server) registerHostingRoutes(mux *http.ServeMux) {
+func (s *Server) registerHostingRoutes(mux *routeMux) {
 	mux.Handle("POST "+basePath+"/admin/hosting/check", s.protected(s.handleWildcardCheck))
 	mux.Handle("GET "+basePath+"/hosting/status", s.protected(s.handleHostingStatus))
 }

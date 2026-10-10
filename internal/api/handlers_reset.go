@@ -26,7 +26,7 @@ type adminResetLinkResponse struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-func (s *Server) registerPasswordResetRoutes(mux *http.ServeMux) {
+func (s *Server) registerPasswordResetRoutes(mux *routeMux) {
 	mux.Handle("POST "+basePath+"/auth/password-reset/request", s.identify(http.HandlerFunc(s.handleResetRequest)))
 	mux.Handle("POST "+basePath+"/auth/password-reset/confirm", s.identify(http.HandlerFunc(s.handleResetConfirm)))
 }
