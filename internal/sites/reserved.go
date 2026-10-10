@@ -1,9 +1,13 @@
 package sites
 
 import (
+	"strings"
+
 	"github.com/zachlagden/selfhost/internal/slug"
 	"github.com/zachlagden/selfhost/internal/validate"
 )
+
+const punycodePrefix = "xn--"
 
 var reservedSlugs = map[string]struct{}{
 	"www": {}, "api": {}, "app": {}, "admin": {}, "administrator": {}, "dashboard": {}, "mail": {}, "smtp": {},
@@ -14,6 +18,7 @@ var reservedSlugs = map[string]struct{}{
 	"root": {}, "system": {}, "localhost": {}, "ns1": {}, "ns2": {}, "webmail": {}, "dev": {}, "staging": {},
 	"test": {}, "email": {}, "download": {}, "downloads": {}, "upload": {}, "uploads": {}, "workspace": {},
 	"workspaces": {}, "sites": {}, "site": {}, "me": {}, "domains": {}, "analytics": {}, "llms": {},
+	"mta-sts": {}, "autoconfig": {}, "autodiscover": {}, "ns3": {}, "vpn": {}, "git": {}, "files": {}, "media": {}, "cname": {},
 }
 
 func IsReserved(slug string) bool {
@@ -27,6 +32,9 @@ func CheckSlug(candidate string) error {
 	}
 	if IsReserved(candidate) {
 		return validate.Invalid("That slug is reserved. Choose another.")
+	}
+	if strings.HasPrefix(candidate, punycodePrefix) {
+		return validate.Invalid("A slug must not start with xn--. Choose another.")
 	}
 	return nil
 }

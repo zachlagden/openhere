@@ -12,11 +12,13 @@ import (
 )
 
 func TestCheckSlug(t *testing.T) {
-	valid := []string{"docs-site", "a", "launch-2026", "my--site", strings.Repeat("a", 63)}
+	valid := []string{"docs-site", "a", "launch-2026", "my--site", strings.Repeat("a", 63), "xn-a", "axn--a", "xn", "git-guide", "files2"}
 	invalid := []string{
 		"", "Docs", "docs_site", "-docs", "docs-", "docs.site", "docs site", strings.Repeat("a", 64),
 		"www", "api", "app", "admin", "dashboard", "mail", "smtp", "static", "assets", "s", "docs", "status", "login", "setup", "settings",
 		"0123456789abcdef0123456789abcdef",
+		"mta-sts", "autoconfig", "autodiscover", "ns1", "ns2", "ns3", "vpn", "git", "cdn", "files", "media", "cname", "ftp", "imap", "pop", "pop3",
+		"xn--", "xn--80ak6aa92e", "xn--a",
 	}
 	for _, s := range valid {
 		if err := CheckSlug(s); err != nil {
@@ -124,6 +126,18 @@ func TestGeneratedSlugGivesUp(t *testing.T) {
 		_, err := e.svc.CreateSite(ctx, CreateInput{UserID: e.alex, Workspace: e.acme.Slug})
 		if !errors.Is(err, ErrSlugGeneration) {
 			t.Errorf("exhausted retries = %v, want ErrSlugGeneration", err)
+		}
+	})
+}
+
+func TestCreateSiteRefusesInfrastructureAndPunycodeSlugs(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db, Options{})
+		for _, name := range []string{"mta-sts", "autodiscover", "vpn", "xn--80ak6aa92e"} {
+			_, err := e.svc.CreateSite(context.Background(), CreateInput{UserID: e.alex, Workspace: e.acme.Slug, Slug: name})
+			if !isValidation(err) {
+				t.Errorf("CreateSite(%q) = %v, want a validation error", name, err)
+			}
 		}
 	})
 }
