@@ -31,6 +31,9 @@ func TestUpdaterDownloadsAndInstallsTheDatabase(t *testing.T) {
 	if err != nil || len(entries) != 1 || entries[0].Name() != FileName {
 		t.Errorf("geo directory = %v, %v; want only %s", entries, err, FileName)
 	}
+	if info, err := os.Stat(e.dir); err != nil || info.Mode().Perm() != 0o700 {
+		t.Errorf("geo directory mode = %v, err %v; want 0700", info.Mode().Perm(), err)
+	}
 	for _, auth := range e.mm.seenAuth {
 		if auth != testAccount+":"+testKey {
 			t.Errorf("basic auth = %q", auth)

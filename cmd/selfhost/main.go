@@ -20,6 +20,7 @@ import (
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/config"
 	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/selfhost/internal/fsperm"
 	"github.com/zachlagden/selfhost/internal/hashlimit"
 	"github.com/zachlagden/selfhost/internal/hosting"
 	"github.com/zachlagden/selfhost/internal/httptimeouts"
@@ -89,6 +90,9 @@ func serve(cfg config.Config, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	if err := fsperm.EnsureDir(cfg.DataDir, logger); err != nil {
+		return err
+	}
 	db, err := openStore(ctx, cfg, logger)
 	if err != nil {
 		return err

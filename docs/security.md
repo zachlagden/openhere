@@ -95,7 +95,7 @@ The sealing key comes from `SECRET_KEY` when set. Otherwise the server creates `
 
 With PostgreSQL the database and `DATA_DIR` are separate, so a database dump alone does not carry `secret.key` unless it is in the same backup set.
 
-Certificate private keys live in `TLS_STORAGE` (default `DATA_DIR/certs`) with mode 0600, unencrypted. The setup token appears once in the server log at startup, while the instance has no users. Treat the log as sensitive until setup is complete. Never log a code, token, reset link, invite link, API key or password: the server does not.
+The server creates `DATA_DIR` and its subdirectories with mode 0700 and the SQLite database, its `-wal` and `-shm` files and `secret.key` with mode 0600. At every start it tightens the modes of existing ones and logs a warning if it cannot. A backup job that runs as another user needs its own access to the directory, for example through a group-readable copy that the job makes. Certificate private keys live in `TLS_STORAGE` (default `DATA_DIR/certs`) with mode 0600, unencrypted. The setup token appears once in the server log at startup, while the instance has no users. Treat the log as sensitive until setup is complete. Never log a code, token, reset link, invite link, API key or password: the server does not.
 
 ## Analytics privacy
 

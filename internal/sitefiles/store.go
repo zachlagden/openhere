@@ -3,9 +3,10 @@ package sitefiles
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/zachlagden/selfhost/internal/fsperm"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 	versionsDirName = "versions"
 	filesDirName    = "files"
 	tmpDirName      = "tmp"
-	dirMode         = 0o750
+	dirMode         = fsperm.DirMode
 )
 
 var (
@@ -37,8 +38,8 @@ func New(dataDir string) (*Store, error) {
 	}
 	s := &Store{root: root}
 	for _, dir := range []string{s.sitesDir(), s.tmpDir()} {
-		if err := os.MkdirAll(dir, dirMode); err != nil {
-			return nil, fmt.Errorf("create %s: %w", dir, err)
+		if err := fsperm.EnsureDir(dir, nil); err != nil {
+			return nil, err
 		}
 	}
 	return s, nil

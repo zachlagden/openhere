@@ -6,21 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/zachlagden/selfhost/internal/fsperm"
 )
 
 const sqliteFileName = "selfhost.db"
 
 func openSQLite(ctx context.Context, dataDir string) (Store, error) {
-	if err := os.MkdirAll(dataDir, 0o750); err != nil {
+	if err := fsperm.EnsureDir(dataDir, nil); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
 	absolute, err := filepath.Abs(filepath.Join(dataDir, sqliteFileName))
 	if err != nil {
 		return nil, fmt.Errorf("resolve database path: %w", err)
+	}
+	if err := fsperm.CreateFile(absolute, nil); err != nil {
+		return nil, fmt.Errorf("create database file: %w", err)
 	}
 	db, err := sql.Open("sqlite", sqliteDSN(absolute))
 	if err != nil {
@@ -33,7 +37,14 @@ func openSQLite(ctx context.Context, dataDir string) (Store, error) {
 		}
 		return nil, err
 	}
+	restrictSQLiteFiles(absolute)
 	return s, nil
+}
+
+func restrictSQLiteFiles(database string) {
+	for _, suffix := range []string{"", "-wal", "-shm", "-journal"} {
+		fsperm.Restrict(database+suffix, fsperm.FileMode, nil)
+	}
 }
 
 func sqliteDSN(path string) string {

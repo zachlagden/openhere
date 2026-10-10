@@ -345,3 +345,23 @@ func TestSweepTemporary(t *testing.T) {
 		t.Error("fresh temporary file was removed")
 	}
 }
+
+func TestStoreDirectoriesAreOwnerOnlyAndExistingOnesAreTightened(t *testing.T) {
+	root := t.TempDir()
+	loose := filepath.Join(root, "sites")
+	if err := os.Mkdir(loose, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(loose, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(root); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"sites", "tmp"} {
+		info, err := os.Stat(filepath.Join(root, name))
+		if err != nil || info.Mode().Perm() != 0o700 {
+			t.Errorf("%s mode = %v, err %v; want 0700", name, info.Mode().Perm(), err)
+		}
+	}
+}
