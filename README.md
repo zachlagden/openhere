@@ -6,7 +6,7 @@ A self-hosted, open source alternative to here.now: hosting for already built st
 
 ## Status
 
-Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain, by path or at custom domains the owner proves they control, and gates them with per-site access modes (public, password or restricted). It counts anonymous page views without cookies or scripts (see [Analytics](#analytics)). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. There is no dashboard yet.
+Early development. The server starts, loads its configuration, connects to the database, applies migrations and serves the authentication API (first-time setup, login, sessions and API keys), the workspace API (workspaces, members, folders and sites), the publishing API (versions, uploads, finalize, restore) and the instance settings API. It also serves published sites by subdomain, by path or at custom domains the owner proves they control, and gates them with per-site access modes (public, password or restricted). It counts anonymous page views without cookies or scripts (see [Analytics](#analytics)). It sends email through SMTP or Resend (see [Email](#email)) and builds on that for invites, password resets, agent sign-in and the viewer email code. It also serves a web dashboard (see [Dashboard](#dashboard)).
 
 **A new site is public.** Anyone who can reach the server and knows or guesses its slug can read its files, until you set another access mode with `PATCH /api/v1/publish/{slug}/access` or change the default with the `sites.defaultAccessMode` setting. See [Access control](#access-control).
 
@@ -30,7 +30,7 @@ Passwords need 12 to 128 characters. Emails are ASCII only and stored in lower c
 
 ## API
 
-`docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). The server does not serve it yet. Only `GET /api/v1/setup/status`, `POST /api/v1/setup`, `POST /api/v1/auth/login`, `GET /api/v1/invites/{token}`, `POST /api/v1/invites/{token}/accept`, `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm`, `POST /api/v1/auth/agent/request-code` and `POST /api/v1/auth/agent/verify-code` work without credentials, plus `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. Every other path returns a JSON 401, or a JSON 404 once signed in.
+`docs/openapi.yaml` describes every endpoint (OpenAPI 3.1). Signed-in users and API keys can download it from `GET /api/v1/docs/openapi.yaml`, and an agent guide from `GET /api/v1/docs/agent-guide.md`. `GET /api/v1/instance` tells a client the public URL, the version, whether email works, which hosting modes are on and where agents keep credentials. Only `GET /api/v1/setup/status`, `POST /api/v1/setup`, `POST /api/v1/auth/login`, `GET /api/v1/invites/{token}`, `POST /api/v1/invites/{token}/accept`, `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm`, `POST /api/v1/auth/agent/request-code` and `POST /api/v1/auth/agent/verify-code` work without credentials, plus `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`. Every other path under `/api/` returns a JSON 401, or a JSON 404 once signed in. On the management host, every other `GET` or `HEAD` path outside `/api/`, `/s/` and `/.well-known/` serves the dashboard shell, which is the one deliberate exception (see [Dashboard](#dashboard)).
 
 - Browsers sign in with a session cookie (HttpOnly, SameSite=Lax, 30 days, renewed on use). Over HTTPS it is named `__Host-session`, is Secure, has Path=/ and no Domain attribute, so a sibling subdomain cannot overwrite it. Over plain HTTP (local use) it is named `session`. The server reads only the form that matches the request. State-changing requests that use the cookie must send an `X-Requested-With` header and an `Origin` header that matches the host.
 - Scripts and agents use `Authorization: Bearer <key>` with a key from `POST /api/v1/me/keys`. The response shows the full key once. The server stores only its SHA-256 hash. Each user can hold 50 active keys.
@@ -134,6 +134,24 @@ Root sees `detail.tls` in `GET /api/v1/hosting/status`:
 ### Testing against a local ACME server
 
 The tests in `internal/certs` run certmagic against Pebble when `PEBBLE_DIRECTORY`, `PEBBLE_CA_ROOT` and `PEBBLE_DNS` are set, and skip otherwise. Start Pebble with `docker run --rm --network host -e PEBBLE_VA_NOSLEEP=1 ghcr.io/letsencrypt/pebble:latest -config /test/config/pebble-config.json -dnsserver 127.0.0.1:8054`, copy `/test/certs/pebble.minica.pem` out of the image, and point `PEBBLE_CA_ROOT` at it. `PEBBLE_DIRECTORY` is `https://localhost:14000/dir` and `PEBBLE_DNS` is `127.0.0.1:8054`. The tests use ports 5001 and 5002.
+
+## Dashboard
+
+The dashboard is a web app for the people who use the server. It lists the sites you can reach across your workspaces, with their addresses, access modes and availability notices. It manages folders, moves sites between them, searches by name and address, switches and creates workspaces, copies a setup prompt for your agent, and shows the agent guide and the API reference. The first-run setup, sign-in, invite and password reset screens are part of it. It has no way to upload or publish a site, because agents do that through the API.
+
+It lives in `web/` (Vite, React, TypeScript, Tailwind CSS, shadcn/ui components, react-router and TanStack Query) and uses the same REST API as agents. Build it before you build the server, because the server embeds the output:
+
+```sh
+pnpm --dir web install
+pnpm --dir web build
+go build ./cmd/selfhost
+```
+
+The build writes to `internal/ui/dist`, which the Go build embeds with `go:embed`. The built files are not committed. A fresh clone still compiles, and the management host then answers its dashboard routes with a plain "dashboard not built" text and status 503. The Docker image builds the dashboard in its own stage. For development, run the server and then `pnpm --dir web dev`, which proxies `/api` to `127.0.0.1:8080`.
+
+The management host serves the shell and its hashed assets to anyone, so that the sign-in screens can load. They hold nothing about your instance. Hashed files under `/assets/` are cached for a year, and the shell is revalidated on every load. Every response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and a Content-Security-Policy that allows only the server's own scripts, styles, fonts and requests. Site hosts never serve the shell.
+
+`web/src/api/schema.d.ts` is generated from `docs/openapi.yaml`. Run `pnpm --dir web gen:api` after changing the spec. The checks are `pnpm --dir web lint`, `typecheck`, `test` and `build`. `pnpm --dir web e2e` builds the server, starts it on a temporary data directory and drives it in Chrome through setup, folders, publishing, search and sign-in at desktop and phone widths in light and dark. It needs `playwright-core` on `NODE_PATH` and Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`), and writes screenshots to `web/e2e/output`.
 
 ## Workspaces and sites
 
@@ -538,9 +556,11 @@ To use PostgreSQL, add `-e DATABASE_URL=postgres://user:password@host:5432/dbnam
 
 ## Run from source
 
-You need the Go version in `go.mod`.
+You need the Go version in `go.mod`, and Node 22 with pnpm to build the dashboard.
 
 ```sh
+pnpm --dir web install
+pnpm --dir web build
 go run ./cmd/selfhost
 ```
 
@@ -551,6 +571,9 @@ gofmt -l .
 go vet ./...
 golangci-lint run
 go test ./...
+pnpm --dir web lint
+pnpm --dir web typecheck
+pnpm --dir web test
 ```
 
 `go test` runs the database tests against SQLite. To run them against PostgreSQL as well, set `TEST_DATABASE_URL` to a test database. The store tests drop the tables they create. The auth and API tests create a schema of their own per test and drop it afterwards.
