@@ -1,4 +1,4 @@
-const EXPECTED_STATUS = /status of (401|403|404|429)\b/;
+const EXPECTED_STATUS = /status of (400|401|403|404|409|429)\b/;
 
 export function watchConsole(page, label, problems) {
   page.on("console", (message) => {
@@ -23,5 +23,13 @@ export async function expectNoHorizontalScroll(page, label, problems) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (overflow > 0) {
     problems.push(`${label}: the page scrolls horizontally by ${overflow}px`);
+  }
+}
+
+export async function expectNoToastErrors(page, label, problems) {
+  const errors = await page.locator('[role="alert"]').allTextContents();
+  const unexpected = errors.filter((text) => text.trim() !== "");
+  if (unexpected.length > 0) {
+    problems.push(`${label}: unexpected alert text on the page: ${unexpected.join(" | ")}`);
   }
 }

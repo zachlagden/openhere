@@ -97,3 +97,24 @@ export function SelectField({ label, hint, error, children, ...props }: SelectFi
     </FieldFrame>
   );
 }
+
+type TextAreaFieldProps = Omit<ComponentProps<"textarea">, "id"> & {
+  label: string;
+  hint?: string;
+  error?: string | null;
+};
+
+export function TextAreaField({ label, hint, error, className, ...props }: TextAreaFieldProps): JSX.Element {
+  const id = useId();
+  return (
+    <FieldFrame id={id} label={label} hint={hint} error={error}>
+      <textarea
+        id={id}
+        aria-describedby={describedBy(id, hint, error)}
+        aria-invalid={error ? true : undefined}
+        className={cn("min-h-24 w-full min-w-0 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-foreground", className)}
+        {...props}
+      />
+    </FieldFrame>
+  );
+}

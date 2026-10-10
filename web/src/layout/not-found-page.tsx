@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { usePageTitle } from "@/lib/use-page-title";
 
 interface NotFoundPageProps {
   title?: string;
@@ -10,6 +11,7 @@ interface NotFoundPageProps {
 }
 
 export function NotFoundPage({ title = "Page not found", message = "The page you asked for does not exist." }: NotFoundPageProps): JSX.Element {
+  usePageTitle(title);
   return (
     <div className="mx-auto max-w-xl py-10">
       <EmptyState

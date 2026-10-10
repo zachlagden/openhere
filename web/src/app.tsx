@@ -5,13 +5,26 @@ import { LoginPage } from "@/features/auth/login-page";
 import { ResetConfirmPage } from "@/features/auth/reset-confirm-page";
 import { ResetRequestPage } from "@/features/auth/reset-request-page";
 import { SetupPage } from "@/features/auth/setup-page";
+import { AccessTab } from "@/features/site-detail/access-tab";
+import { DomainsTab } from "@/features/site-detail/domains-tab";
+import { VersionsTab } from "@/features/site-detail/versions-tab";
+import { OverviewTab } from "@/features/site-detail/overview-tab";
+import { SiteLayout } from "@/features/site-detail/site-layout";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { SitesPage } from "@/features/sites/sites-page";
+import { InvitesTab } from "@/features/workspaces/invites-tab";
+import { MembersTab } from "@/features/workspaces/members-tab";
+import { WorkspaceSettingsTab } from "@/features/workspaces/workspace-settings-tab";
+import { WorkspaceLayout } from "@/features/workspaces/workspace-layout";
+import { WorkspaceSitesTab } from "@/features/workspaces/workspace-sites-tab";
 import { AppShell } from "@/layout/app-shell";
 import { NotFoundPage } from "@/layout/not-found-page";
 import { RequireAuth } from "@/layout/require-auth";
 import { Spinner } from "@/components/ui/spinner";
 
+const AnalyticsTab = lazy(() => import("@/features/site-detail/analytics-tab").then((module) => ({ default: module.AnalyticsTab })));
+const WorkspaceAnalyticsTab = lazy(() => import("@/features/workspaces/workspace-analytics-tab").then((module) => ({ default: module.WorkspaceAnalyticsTab })));
+const AdminPage = lazy(() => import("@/features/admin/admin-page").then((module) => ({ default: module.AdminPage })));
 const DocsPage = lazy(() => import("@/features/docs/docs-page").then((module) => ({ default: module.DocsPage })));
 
 export function App(): JSX.Element {
@@ -25,12 +38,33 @@ export function App(): JSX.Element {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route index element={<SitesPage />} />
-          <Route path="workspaces/:workspace" element={<SitesPage />} />
+          <Route path="workspaces/:workspace" element={<WorkspaceLayout />}>
+            <Route index element={<WorkspaceSitesTab />} />
+            <Route path="members" element={<MembersTab />} />
+            <Route path="invites" element={<InvitesTab />} />
+            <Route path="analytics" element={<Suspense fallback={<Spinner label="Loading analytics…" />}><WorkspaceAnalyticsTab /></Suspense>} />
+            <Route path="settings" element={<WorkspaceSettingsTab />} />
+          </Route>
+          <Route path="sites/:slug" element={<SiteLayout />}>
+            <Route index element={<OverviewTab />} />
+            <Route path="access" element={<AccessTab />} />
+            <Route path="domains" element={<DomainsTab />} />
+            <Route path="versions" element={<VersionsTab />} />
+            <Route path="analytics" element={<Suspense fallback={<Spinner label="Loading analytics…" />}><AnalyticsTab /></Suspense>} />
+          </Route>
           <Route
             path="docs/*"
             element={
               <Suspense fallback={<Spinner label="Loading docs…" />}>
                 <DocsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/*"
+            element={
+              <Suspense fallback={<Spinner label="Loading admin…" />}>
+                <AdminPage />
               </Suspense>
             }
           />

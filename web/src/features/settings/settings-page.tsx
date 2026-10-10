@@ -1,51 +1,34 @@
 import type { JSX } from "react";
-import { Cog } from "lucide-react";
-import { Link, NavLink, Route, Routes } from "react-router";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { NavLink, Route, Routes } from "react-router";
 import { PageHeader } from "@/components/ui/page-header";
+import { Spinner } from "@/components/ui/spinner";
+import { NotFoundPage } from "@/layout/not-found-page";
 import { cn } from "@/lib/cn";
-import { useMe } from "@/queries/session";
+import { usePageTitle } from "@/lib/use-page-title";
+import { lazy, Suspense } from "react";
+import { ApiKeysSection } from "./api-keys-section";
+import { DomainsOverviewSection } from "./domains-overview-section";
+import { GeneralSection } from "./general-section";
+import { ProfileSection } from "./profile-section";
 
-interface Section {
-  path: string;
-  label: string;
-  rootOnly: boolean;
-}
+const PersonalAnalyticsSection = lazy(() => import("./personal-analytics-section").then((module) => ({ default: module.PersonalAnalyticsSection })));
 
-const SECTIONS: Section[] = [
-  { path: "", label: "Profile", rootOnly: false },
-  { path: "api-keys", label: "API keys", rootOnly: false },
-  { path: "domains", label: "Domains", rootOnly: false },
-  { path: "hosting", label: "Hosting", rootOnly: true },
-];
-
-function SectionPlaceholder({ label }: { label: string }): JSX.Element {
-  return (
-    <EmptyState
-      icon={<Cog />}
-      title={`${label} settings are not available in the dashboard yet`}
-      actions={
-        <Button asChild variant="secondary">
-          <Link to="/docs/api">Open the API reference</Link>
-        </Button>
-      }
-    >
-      <p>The API already covers this. Your agent can manage it, or you can call the API directly.</p>
-    </EmptyState>
-  );
-}
+const SECTIONS = [
+  { path: "", label: "Profile" },
+  { path: "general", label: "General" },
+  { path: "api-keys", label: "API keys" },
+  { path: "analytics", label: "Analytics" },
+  { path: "domains", label: "Domains" },
+] as const;
 
 export function SettingsPage(): JSX.Element {
-  const me = useMe();
-  const isRoot = me.data?.isRoot ?? false;
-  const sections = SECTIONS.filter((section) => isRoot || !section.rootOnly);
+  usePageTitle("Settings");
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" description="Your account and the sites you manage." />
       <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
-        <nav aria-label="Settings sections" className="flex gap-1 overflow-x-auto md:flex-col">
-          {sections.map((section) => (
+        <nav aria-label="Settings sections" className="-mx-4 flex gap-1 overflow-x-auto px-4 md:mx-0 md:flex-col md:px-0">
+          {SECTIONS.map((section) => (
             <NavLink
               key={section.path}
               to={section.path === "" ? "/settings" : `/settings/${section.path}`}
@@ -61,16 +44,23 @@ export function SettingsPage(): JSX.Element {
             </NavLink>
           ))}
         </nav>
-        <Routes>
-          {sections.map((section) => (
+        <div className="min-w-0">
+          <Routes>
+            <Route index element={<ProfileSection />} />
+            <Route path="general" element={<GeneralSection />} />
+            <Route path="api-keys" element={<ApiKeysSection />} />
             <Route
-              key={section.path}
-              path={section.path === "" ? undefined : section.path}
-              index={section.path === ""}
-              element={<SectionPlaceholder label={section.label} />}
+              path="analytics"
+              element={
+                <Suspense fallback={<Spinner label="Loading analytics…" />}>
+                  <PersonalAnalyticsSection />
+                </Suspense>
+              }
             />
-          ))}
-        </Routes>
+            <Route path="domains" element={<DomainsOverviewSection />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </div>
       </div>
     </>
   );

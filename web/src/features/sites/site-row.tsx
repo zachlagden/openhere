@@ -1,5 +1,6 @@
 import { Folder as FolderIcon, Layers } from "lucide-react";
 import type { JSX } from "react";
+import { Link } from "react-router";
 import type { Site } from "@/api/types";
 import { formatDateTime, formatRelativeTime } from "@/lib/format";
 import { HostingNotices } from "./hosting-notices";
@@ -22,7 +23,11 @@ export function SiteRow({ site, workspaceName, folderName, isRoot, now }: SiteRo
       <div className="grid gap-x-6 gap-y-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="min-w-0">
           <div className="flex items-start gap-2">
-            <h3 className="min-w-0 break-words font-medium leading-snug">{site.displayName}</h3>
+            <h3 className="min-w-0 break-words font-medium leading-snug">
+              <Link to={`/sites/${encodeURIComponent(site.slug)}`} className="underline-offset-4 hover:underline">
+                {site.displayName}
+              </Link>
+            </h3>
             <div className="ml-auto md:hidden">
               <SiteMenu site={site} />
             </div>
@@ -58,7 +63,7 @@ export function SiteRow({ site, workspaceName, folderName, isRoot, now }: SiteRo
           </div>
         </div>
       </div>
-      <HostingNotices hosting={site.hosting} isRoot={isRoot} />
+      <HostingNotices site={site} isRoot={isRoot} variant="list" />
     </li>
   );
 }

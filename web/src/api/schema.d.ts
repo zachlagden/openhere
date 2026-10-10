@@ -251,8 +251,8 @@ export interface paths {
         /**
          * Describe the instance for a signed-in user
          * @description Facts a client needs to set itself up: the public URL, the version, whether the instance can send email,
-         *     which hosting modes are on, whether the caller may create shared workspaces (the
-         *     `workspaces.whoCanCreate` setting) and where agents keep their credentials. It holds nothing only the
+         *     which hosting modes are on, the per-site custom domain limit, who may invite, whether the caller may create
+         *     shared workspaces (the `workspaces.whoCanCreate` setting) and where agents keep their credentials. It holds nothing only the
          *     root user may see.
          */
         get: operations["getInstance"];
@@ -1424,6 +1424,13 @@ export interface components {
                 path: boolean;
                 customDomains: boolean;
             };
+            /** @description The most custom domains one site can hold (`hosting.maxDomainsPerSite`). */
+            maxDomainsPerSite: number;
+            /**
+             * @description The `invites.whoCanInvite` setting. With `root`, only the root user may create invites.
+             * @enum {string}
+             */
+            whoCanInvite: "root" | "workspaceAdmins";
             /** @example .selfhost */
             agentCredentialsDir: string;
             /** @example ~/.selfhost/credentials */

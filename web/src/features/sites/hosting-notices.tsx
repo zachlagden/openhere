@@ -1,37 +1,30 @@
 import { AlertTriangle, Info } from "lucide-react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { Link } from "react-router";
-import type { SiteHosting } from "@/api/types";
+import type { Site } from "@/api/types";
 import { cn } from "@/lib/cn";
-
-export type NoticeSeverity = "warning" | "caution" | "info";
-
-export function noticeSeverity(hosting: SiteHosting): NoticeSeverity {
-  if (!hosting.reachable) {
-    return "warning";
-  }
-  const modes = Object.values(hosting.modes);
-  return modes.some((mode) => mode.state === "off") ? "caution" : "info";
-}
+import { noticeMessages, noticeSeverity, type NoticeSeverity } from "@/lib/hosting-notices";
 
 const severityClasses: Record<NoticeSeverity, string> = {
   warning: "rounded-md bg-warn-soft px-3 py-2 text-warn",
-  caution: "text-warn",
   info: "text-muted",
 };
 
 interface HostingNoticesProps {
-  hosting: SiteHosting;
+  site: Pick<Site, "hosting" | "currentVersionId">;
   isRoot: boolean;
+  variant: "list" | "detail";
+  cause?: ReactNode;
 }
 
-export function HostingNotices({ hosting, isRoot }: HostingNoticesProps): JSX.Element | null {
-  const severity = noticeSeverity(hosting);
-  const messages = hosting.notices.map((notice) => notice.message);
+export function HostingNotices({ site, isRoot, variant, cause }: HostingNoticesProps): JSX.Element | null {
+  const severity = noticeSeverity(site);
+  const messages = noticeMessages(site, variant);
   if (messages.length === 0) {
     return null;
   }
   const Icon = severity === "info" ? Info : AlertTriangle;
+  const showRootDetail = isRoot && (variant === "detail" || severity === "warning");
   return (
     <div className={cn("flex items-start gap-2 text-sm", severityClasses[severity])} data-severity={severity}>
       <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
@@ -41,8 +34,9 @@ export function HostingNotices({ hosting, isRoot }: HostingNoticesProps): JSX.El
             <li key={message}>{message}</li>
           ))}
         </ul>
-        {isRoot && severity !== "info" ? (
-          <Link to="/settings/hosting" className="mt-0.5 inline-block font-medium underline underline-offset-4">
+        {showRootDetail && cause ? <div className="mt-1 text-xs">{cause}</div> : null}
+        {showRootDetail ? (
+          <Link to="/admin/hosting" className="mt-0.5 inline-block font-medium underline underline-offset-4">
             Open hosting settings
           </Link>
         ) : null}

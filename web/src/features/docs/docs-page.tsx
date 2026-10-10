@@ -5,6 +5,7 @@ import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useAgentGuide } from "@/queries/instance";
 import { MarkdownView } from "./markdown-view";
 import { OpenApiView } from "./openapi-view";
@@ -44,6 +45,7 @@ function Tab({ to, end, children }: { to: string; end?: boolean; children: strin
 }
 
 export function DocsPage(): JSX.Element {
+  usePageTitle("Docs");
   return (
     <>
       <PageHeader title="Docs" description="How agents use this server, and the API they call." />
