@@ -71,6 +71,8 @@ func parseTLS(values reader, dataDir, rawPublicURL string, public PublicURL) (TL
 	problems = appendIf(problems, validateACMECA(tls.CA))
 	if rawPublicURL == "" || !public.Secure() {
 		problems = append(problems, errors.New("PUBLIC_URL must be set to an https:// URL when TLS_ENABLED is true"))
+	} else if net.ParseIP(public.Host) != nil {
+		problems = append(problems, errors.New("PUBLIC_URL must use a host name, not an IP address, when TLS_ENABLED is true"))
 	}
 	return tls, errors.Join(problems...)
 }

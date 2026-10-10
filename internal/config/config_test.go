@@ -291,6 +291,7 @@ func TestTLSValidation(t *testing.T) {
 		{"bad email", map[string]string{"ACME_EMAIL": "Alex <admin@example.com>"}, "", "ACME_EMAIL must be a plain email"},
 		{"http public url", map[string]string{"PUBLIC_URL": "http://sites.example.com"}, "", "PUBLIC_URL must be set to an https://"},
 		{"missing public url", nil, "PUBLIC_URL", "PUBLIC_URL must be set to an https://"},
+		{"ip public url", map[string]string{"PUBLIC_URL": "https://203.0.113.5"}, "", "host name, not an IP address"},
 		{"bad http addr", map[string]string{"TLS_HTTP_ADDR": "eighty"}, "", "TLS_HTTP_ADDR"},
 		{"bad https addr", map[string]string{"TLS_HTTPS_ADDR": "443"}, "", "TLS_HTTPS_ADDR"},
 		{"same port", map[string]string{"TLS_HTTP_ADDR": ":8443", "TLS_HTTPS_ADDR": "127.0.0.1:8443"}, "", "different ports"},
