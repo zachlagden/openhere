@@ -1,7 +1,13 @@
 package access
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -86,43 +92,55 @@ func cookieFor(t *testing.T, e *env, siteID string) string {
 	return value
 }
 
-func TestCookieSignedByAnotherInstanceIsRejected(t *testing.T) {
+func TestCookieSignedByAnotherKeyIsRejected(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		first := newEnv(t, db)
 		value := cookieFor(t, first, first.site.ID)
-		secondDB := newEnvOnFreshSecret(t, db)
-		if _, ok, err := secondDB.svc.ParseCookie(context.Background(), value); err != nil || ok {
-			t.Errorf("a cookie signed with another secret was accepted (ok = %v, err = %v)", ok, err)
+		other := New(db, Options{Params: fastParams, Now: first.clock.Now, Secrets: testBox(t, 2)})
+		if _, ok, err := other.ParseCookie(context.Background(), value); err != nil || ok {
+			t.Errorf("a cookie minted with another box key was accepted (ok = %v, err = %v)", ok, err)
+		}
+		same := New(db, Options{Params: fastParams, Now: first.clock.Now, Secrets: testBox(t, 1)})
+		if _, ok, err := same.ParseCookie(context.Background(), value); err != nil || !ok {
+			t.Errorf("a second service with the same key rejected the cookie (ok = %v, err = %v)", ok, err)
 		}
 	})
 }
 
-func newEnvOnFreshSecret(t *testing.T, db store.Store) *env {
-	t.Helper()
-	if _, err := db.ExecContext(context.Background(), "DELETE FROM instance_settings WHERE key = $1", secretSettingKey); err != nil {
-		t.Fatal(err)
-	}
-	fresh := New(db, Options{Params: fastParams})
-	return &env{t: t, svc: fresh}
-}
-
-func TestViewerSecretIsGeneratedOnceAndShared(t *testing.T) {
+func TestViewerKeysAreNeverStoredInTheDatabase(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		e := newEnv(t, db)
-		value := cookieFor(t, e, e.site.ID)
-		peer := New(db, Options{Params: fastParams, Now: e.clock.Now})
-		if _, ok, err := peer.ParseCookie(context.Background(), value); err != nil || !ok {
-			t.Fatalf("a second service on the same database rejected the cookie (ok = %v, err = %v)", ok, err)
+		cookieFor(t, e, e.site.ID)
+		if _, err := e.svc.FormToken(context.Background(), e.site.ID, 0, "client"); err != nil {
+			t.Fatal(err)
 		}
 		var count int
-		row := db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM instance_settings WHERE key = $1", secretSettingKey)
-		if err := row.Scan(&count); err != nil || count != 1 {
-			t.Errorf("secret rows = %d, err = %v", count, err)
+		row := db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM instance_settings WHERE key LIKE $1", "internal.viewer%")
+		if err := row.Scan(&count); err != nil || count != 0 {
+			t.Errorf("viewer secret rows = %d, err = %v; want none", count, err)
 		}
-		var stored string
-		row = db.QueryRowContext(context.Background(), "SELECT value FROM instance_settings WHERE key = $1", secretSettingKey)
-		if err := row.Scan(&stored); err != nil || len(stored) != 2*secretBytes {
-			t.Errorf("stored secret has length %d, err = %v", len(stored), err)
+	})
+}
+
+func TestCookieForgedFromADatabaseDumpIsRejected(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		known := bytes.Repeat([]byte{7}, 32)
+		_, err := db.ExecContext(context.Background(),
+			"INSERT INTO instance_settings (key, value, updated_at) VALUES ($1, $2, $3)",
+			"internal.viewerSecret", hex.EncodeToString(known), e.clock.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload := strings.Join([]string{e.site.ID, "0", strconv.FormatInt(e.clock.Now().Add(time.Hour).Unix(), 10), string(MethodPassword), ""}, "|")
+		derive := hmac.New(sha256.New, known)
+		derive.Write([]byte(cookiePurpose))
+		mac := hmac.New(sha256.New, derive.Sum(nil))
+		mac.Write([]byte(payload))
+		encoding := base64.RawURLEncoding
+		forged := cookiePrefix + "." + encoding.EncodeToString([]byte(payload)) + "." + encoding.EncodeToString(mac.Sum(nil))
+		if _, ok, err := e.svc.ParseCookie(context.Background(), forged); err != nil || ok {
+			t.Errorf("a cookie forged from a database copy was accepted (ok = %v, err = %v)", ok, err)
 		}
 	})
 }

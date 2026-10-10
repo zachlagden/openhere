@@ -162,7 +162,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 		})
 	}
 	accessSvc := access.New(db, access.Options{
-		Mailer: mailer, Params: testParams, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() },
+		Mailer: mailer, Params: testParams, Now: clock.Now, Logger: logger, Spawn: func(task func()) { task() }, Secrets: box,
 	})
 	invitesSvc := invites.New(db, svc, workspaceSvc, settingsSvc, invites.Options{
 		BaseURL: "http://" + testHost, Mailer: mailer, Now: clock.Now, Logger: logger,

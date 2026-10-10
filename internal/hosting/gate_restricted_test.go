@@ -106,7 +106,7 @@ func TestEmailSignInNeedsAConfiguredMailer(t *testing.T) {
 		e := newEnv(t, db)
 		e.gatedDemo(restrictedMode("sam@example.com"))
 		token := e.formToken(siteHost, "/")
-		e.router.gate.access = access.New(db, access.Options{Params: fastParams, Now: e.clock.Now})
+		e.router.gate.access = access.New(db, access.Options{Params: fastParams, Now: e.clock.Now, Secrets: e.box})
 		body := e.site("/").Body.String()
 		if strings.Contains(body, `name="email"`) || !strings.Contains(body, "Email sign-in is not available on this instance.") {
 			t.Errorf("page = %s", body)

@@ -230,12 +230,12 @@ func TestSettingsNeverExposeTheViewerSecret(t *testing.T) {
 		if _, _, err := s.h.access.IssueCookie(t.Context(), s.siteID, 0, "password", ""); err != nil {
 			t.Fatal(err)
 		}
-		var stored string
-		if err := db.QueryRowContext(t.Context(), "SELECT value FROM instance_settings WHERE key = 'internal.viewerSecret'").Scan(&stored); err != nil || stored == "" {
-			t.Fatalf("the secret was not stored: %v", err)
+		var rows int
+		if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM instance_settings WHERE key LIKE 'internal.viewer%'").Scan(&rows); err != nil || rows != 0 {
+			t.Fatalf("a viewer secret row exists: %d, %v", rows, err)
 		}
 		body := s.alex.expect(http.StatusOK, "GET", "/api/v1/admin/settings", nil).Body.String()
-		if strings.Contains(body, stored) || strings.Contains(body, "viewerSecret") {
+		if strings.Contains(body, "viewerSecret") {
 			t.Errorf("settings expose the secret: %s", body)
 		}
 		for _, patch := range []string{

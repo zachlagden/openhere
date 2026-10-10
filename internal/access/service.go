@@ -8,15 +8,17 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/store"
 )
 
 type Options struct {
-	Mailer mail.Sender
-	Params auth.Params
-	Now    func() time.Time
-	Logger *slog.Logger
-	Spawn  func(task func())
+	Mailer  mail.Sender
+	Params  auth.Params
+	Now     func() time.Time
+	Logger  *slog.Logger
+	Spawn   func(task func())
+	Secrets *secrets.Box
 }
 
 type Service struct {
@@ -27,8 +29,7 @@ type Service struct {
 	logger *slog.Logger
 	spawn  func(task func())
 
-	secretMu sync.Mutex
-	secret   []byte
+	box *secrets.Box
 
 	dummyMu   sync.Mutex
 	dummyHash string
@@ -55,7 +56,11 @@ func New(db store.Store, opts Options) *Service {
 	if spawn == nil {
 		spawn = func(task func()) { go task() }
 	}
-	return &Service{db: db, mailer: mailer, params: params, now: now, logger: logger, spawn: spawn}
+	box := opts.Secrets
+	if box == nil {
+		box = ephemeralBox(logger)
+	}
+	return &Service{db: db, mailer: mailer, params: params, now: now, logger: logger, spawn: spawn, box: box}
 }
 
 func (s *Service) clock() time.Time {

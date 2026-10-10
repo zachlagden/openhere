@@ -134,7 +134,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	}
 	mailer := mail.New(mail.NewSettingsSource(settingsSvc, box), mail.Options{Logger: logger})
 	workspaceSvc := workspaces.New(db, workspaces.Options{MayCreateShared: policy.MayCreateShared(settingsSvc, svc)})
-	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger})
+	accessSvc := access.New(db, access.Options{Mailer: mailer, Logger: logger, Secrets: box})
 	siteSvc := sites.New(db, workspaceSvc, sites.Options{
 		Files: files, Logger: logger, OnSiteChange: siteChanged, DefaultAccessMode: defaultAccessMode(settingsSvc), AnalyticsDefault: analyticsDefault(settingsSvc),
 	})

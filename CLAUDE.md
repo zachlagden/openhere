@@ -70,7 +70,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - `hosting` asks `access.Service.Check` before it looks up any file, `404.html` included. A gated site must never answer differently for paths that exist and paths that do not. Gate pages show no site name, description or file name.
 - Every response for a gated site, gate pages and plain 401s included, carries `frame-ancestors 'none'` and `X-Frame-Options: DENY`. In path mode the policy keeps the sandbox directives and adds `frame-ancestors`. Gated content is `Cache-Control: private`, gate pages `private, no-store`.
 - Viewer cookies are read and written only in `hosting/gate_cookie.go`. Their names and attributes depend on subdomain or path mode and on HTTPS. Path mode over plain HTTP shows the HTTPS-required page and sets no cookie.
-- The viewer signing secret lives in `instance_settings` under `internal.viewerSecret`. It is not a `settings.definitions` entry, so the settings API never returns or accepts it. Never log it, a cookie value, a code, a handoff token or a password.
+- Viewer cookies, form tokens and code hashes are signed with subkeys that `secrets.Box.Sign` derives from the sealing key, through `access.Service.sign` and distinct purpose labels. The server stores no viewer secret, so a database copy alone cannot forge a cookie. Never log a cookie value, a code, a handoff token or a password.
 - Return paths come from `access.SafeReturnPath` and nothing else. Never build a redirect from a client-supplied path without it.
 - A code request answers the same for allowlisted and other addresses, including its rate limits. Do not add a branch that changes the status, body or limit behaviour by allowlist membership.
 

@@ -80,7 +80,7 @@ Use subdomain or custom domain mode for gated sites. In path mode the viewer coo
 
 ## Secrets at rest
 
-The SMTP password, the Resend API key, the Cloudflare API token and the MaxMind licence key are write-only: the settings API never returns them. The server encrypts them with AES-256-GCM before it stores them in the database. The analytics visitor secret is sealed the same way. The viewer signing secret is stored in `instance_settings` under a key that the settings API neither returns nor accepts. The agent sign-in code hashes derive from the sealing key, so a changed key invalidates codes in flight.
+The SMTP password, the Resend API key, the Cloudflare API token and the MaxMind licence key are write-only: the settings API never returns them. The server encrypts them with AES-256-GCM before it stores them in the database. The analytics visitor secret is sealed the same way. The server stores no viewer signing secret. It derives the keys for viewer cookies, gate form tokens and site email codes from the sealing key, so a copy of the database alone cannot forge a viewer cookie. The agent sign-in code hashes derive from the sealing key too. A changed sealing key therefore invalidates codes in flight and signs every gate viewer out.
 
 The sealing key comes from `SECRET_KEY` when set. Otherwise the server creates `DATA_DIR/secret.key` with mode 0600 on first start.
 

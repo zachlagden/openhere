@@ -1,6 +1,7 @@
 package access
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/zachlagden/selfhost/internal/auth"
 	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/selfhost/internal/secrets"
 	"github.com/zachlagden/selfhost/internal/sites"
 	"github.com/zachlagden/selfhost/internal/store"
 	"github.com/zachlagden/selfhost/internal/store/storetest"
@@ -40,6 +42,7 @@ func (c *clock) Advance(d time.Duration) {
 
 type env struct {
 	t      *testing.T
+	box    *secrets.Box
 	db     store.Store
 	svc    *Service
 	mailer *mail.Recorder
@@ -57,14 +60,15 @@ type env struct {
 func newEnv(t *testing.T, db store.Store) *env {
 	t.Helper()
 	clk := &clock{now: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)}
+	box := testBox(t, 1)
 	recorder := mail.NewRecorder()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ws := workspaces.New(db, workspaces.Options{Now: clk.Now})
 	e := &env{
-		t: t, db: db, mailer: recorder, clock: clk, ws: ws,
+		t: t, db: db, box: box, mailer: recorder, clock: clk, ws: ws,
 		sites: sites.New(db, ws, sites.Options{Now: clk.Now, Logger: logger}),
 		svc: New(db, Options{
-			Mailer: recorder, Params: fastParams, Now: clk.Now, Logger: logger, Spawn: func(task func()) { task() },
+			Mailer: recorder, Params: fastParams, Now: clk.Now, Logger: logger, Spawn: func(task func()) { task() }, Secrets: box,
 		}),
 	}
 	e.alex = e.user("alex@example.com")
@@ -188,4 +192,13 @@ func codeIn(t *testing.T, msg mail.Message) string {
 		t.Fatalf("no code in %q", msg.Text)
 	}
 	return code
+}
+
+func testBox(t *testing.T, seed byte) *secrets.Box {
+	t.Helper()
+	box, err := secrets.New(bytes.Repeat([]byte{seed}, secrets.KeyBytes))
+	if err != nil {
+		t.Fatalf("secrets.New: %v", err)
+	}
+	return box
 }
