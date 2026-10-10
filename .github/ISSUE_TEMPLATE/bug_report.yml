@@ -1,0 +1,74 @@
+name: Bug report
+description: Report something that does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Follow SECURITY.md instead.
+        Remove passwords, API keys, setup tokens and personal data from anything you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, or the API calls you made.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version from GET /api/v1/instance, or the commit hash.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you run it
+      options:
+        - Docker image
+        - Binary
+        - Built from source
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - SQLite
+        - PostgreSQL
+    validations:
+      required: true
+  - type: dropdown
+    id: hosting-mode
+    attributes:
+      label: Hosting mode involved
+      options:
+        - Not applicable
+        - Subdomain
+        - Path
+        - Custom domain
+  - type: dropdown
+    id: proxy
+    attributes:
+      label: HTTPS and proxy
+      options:
+        - Built-in HTTPS
+        - Traefik
+        - Caddy
+        - Another reverse proxy
+        - Plain HTTP
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines of the server's JSON log output.
+      render: shell
