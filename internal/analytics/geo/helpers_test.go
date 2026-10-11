@@ -102,6 +102,8 @@ type fakeMaxMind struct {
 	server    *httptest.Server
 	sumStatus int
 	redirect  string
+	block     chan struct{}
+	entered   chan struct{}
 }
 
 func newFakeMaxMind(t *testing.T, archive []byte) *fakeMaxMind {
@@ -115,6 +117,10 @@ func newFakeMaxMind(t *testing.T, archive []byte) *fakeMaxMind {
 }
 
 func (f *fakeMaxMind) handle(w http.ResponseWriter, r *http.Request) {
+	if f.block != nil {
+		f.entered <- struct{}{}
+		<-f.block
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.requests++
@@ -267,4 +273,10 @@ func (e *updaterEnv) assertNoSecretLogged(extra ...string) {
 			e.t.Errorf("the output contains %q", secret)
 		}
 	}
+}
+
+func (f *fakeMaxMind) setStatus(status int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.status = status
 }
