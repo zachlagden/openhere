@@ -27,6 +27,7 @@ const (
 	restartRetry   = 5 * time.Minute
 	forceFloor     = time.Minute
 	downloadWindow = 15 * time.Minute
+	recordTimeout  = 10 * time.Second
 )
 
 type State interface {
@@ -186,7 +187,7 @@ func (u *Updater) check(ctx context.Context, forced bool) error {
 	}
 	account, key, err := u.credentials(cfg)
 	if err != nil {
-		return u.state.RecordGeo(ctx, settings.GeoState{Status: settings.GeoFailed, Detail: "The stored licence key cannot be opened. Enter it again."})
+		return u.record(ctx, settings.GeoState{Status: settings.GeoFailed, Detail: "The stored licence key cannot be opened. Enter it again."})
 	}
 	if account == "" || key == "" {
 		return u.recordUnconfigured(ctx, cfg)
@@ -210,11 +211,17 @@ func (u *Updater) credentials(cfg settings.Settings) (string, string, error) {
 	return account, key, nil
 }
 
+func (u *Updater) record(ctx context.Context, state settings.GeoState) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
+	defer cancel()
+	return u.state.RecordGeo(ctx, state)
+}
+
 func (u *Updater) recordUnconfigured(ctx context.Context, cfg settings.Settings) error {
 	if cfg.Analytics.GeoStatus == settings.GeoUnconfigured {
 		return nil
 	}
-	return u.state.RecordGeo(ctx, settings.GeoState{Status: settings.GeoUnconfigured})
+	return u.record(ctx, settings.GeoState{Status: settings.GeoUnconfigured})
 }
 
 func (u *Updater) due(cfg settings.Settings, fingerprint string, forced bool) bool {
@@ -256,12 +263,12 @@ func (u *Updater) refresh(ctx context.Context, account, key string) error {
 		return u.fail(ctx, err)
 	}
 	u.logger.Info("updated the GeoLite2 database")
-	return u.state.RecordGeo(ctx, settings.GeoState{Status: settings.GeoOK, Detail: checksumNote, Updated: true})
+	return u.record(ctx, settings.GeoState{Status: settings.GeoOK, Detail: checksumNote, Updated: true})
 }
 
 func (u *Updater) fail(ctx context.Context, cause error) error {
 	u.logger.Warn("update the GeoLite2 database", "reason", cause.Error())
-	if err := u.state.RecordGeo(ctx, settings.GeoState{Status: settings.GeoFailed, Detail: cause.Error()}); err != nil {
+	if err := u.record(ctx, settings.GeoState{Status: settings.GeoFailed, Detail: cause.Error()}); err != nil {
 		return errors.Join(cause, err)
 	}
 	return nil

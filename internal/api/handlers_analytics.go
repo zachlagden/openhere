@@ -13,6 +13,8 @@ import (
 	"github.com/zachlagden/openhere/internal/settings"
 )
 
+const settledReadTimeout = 10 * time.Second
+
 type GeoChecker interface {
 	ForceCheck(ctx context.Context) error
 }
@@ -57,7 +59,9 @@ func (s *Server) handleGeoCheck(w http.ResponseWriter, r *http.Request) {
 		s.writeInternal(w, r, err)
 		return
 	}
-	after, err := s.settings.Get(r.Context())
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), settledReadTimeout)
+	defer cancel()
+	after, err := s.settings.Get(ctx)
 	if err != nil {
 		s.writeInternal(w, r, err)
 		return

@@ -8,9 +8,6 @@ import (
 const (
 	SandboxPolicy = "sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation"
 
-	CacheHTML  = "no-cache"
-	CacheAsset = "public, max-age=3600, must-revalidate"
-
 	allowedMethods = "GET, HEAD"
 )
 

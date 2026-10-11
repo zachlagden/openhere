@@ -144,14 +144,28 @@ Tell the user which record to create. Verification never looks at A or CNAME rec
 
 Errors are JSON: `{"code": "...", "message": "...", "retry_after": 30}`. Branch on `code`, not on `message`.
 
-| Status | Meaning |
-|---|---|
-| 400 | `validation_failed`, `invalid_json` or `invalid_path`. Fix the request. |
-| 401 | `unauthenticated`. The key is missing or revoked. |
-| 403 | `forbidden`. The user can see the resource but their role does not allow the action. |
-| 404 | `not_found`. The resource does not exist or the user cannot see it. |
-| 409 | A conflict such as `slug_taken`, `version_conflict`, `missing_files` or `email_not_configured`. |
-| 413 | A limit was exceeded: `too_many_files`, `file_too_large`, `version_too_large` or `body_too_large`. |
-| 429 | `rate_limited`. Wait `retry_after` seconds before you try again. |
+| Status | `code` | What to do |
+|---|---|---|
+| 400 | `validation_failed`, `invalid_json` | Fix the request body and send it again. |
+| 400 | `invalid_path` | A manifest path is unsafe or malformed. Use relative paths with `/` separators and no `..`, and send a corrected manifest. |
+| 400 | `size_mismatch`, `hash_mismatch` | The uploaded bytes differ from the manifest. Recompute the size and SHA-256 from the file on disk, then upload that file again. |
+| 401 | `unauthenticated` | The key is missing or revoked. Ask the user for access again. |
+| 403 | `forbidden` | The user can see the resource but their role does not allow the action. Tell the user. |
+| 404 | `not_found` | The resource does not exist or the user cannot see it. |
+| 404 | `file_not_in_manifest` | You uploaded a path the version does not list. Upload only paths from the `uploads` array. |
+| 409 | `version_conflict` | The live version changed since your `baseVersionId`. Read `currentVersionId`, list the live files, rebuild the manifest and publish again. |
+| 409 | `missing_files` | Finalize found missing or damaged files. Upload the paths in `missing`, then finalize again. |
+| 409 | `version_finalized` | The version is already live and cannot take uploads. Start a new publish. |
+| 409 | `version_live` | You tried to delete the live version. Restore another version first. |
+| 409 | `version_not_finalized` | You tried to restore a version that never went live. Pick a finalized version. |
+| 409 | `slug_taken` | Choose another slug. |
+| 409 | `domain_not_verified` | A domain must pass its DNS check before it can become primary. Verify it first. |
+| 409 | `email_not_configured` | The instance cannot send email. Use an API key. |
+| 410 | `version_expired` | The pending version passed its 24 hours. Start a new publish. |
+| 413 | `too_many_files`, `file_too_large`, `version_too_large`, `body_too_large` | A limit was exceeded. Send fewer or smaller files, or ask the user to raise the limit. |
+| 415 | `unsupported_media_type` | JSON endpoints need `Content-Type: application/json`. File uploads send raw bytes. |
+| 429 | `rate_limited` | Wait `retry_after` seconds, then try again. |
+| 429 | `too_many_pending` | Too many unfinished versions. The response has no `retry_after`. Finalize or delete your pending versions, or wait for them to expire after 24 hours. |
+| 503 | `server_busy` | The server is hashing passwords. Wait `retry_after` seconds, then try again. |
 
-On `version_conflict`, the site changed since you read it. Read `currentVersionId`, list the live files with `GET /api/v1/sites/{slug}/files`, rebuild your manifest and publish again.
+Calls in the sections above can return further codes, such as `folder_has_grants`. Treat an unknown code as a failure and show its `message` to the user.

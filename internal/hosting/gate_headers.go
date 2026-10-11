@@ -9,8 +9,7 @@ const (
 	frameAncestorsNone = "frame-ancestors 'none'"
 	gatePagePolicy     = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; " + frameAncestorsNone
 	cacheGatePage      = "private, no-store"
-	cachePrivateHTML   = "private, no-cache"
-	cachePrivateAsset  = "private, max-age=3600, must-revalidate"
+	cachePrivateFile   = "private, no-cache"
 )
 
 func setGatedHeaders(w http.ResponseWriter, pathMode, page bool) {

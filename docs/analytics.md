@@ -19,6 +19,10 @@ The browser, operating system, device type, referrer host, country and city are 
 
 The server does not count asset requests (scripts, styles, images, data), `HEAD` requests, partial (`Range`) and cached (304) responses, prefetches, redirects, gate pages and sign-in prompts, or any request while analytics is off for the site. A protected site records a view only after the gate has let the request through.
 
+## What the totals count
+
+`totals.views` counts only views with status class `2xx` from visitors that are not bots. A view of `404.html` is stored with status class `4xx`, so it appears only in the `statuses` list, which has a `2xx` and a `4xx` entry for non-bot visitors. It is in neither `totals.views`, `series` nor `paths`. `totals.botViews` counts the `2xx` views from bots, and bot views appear nowhere else except the `devices` list.
+
 ## How unique visitors work
 
 The visitor hash is an HMAC-SHA256 over the client address, the `User-Agent`, the site id and the UTC date, truncated to 128 bits. For an IPv6 address the input is the /64 prefix. The key is a random 32-byte secret created on first use and stored encrypted in the database. No API returns it, and it does not change from day to day. The hash changes daily because the date is part of its input.

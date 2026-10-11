@@ -22,6 +22,7 @@ const (
 	probeTimeout    = 10 * time.Second
 	maxProbeBody    = 256
 	maxDetailLength = 500
+	recordTimeout   = 10 * time.Second
 	labelBytes      = 6
 
 	scheduledAttempts = 3
@@ -177,6 +178,8 @@ func (c *Checker) probeWithRetries(ctx context.Context) (Outcome, bool) {
 }
 
 func (c *Checker) record(ctx context.Context, outcome Outcome) (settings.Settings, error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
+	defer cancel()
 	return c.settings.RecordWildcard(ctx, outcome.Verified, truncate(outcome.Detail, maxDetailLength))
 }
 

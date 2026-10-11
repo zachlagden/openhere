@@ -1,8 +1,10 @@
 package analytics
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"strings"
 	"testing"
@@ -309,6 +311,50 @@ func TestRecorderIgnoresUncountedStatuses(t *testing.T) {
 		}
 		if r.Dropped() != 0 {
 			t.Errorf("uncounted statuses were reported as drops: %d", r.Dropped())
+		}
+	})
+}
+
+func TestRecorderDropsEventsOfDeletedSitesQuietly(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		kept, gone, alsoKept := e.site("kept"), e.site("gone"), e.site("also-kept")
+		logs := &bytes.Buffer{}
+		r := NewRecorder(db, RecorderOptions{
+			Hasher: e.hasher, Logger: slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})), Now: e.clock.Now,
+		})
+		r.Start()
+		t.Cleanup(func() {
+			if err := r.Close(context.Background()); err != nil {
+				t.Errorf("close recorder: %v", err)
+			}
+		})
+
+		for _, id := range []string{kept.ID, gone.ID, alsoKept.ID, gone.ID, kept.ID} {
+			r.Record(hitFor(id))
+		}
+		if err := e.sites.DeleteSite(context.Background(), e.alex, "gone"); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Flush(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+
+		if n := countEvents(t, db); n != 3 {
+			t.Errorf("stored %d events, want 3", n)
+		}
+		if r.Dropped() != 2 {
+			t.Errorf("dropped = %d, want 2", r.Dropped())
+		}
+		out := logs.String()
+		if strings.Contains(out, "level=WARN") || strings.Contains(out, "level=ERROR") {
+			t.Errorf("a deleted site logged above debug:\n%s", out)
+		}
+		if !strings.Contains(out, "level=DEBUG") || !strings.Contains(out, "events=2") {
+			t.Errorf("missing the debug count:\n%s", out)
+		}
+		if strings.Contains(out, gone.ID) {
+			t.Error("the log names a site id")
 		}
 	})
 }

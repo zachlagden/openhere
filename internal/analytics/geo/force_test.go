@@ -168,3 +168,18 @@ func TestNudgeNeverBlocks(t *testing.T) {
 		e.updater.Nudge()
 	}
 }
+
+func TestRecordingSurvivesACancelledRequest(t *testing.T) {
+	e := newUpdaterEnv(t, nil)
+	e.state.cfg.Analytics.MaxMindAccountID = ""
+	e.state.cfg.Analytics.MaxMindLicenseKey = ""
+	e.state.cfg.Analytics.GeoStatus = settings.GeoFailed
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := e.updater.ForceCheck(ctx); err != nil {
+		t.Fatalf("ForceCheck: %v", err)
+	}
+	if last := e.state.last(); last.Status != settings.GeoUnconfigured {
+		t.Errorf("recorded state = %+v", last)
+	}
+}

@@ -197,7 +197,10 @@ func (s *fakeState) Get(context.Context) (settings.Settings, error) {
 	return s.cfg, nil
 }
 
-func (s *fakeState) RecordGeo(_ context.Context, state settings.GeoState) error {
+func (s *fakeState) RecordGeo(ctx context.Context, state settings.GeoState) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.recorded = append(s.recorded, state)
