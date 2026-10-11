@@ -24,6 +24,10 @@ The first release has not been cut. This section describes what the software doe
 - A multi-architecture `Dockerfile`, and a release workflow that builds archives, a container image and a GitHub release from an annotated `vX.Y.Z` tag.
 - Optional error reporting through the Sentry SDK when `SENTRY_DSN` is set, and structured JSON logs.
 
+### Fixed
+
+- Copy buttons in the dashboard confirm a copy on the button itself. The icon changes to a tick for 2 seconds and the accessible name changes to "Copied", with no toast. A failed copy shows a cross and "Copy failed", and the one-time key and link dialogs select the value so it can be copied by hand.
+
 ### Security
 
 - Password hashing is limited to 2 hashes at once (`ARGON2_CONCURRENCY`, 1 to 16). A burst of sign-in requests can no longer exhaust memory. A request that waits more than 5 seconds gets 503 `server_busy`.
