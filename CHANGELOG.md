@@ -25,8 +25,15 @@ The first release has not been cut. This section describes what the software doe
 - A multi-architecture `Dockerfile`, and a release workflow that builds archives, a container image and a GitHub release from an annotated `vX.Y.Z` tag.
 - Optional error reporting through the Sentry SDK when `SENTRY_DSN` is set, and structured JSON logs.
 
+### Changed
+
+- Site files send `Cache-Control: no-cache` and revalidate with their `ETag`, so a republish shows at once behind a CDN and `Range` requests reach the server. Only files with a content hash in their name under `_next`, `assets`, `static` or `build` send `public, max-age=31536000, immutable`. Files of gated sites send `private, no-cache`. The old `public, max-age=3600, must-revalidate` header is gone.
+
 ### Fixed
 
+- Republished CSS, JavaScript and other non-HTML files no longer stay stale for an hour behind a CDN such as Cloudflare.
+- `POST /api/v1/admin/hosting/check` and the GeoLite2 check no longer log `begin transaction: context canceled` when the client disconnects before the result is saved. The result is saved with a context that ignores the disconnect.
+- Deleting a site while its analytics events are buffered no longer logs a foreign key error and a warning for each dropped event. The recorder drops those events quietly and keeps the rest of the batch.
 - Copy buttons in the dashboard confirm a copy on the button itself. The icon changes to a tick for 2 seconds and the accessible name changes to "Copied", with no toast. A failed copy shows a cross and "Copy failed", and the one-time key and link dialogs select the value so it can be copied by hand.
 
 ### Security
