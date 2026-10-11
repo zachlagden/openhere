@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
-  title: selfhost API
+  title: OpenHere API
   version: 0.1.0
   license:
     name: MIT
     identifier: MIT
   description: |
-    REST API of the selfhost server. Every route except `GET /setup/status`, `POST /setup`,
+    REST API of the OpenHere server. Every route except `GET /setup/status`, `POST /setup`,
     `POST /auth/login`, `GET /invites/{token}`, `POST /invites/{token}/accept`,
     `POST /auth/password-reset/request`, `POST /auth/password-reset/confirm`, `POST /auth/agent/request-code`,
     `POST /auth/agent/verify-code` and `GET /access/handoff` needs authentication, and every unknown path returns
@@ -51,7 +51,7 @@ info:
     **Agents.** An agent without credentials can ask the user for an email code (`/auth/agent/request-code`,
     then `/auth/agent/verify-code`), which returns an API key. When the instance has no email, `request-code`
     returns 409 `email_not_configured`, and the user must create an API key in the dashboard under Settings,
-    API keys, and give it to the agent. Store the key at `~/.selfhost/credentials` (the directory mode 0700, the
+    API keys, and give it to the agent. Store the key at `~/.openhere/credentials` (the directory mode 0700, the
     file mode 0600) as JSON, `{"url": "<instance URL>", "key": "<API key>"}`, and read that file at the start of
     every session before asking the user for access again.
 servers:
@@ -1434,7 +1434,7 @@ paths:
         interactive path works only for users who already have a session in the browser.
 
         With a session cookie or API key and read access to the site, the response is a 303 redirect to the site
-        host. For a `restricted` site that is `{site url}.well-known/selfhost-auth?token=...&return=...`, where the
+        host. For a `restricted` site that is `{site url}.well-known/openhere-auth?token=...&return=...`, where the
         token works once, for 60 seconds, for this site only. The site host exchanges it for a viewer cookie and
         redirects to `return`. For a `public` or `password` site there is nothing to exchange, so the redirect goes
         straight to `{site url}` plus `return`. Calls are limited to 30 per minute per user.
@@ -2241,7 +2241,7 @@ paths:
       summary: Check that wildcard subdomains reach this server
       description: |
         Root user only. Other users get 404 `not_found`. Picks a random label, resolves `{label}.{baseDomain}`
-        through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}`
+        through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/openhere-check/{token}`
         and succeeds only if the server itself answers with the HMAC of the one-time token (the key stays in the process). The check never follows
         redirects, reads at most 256 bytes and gives up after 10 seconds. It stores the outcome in the read-only
         `hosting.wildcard*` settings. A failed check never switches subdomain mode off by itself, and a manual
@@ -2249,7 +2249,7 @@ paths:
         6 hours, retries every 15 minutes while it fails, and switches subdomain mode off after 3 consecutive
         failed startup or scheduled checks when path mode is on. Rate limited to 6 calls per minute per user.
 
-        A failed check is a normal 200 response with `status` set to `failed`. The `.well-known/selfhost-check/`
+        A failed check is a normal 200 response with `status` set to `failed`. The `.well-known/openhere-check/`
         route on site hosts is the only unauthenticated route this feature adds. It answers only while a check
         is running, once per token, and returns the generic 404 otherwise.
       responses:
@@ -2562,10 +2562,10 @@ components:
           description: The `invites.whoCanInvite` setting. With `root`, only the root user may create invites.
         agentCredentialsDir:
           type: string
-          examples: [".selfhost"]
+          examples: [".openhere"]
         agentCredentialsPath:
           type: string
-          examples: ["~/.selfhost/credentials"]
+          examples: ["~/.openhere/credentials"]
     SetupStatus:
       type: object
       required: [setupRequired]
@@ -2925,7 +2925,7 @@ components:
               enum: [TXT]
             name:
               type: string
-              description: Always `_selfhost-challenge.` followed by the domain.
+              description: Always `_openhere-challenge.` followed by the domain.
             value:
               type: string
               description: A random token of 192 bits in hex. It is not a secret, but nobody can guess it.
@@ -3884,7 +3884,7 @@ components:
         credentialsPath:
           type: string
           description: Where agents store the key, as JSON with the instance URL and the key. The file mode is 0600.
-          examples: ["~/.selfhost/credentials"]
+          examples: ["~/.openhere/credentials"]
     InviteWorkspace:
       type: object
       required: [id, slug, name]
