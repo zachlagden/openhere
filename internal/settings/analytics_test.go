@@ -97,3 +97,41 @@ func TestGeoStateIsReadOnlyForClientsAndRecordedByTheServer(t *testing.T) {
 		}
 	})
 }
+
+func TestSavingMaxMindFieldsNotifiesOnlyForThoseFields(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		ctx := context.Background()
+		svc := New(db, Options{Secrets: testBox(t)})
+		calls := 0
+		svc.OnMaxMindSaved(func() { calls++ })
+		for _, body := range []string{
+			`{"analytics.retentionDays": 90}`,
+			`{"analytics.enabledByDefault": false, "analytics.rawDays": 20}`,
+		} {
+			if _, err := svc.Update(ctx, patch(t, body)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("calls = %d after unrelated settings, want 0", calls)
+		}
+		for _, body := range []string{
+			`{"analytics.maxmindAccountId": "123456"}`,
+			`{"analytics.maxmindLicenseKey": "licence-example-key"}`,
+			`{"analytics.maxmindLicenseKey": "licence-example-key"}`,
+		} {
+			if _, err := svc.Update(ctx, patch(t, body)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if calls != 3 {
+			t.Fatalf("calls = %d, want 3 including the unchanged value", calls)
+		}
+		if _, err := svc.Update(ctx, patch(t, `{"analytics.maxmindAccountId": "abc"}`)); !isValidation(err) {
+			t.Fatalf("err = %v, want validation error", err)
+		}
+		if calls != 3 {
+			t.Errorf("calls = %d, a rejected save notified", calls)
+		}
+	})
+}
