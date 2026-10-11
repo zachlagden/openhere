@@ -359,3 +359,34 @@ func consumed(probes *Probes, token string) bool {
 	_, ok := probes.Consume(token)
 	return ok
 }
+
+func TestWildcardResultIsRecordedAfterTheRequestIsCancelled(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		e := newEnv(t, db)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var requests []*http.Request
+		answer := routeToApp(e, &requests)
+		client := doerFunc(func(req *http.Request) (*http.Response, error) {
+			resp, err := answer(req)
+			cancel()
+			return resp, err
+		})
+		checker := newChecker(e, &fakeResolver{addrs: []string{"192.0.2.10"}}, client, httpsPublic)
+
+		result, err := checker.Check(ctx)
+		if err != nil {
+			t.Fatalf("Check: %v", err)
+		}
+		if result.WildcardStatus != settings.WildcardOK {
+			t.Errorf("result = %+v", result)
+		}
+		stored, err := e.settings.Get(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stored.WildcardStatus != settings.WildcardOK || stored.WildcardCheckedAt == "" {
+			t.Errorf("stored status = %q, checked at %q", stored.WildcardStatus, stored.WildcardCheckedAt)
+		}
+	})
+}
