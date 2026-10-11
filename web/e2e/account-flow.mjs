@@ -13,7 +13,11 @@ export async function accountFlow(ctx) {
   check(secret.length > 20, "the new key is shown in full");
   await shot("settings-api-key-created");
   await page.getByRole("button", { name: "Copy api key" }).click();
-  await toast(page, "API key copied.");
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Copied" }).waitFor();
+  check((await page.getByText("API key copied.").count()) === 0, "copying the key shows no toast");
+  await shot("settings-api-key-copied");
+  await dialog.getByRole("button", { name: "Copy api key" }).waitFor({ timeout: 5000 });
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   check(copied === secret, "the copy button copies the full key");
   await closeSecret(page, secret);
