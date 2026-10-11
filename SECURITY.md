@@ -10,7 +10,7 @@ Include what you found, the version or commit, the steps to reproduce it and the
 
 ## Supported versions
 
-No release exists yet. Until the first release, only the `main` branch receives fixes. After that, the latest release receives fixes.
+Only the latest release and the `main` branch receive fixes.
 
 ## Scope
 

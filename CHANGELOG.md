@@ -4,7 +4,9 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
-The first release has not been cut. This section describes what the software does today.
+## [0.1.0] - 2026-10-11
+
+First release.
 
 ### Added
 
@@ -55,3 +57,6 @@ The first release has not been cut. This section describes what the software doe
 - Server error logs name the route pattern and no longer include the request path, which could hold an invite token. The server refuses to send an SMTP password over an unencrypted connection to a host other than `localhost` or a loopback address.
 - The Docker build context leaves out `.env` files, data directories, databases, keys and certificates.
 - New sites cannot use more infrastructure names such as `mta-sts`, `autodiscover` and `vpn`, or a slug that starts with `xn--`.
+
+[Unreleased]: https://github.com/zachlagden/openhere/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/zachlagden/openhere/releases/tag/v0.1.0

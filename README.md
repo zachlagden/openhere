@@ -4,7 +4,7 @@ A self-hosted, open source alternative to [here.now](https://here.now): hosting 
 
 OpenHere is an independent open source project. It is not affiliated with, endorsed by or connected to here.now or its operator. It is a self-hosted alternative built from public documentation, and it shares no code with here.now.
 
-The project has not had a release yet. It is feature complete for its first version and is being prepared for a public release. See the [changelog](CHANGELOG.md).
+The current release is 0.1.0. See the [changelog](CHANGELOG.md).
 
 ## What it is and is not
 
