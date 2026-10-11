@@ -113,6 +113,37 @@ func TestLoginRateLimitPerIP(t *testing.T) {
 	})
 }
 
+func TestLoginLimitsKeyOnTheClientIPHeaderBehindATrustedProxy(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		limits := loginLimits(func(l *Limits) { l.LoginPerIP = Rule{Max: 2, Window: time.Minute} })
+		h := newHarness(t, db, harnessOptions{
+			limits:         limits,
+			configured:     true,
+			proxies:        []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+			clientIPHeader: "Cf-Connecting-Ip",
+		})
+		bad := loginRequest{Email: "nobody@example.com", Password: "whatever it is"}
+		attempt := func(remote, edge, client string) *httptest.ResponseRecorder {
+			return h.do("POST", "/api/v1/auth/login", bad, fromAddr(remote),
+				withHeader("X-Forwarded-For", edge), withHeader("Cf-Connecting-Ip", client))
+		}
+		for range 2 {
+			expectError(t, attempt("10.1.2.3:4000", "172.69.1.1", "198.51.100.1"), http.StatusUnauthorized, codeInvalidLogin)
+		}
+		expectError(t, attempt("10.1.2.3:4000", "172.69.1.1", "198.51.100.1"), http.StatusTooManyRequests, codeRateLimited)
+		for range 2 {
+			expectError(t, attempt("10.1.2.3:4000", "172.69.1.1", "198.51.100.2"), http.StatusUnauthorized, codeInvalidLogin)
+		}
+		expectError(t, attempt("10.1.2.3:4000", "172.69.1.1", "198.51.100.2"), http.StatusTooManyRequests, codeRateLimited)
+
+		for i := range 2 {
+			forged := "198.51.100." + strconv.Itoa(10+i)
+			expectError(t, attempt("203.0.113.9:4000", "172.69.1.1", forged), http.StatusUnauthorized, codeInvalidLogin)
+		}
+		expectError(t, attempt("203.0.113.9:4000", "172.69.1.1", "198.51.100.12"), http.StatusTooManyRequests, codeRateLimited)
+	})
+}
+
 func loginLimits(change func(*Limits)) *Limits {
 	limits := Limits{
 		LoginPerIP:    Rule{Max: 1000, Window: time.Minute},

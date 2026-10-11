@@ -217,6 +217,36 @@ func TestTheRecordedAddressFollowsTheTrustedProxyRules(t *testing.T) {
 	})
 }
 
+func TestTheRecordedAddressFollowsTheClientIPHeaderFromTrustedProxies(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db store.Store) {
+		trusted := proxy.Trust{
+			Prefixes:       []netip.Prefix{netip.MustParsePrefix("203.0.113.0/24")},
+			ClientIPHeader: "Cf-Connecting-Ip",
+		}
+		e := newEnvWith(t, db, envOptions{proxies: trusted})
+		e.publishSite("demo", nextExport)
+		e.enableSubdomains()
+
+		send := func(remote string) netip.Addr {
+			e.views.reset()
+			req := newSiteRequest(t, siteHost, "/about", remote, "172.69.1.1")
+			req.Header.Set("Cf-Connecting-Ip", "192.0.2.44")
+			e.router.ServeHTTP(newRecorder(), req)
+			hits := e.views.all()
+			if len(hits) != 1 {
+				t.Fatalf("%d views recorded, want 1", len(hits))
+			}
+			return hits[0].Addr
+		}
+		if got := send("203.0.113.5:4000"); got != netip.MustParseAddr("192.0.2.44") {
+			t.Errorf("behind a trusted proxy the address was %v", got)
+		}
+		if got := send("198.51.100.9:4000"); got != netip.MustParseAddr("198.51.100.9") {
+			t.Errorf("a forged header from an untrusted client gave %v", got)
+		}
+	})
+}
+
 func TestDistinctMissingPathsShareOneRecordedPath(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db store.Store) {
 		e := newEnv(t, db)
