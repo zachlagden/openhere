@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const (

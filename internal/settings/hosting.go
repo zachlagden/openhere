@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 var (

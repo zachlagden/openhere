@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/mail"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/mail"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) Request(ctx context.Context, email string) error {

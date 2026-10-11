@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/fsperm"
-	"github.com/zachlagden/selfhost/internal/secrets"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/fsperm"
+	"github.com/zachlagden/openhere/internal/secrets"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 const (

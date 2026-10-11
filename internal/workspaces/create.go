@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/ids"
-	"github.com/zachlagden/selfhost/internal/slug"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/ids"
+	"github.com/zachlagden/openhere/internal/slug"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 const (

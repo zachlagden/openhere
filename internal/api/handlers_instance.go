@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/zachlagden/selfhost/docs"
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/hosting"
-	"github.com/zachlagden/selfhost/internal/policy"
+	"github.com/zachlagden/openhere/docs"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/hosting"
+	"github.com/zachlagden/openhere/internal/policy"
 )
 
 type instanceModesResponse struct {

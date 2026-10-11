@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const databaseURLVariable = "TEST_DATABASE_URL"

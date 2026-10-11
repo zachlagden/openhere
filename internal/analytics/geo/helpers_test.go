@@ -20,8 +20,8 @@ import (
 
 	"github.com/maxmind/mmdbwriter"
 	"github.com/maxmind/mmdbwriter/mmdbtype"
-	"github.com/zachlagden/selfhost/internal/secrets"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/secrets"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 const (

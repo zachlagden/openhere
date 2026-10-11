@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/analytics"
+	"github.com/zachlagden/openhere/internal/analytics"
 )
 
 type ViewRecorder interface {

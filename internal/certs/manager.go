@@ -14,7 +14,7 @@ import (
 
 	"github.com/caddyserver/certmagic"
 
-	"github.com/zachlagden/selfhost/internal/config"
+	"github.com/zachlagden/openhere/internal/config"
 )
 
 const (

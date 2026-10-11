@@ -20,9 +20,9 @@ import (
 	"github.com/libdns/libdns"
 	"github.com/miekg/dns"
 
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/httptimeouts"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/httptimeouts"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type challengeDNS struct {

@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/mail"
-	"github.com/zachlagden/selfhost/internal/otp"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/mail"
+	"github.com/zachlagden/openhere/internal/otp"
 )
 
 const (

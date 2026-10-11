@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/access"
-	"github.com/zachlagden/selfhost/internal/mail/smtptest"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/access"
+	"github.com/zachlagden/openhere/internal/mail/smtptest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 const smtpPassword = "smtp-secret-example-value"

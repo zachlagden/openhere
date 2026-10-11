@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/ids"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/ids"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) Create(ctx context.Context, actor auth.User, in CreateInput) (Created, error) {

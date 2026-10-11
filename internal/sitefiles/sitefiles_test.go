@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/sitepath"
 )
 
 const (

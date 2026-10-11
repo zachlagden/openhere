@@ -3,7 +3,7 @@ package sites
 import (
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 type Folder struct {

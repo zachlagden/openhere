@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/docs"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/docs"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func TestInstanceDescribesTheServerToSignedInUsers(t *testing.T) {

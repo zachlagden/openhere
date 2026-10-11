@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const recheckBatch = 200

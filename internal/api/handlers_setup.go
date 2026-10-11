@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/proxy"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/proxy"
 )
 
 type setupStatusResponse struct {

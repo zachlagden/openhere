@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/sitefiles"
-	"github.com/zachlagden/selfhost/internal/sites"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/sitefiles"
+	"github.com/zachlagden/openhere/internal/sites"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 const (

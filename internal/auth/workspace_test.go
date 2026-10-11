@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func countRows(t *testing.T, db store.Store, query string, args ...any) int {

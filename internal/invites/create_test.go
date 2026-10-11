@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/mail"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
-	"github.com/zachlagden/selfhost/internal/validate"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/mail"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/validate"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 func TestCreateReturnsTheLinkAndStoresOnlyAHash(t *testing.T) {

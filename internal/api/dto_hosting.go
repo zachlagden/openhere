@@ -3,9 +3,9 @@ package api
 import (
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/certs"
-	"github.com/zachlagden/selfhost/internal/hosting"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/certs"
+	"github.com/zachlagden/openhere/internal/hosting"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type modeResponse struct {

@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"log/slog"
 
-	"github.com/zachlagden/selfhost/internal/secrets"
+	"github.com/zachlagden/openhere/internal/secrets"
 )
 
 func (s *Service) sign(purpose, message string) []byte {

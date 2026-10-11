@@ -7,10 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/analytics"
-	"github.com/zachlagden/selfhost/internal/proxy"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/analytics"
+	"github.com/zachlagden/openhere/internal/proxy"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 type viewLog struct {

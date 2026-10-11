@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 var httpsPublic = config.PublicURL{Scheme: "https", Host: testHost}

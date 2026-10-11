@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 const inviteSelect = `SELECT i.id, i.email, i.invited_by, u.email, i.workspace_id, w.slug, w.name, i.role,

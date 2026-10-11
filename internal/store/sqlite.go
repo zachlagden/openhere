@@ -10,7 +10,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/zachlagden/selfhost/internal/fsperm"
+	"github.com/zachlagden/openhere/internal/fsperm"
 )
 
 const sqliteFileName = "selfhost.db"

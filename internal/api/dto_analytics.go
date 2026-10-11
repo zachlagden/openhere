@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/analytics"
+	"github.com/zachlagden/openhere/internal/analytics"
 )
 
 type analyticsTotalsResponse struct {

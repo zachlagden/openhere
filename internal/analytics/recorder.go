@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/ratelimit"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/ratelimit"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const (

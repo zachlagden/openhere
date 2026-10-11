@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func TestSiteLifecycle(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 var demoSite = siteSpec{files: map[string]string{"index.html": "<h1>demo</h1>"}}

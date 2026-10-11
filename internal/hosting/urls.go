@@ -1,9 +1,9 @@
 package hosting
 
 import (
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/domains"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/domains"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 const pathModePrefix = "/s/"

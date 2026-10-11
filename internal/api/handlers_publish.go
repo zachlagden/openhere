@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/openhere/internal/publish"
 )
 
 const workspaceHeader = "X-Workspace"

@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/proxy"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/proxy"
 )
 
 const (

@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/mail"
-	"github.com/zachlagden/selfhost/internal/ratelimit"
-	"github.com/zachlagden/selfhost/internal/secrets"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/mail"
+	"github.com/zachlagden/openhere/internal/ratelimit"
+	"github.com/zachlagden/openhere/internal/secrets"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 type Options struct {

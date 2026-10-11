@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/httptimeouts"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/httptimeouts"
 )
 
 func quietLogger() *slog.Logger {

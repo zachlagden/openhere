@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/analytics"
+	"github.com/zachlagden/openhere/internal/analytics"
 )
 
 func (s *Server) registerAnalyticsRoutes(mux *routeMux) {

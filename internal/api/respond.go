@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/hashlimit"
+	"github.com/zachlagden/openhere/internal/hashlimit"
 )
 
 const (

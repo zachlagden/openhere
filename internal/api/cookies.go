@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/openhere/internal/auth"
 )
 
 const (

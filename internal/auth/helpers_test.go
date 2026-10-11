@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 var testParams = Params{MemoryKiB: 8, Time: 1, Threads: 1, KeyLen: 16, SaltLen: 8}

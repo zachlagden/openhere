@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/publish"
-	"github.com/zachlagden/selfhost/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/publish"
+	"github.com/zachlagden/openhere/internal/sitepath"
 )
 
 var publishFailures = []domainFailure{

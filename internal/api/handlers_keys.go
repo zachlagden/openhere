@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/openhere/internal/auth"
 )
 
 type createKeyRequest struct {

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/netip"
 
-	"github.com/zachlagden/selfhost/internal/proxy"
+	"github.com/zachlagden/openhere/internal/proxy"
 )
 
 type loginAttempt struct {

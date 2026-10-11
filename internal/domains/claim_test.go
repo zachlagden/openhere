@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 func TestClaimReturnsAPendingDomainWithAChallenge(t *testing.T) {

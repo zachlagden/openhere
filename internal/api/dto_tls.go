@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/certs"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/certs"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 const (

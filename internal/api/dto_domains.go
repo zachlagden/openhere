@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/openhere/internal/domains"
 )
 
 type challengeResponse struct {

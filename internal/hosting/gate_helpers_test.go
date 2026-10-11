@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/access"
-	"github.com/zachlagden/selfhost/internal/proxy"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/access"
+	"github.com/zachlagden/openhere/internal/proxy"
+	"github.com/zachlagden/openhere/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 const (

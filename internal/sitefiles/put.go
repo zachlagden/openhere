@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/sitepath"
 )
 
 type Staged struct {

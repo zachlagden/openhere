@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 const (

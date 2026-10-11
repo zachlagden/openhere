@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 type team struct {

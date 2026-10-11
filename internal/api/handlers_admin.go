@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/openhere/internal/mail"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 const (

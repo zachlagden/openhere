@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func TestSettingsAreRootOnly(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) Verify(ctx context.Context, siteID, id string) (Domain, error) {

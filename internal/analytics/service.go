@@ -5,10 +5,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/sites"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/sites"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 type Availability interface {

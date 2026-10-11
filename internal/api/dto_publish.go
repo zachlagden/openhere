@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/hosting"
-	"github.com/zachlagden/selfhost/internal/publish"
+	"github.com/zachlagden/openhere/internal/hosting"
+	"github.com/zachlagden/openhere/internal/publish"
 )
 
 type fileSpecRequest struct {

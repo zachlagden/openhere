@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 func TestSharedCreationFollowsTheSetting(t *testing.T) {

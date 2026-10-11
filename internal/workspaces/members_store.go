@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const memberSelect = `SELECT a.id, a.workspace_id, a.user_id, a.role, a.scope_type, a.folder_id, a.site_id, a.created_at,

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 const wantSandbox = "sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation"

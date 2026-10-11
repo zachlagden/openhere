@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type smtpSender struct {

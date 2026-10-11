@@ -3,7 +3,7 @@ package analytics
 import (
 	"strconv"
 
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 type builder struct {

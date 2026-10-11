@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/certs"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/certs"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 type fakeTLS struct {

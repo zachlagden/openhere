@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
-	"github.com/zachlagden/selfhost/internal/hashlimit"
+	"github.com/zachlagden/openhere/internal/hashlimit"
 )
 
 type Params struct {

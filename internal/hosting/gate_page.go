@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/openhere/internal/access"
 )
 
 type pageKind int

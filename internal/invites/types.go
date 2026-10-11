@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 const (

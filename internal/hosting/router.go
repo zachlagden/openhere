@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/access"
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/domains"
-	"github.com/zachlagden/selfhost/internal/httptimeouts"
-	"github.com/zachlagden/selfhost/internal/proxy"
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/sitefiles"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/access"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/domains"
+	"github.com/zachlagden/openhere/internal/httptimeouts"
+	"github.com/zachlagden/openhere/internal/proxy"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/sitefiles"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 type ProbeConsumer interface {

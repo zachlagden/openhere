@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/access"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/access"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 var secretContent = []string{"home", "about", "docs index", "custom missing", "console.log", "deep"}

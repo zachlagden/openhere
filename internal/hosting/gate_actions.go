@@ -3,7 +3,7 @@ package hosting
 import (
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/access"
+	"github.com/zachlagden/openhere/internal/access"
 )
 
 const (

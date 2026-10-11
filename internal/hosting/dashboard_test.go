@@ -8,10 +8,10 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
-	"github.com/zachlagden/selfhost/internal/ui"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/ui"
 )
 
 const dashboardShell = "<!doctype html><title>dashboard</title>"

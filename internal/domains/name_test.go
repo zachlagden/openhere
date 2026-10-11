@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 func TestNormaliseAcceptsValidNames(t *testing.T) {
