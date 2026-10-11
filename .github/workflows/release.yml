@@ -64,11 +64,11 @@ jobs:
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os="${target%/*}"
             arch="${target#*/}"
-            name="selfhost_${VERSION}_${os}_${arch}"
+            name="openhere_${VERSION}_${os}_${arch}"
             mkdir -p "dist/${name}"
             CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
               -ldflags "-s -w -X main.version=${VERSION}" \
-              -o "dist/${name}/selfhost" ./cmd/openhere
+              -o "dist/${name}/openhere" ./cmd/openhere
             cp LICENSE README.md "dist/${name}/"
             tar -C dist -czf "dist/${name}.tar.gz" "$name"
             rm -r "dist/${name}"

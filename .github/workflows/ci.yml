@@ -75,7 +75,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: selfhost_test
+          POSTGRES_DB: openhere_test
         ports:
           - 5432:5432
         options: >-
@@ -84,7 +84,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/selfhost_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/openhere_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -96,4 +96,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t selfhost:ci .
+      - run: docker build -t openhere:ci .
