@@ -64,6 +64,7 @@ const (
 	codeDomainTaken         = "domain_taken"
 	codeDomainLimitReached  = "domain_limit_reached"
 	codeDomainNotVerified   = "domain_not_verified"
+	codeGeoNotConfigured    = "geo_not_configured"
 )
 
 type errorBody struct {

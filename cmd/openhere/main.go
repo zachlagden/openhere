@@ -163,7 +163,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
 		TrustedProxies: cfg.TrustedProxies, ClientIPHeader: cfg.ClientIPHeader, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
-		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version, Timeouts: timeouts,
+		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Geo: geoUpdater, Version: version, Timeouts: timeouts,
 	})
 	dashboard, err := newDashboard(logger)
 	if err != nil {
