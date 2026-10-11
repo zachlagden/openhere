@@ -15,8 +15,8 @@ Without credentials, the server answers only:
 - `GET /api/v1/setup/status` and `POST /api/v1/setup` (the latter needs the setup token), `POST /api/v1/auth/login`.
 - the invite lookup and accept routes, the password reset routes and the agent sign-in routes (`request-code`, `verify-code`). Each is rate limited and answers the same way for every case.
 - `GET /api/v1/access/handoff`, which redirects a caller without credentials to `/login`.
-- the gate routes of gated sites: `/.well-known/selfhost-auth` and `/.well-known/selfhost-gate/{unlock,code,verify}`, on site hosts and under `/s/{slug}/`.
-- while a check runs, the wildcard probe `/.well-known/selfhost-check/{token}` on site hosts. It accepts each token once within 60 seconds.
+- the gate routes of gated sites: `/.well-known/openhere-auth` and `/.well-known/openhere-gate/{unlock,code,verify}`, on site hosts and under `/s/{slug}/`.
+- while a check runs, the wildcard probe `/.well-known/openhere-check/{token}` on site hosts. It accepts each token once within 60 seconds.
 - with built-in HTTPS, the ACME challenge path on port 80, answered only for tokens the server issued.
 
 Every other path under `/api/` returns a JSON 401, or a JSON 404 once signed in. The server has no health endpoint, no root page that skips authentication and no public API documentation. The OpenAPI document and the agent guide are served only to signed-in users, at `GET /api/v1/docs/openapi.yaml` and `GET /api/v1/docs/agent-guide.md`. If your orchestrator needs a health check, use a TCP check on the port or an authenticated request.
@@ -91,7 +91,7 @@ The SMTP password, the Resend API key, the Cloudflare API token and the MaxMind 
 
 The sealing key comes from `SECRET_KEY` when set. Otherwise the server creates `DATA_DIR/secret.key` with mode 0600 on first start.
 
-**With SQLite, the key and the database sit together.** A backup of the whole data directory contains `selfhost.db` and `secret.key`, so anyone who gets the backup can decrypt the stored secrets. Sealing protects only against someone who reads the database without the key, such as a leaked SQL dump. To keep a data-directory backup from exposing secrets, supply `SECRET_KEY` from outside the data directory (an environment variable from your secret manager or a root-only file) and keep that value out of the backup. Then back the key up separately: without it, stored secrets cannot be read and email stays off until the root user enters them again.
+**With SQLite, the key and the database sit together.** A backup of the whole data directory contains `openhere.db` and `secret.key`, so anyone who gets the backup can decrypt the stored secrets. Sealing protects only against someone who reads the database without the key, such as a leaked SQL dump. To keep a data-directory backup from exposing secrets, supply `SECRET_KEY` from outside the data directory (an environment variable from your secret manager or a root-only file) and keep that value out of the backup. Then back the key up separately: without it, stored secrets cannot be read and email stays off until the root user enters them again.
 
 With PostgreSQL the database and `DATA_DIR` are separate, so a database dump alone does not carry `secret.key` unless it is in the same backup set.
 

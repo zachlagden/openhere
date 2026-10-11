@@ -11,7 +11,7 @@ This page explains the pieces from the operator's side.
 
 ## Giving an agent access
 
-An agent needs an instance URL and an API key. It looks for them in `~/.selfhost/credentials`, a JSON file:
+An agent needs an instance URL and an API key. It looks for them in `~/.openhere/credentials`, a JSON file:
 
 ```json
 {"url": "https://sites.example.com", "key": "sk_..."}

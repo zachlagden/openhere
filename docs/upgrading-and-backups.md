@@ -6,7 +6,7 @@ With SQLite everything is in `DATA_DIR` (`/data` in the Docker image):
 
 | Path | Contents |
 |---|---|
-| `selfhost.db`, `selfhost.db-wal`, `selfhost.db-shm` | The SQLite database in WAL mode. Absent with PostgreSQL. |
+| `openhere.db`, `openhere.db-wal`, `openhere.db-shm` | The SQLite database in WAL mode. Absent with PostgreSQL. |
 | `sites/<siteId>/versions/<versionId>/files/` | The files of each version. A finalized version never changes. |
 | `tmp/` | Upload files in progress. The hourly maintenance task removes stale ones after 24 hours. |
 | `secret.key` | The key that seals stored secrets, unless `SECRET_KEY` is set. Mode 0600. |
@@ -26,24 +26,24 @@ A backup has to capture the database and `DATA_DIR` as they were at the same mom
 The simplest correct backup stops the server so the database file is quiescent:
 
 ```sh
-docker stop -t 30 selfhost
-docker run --rm -v selfhost-data:/data:ro -v "$PWD":/backup alpine \
-  tar -czf /backup/selfhost-$(date +%F).tar.gz -C /data .
-docker start selfhost
+docker stop -t 30 openhere
+docker run --rm -v openhere-data:/data:ro -v "$PWD":/backup alpine \
+  tar -czf /backup/openhere-$(date +%F).tar.gz -C /data .
+docker start openhere
 ```
 
-For a systemd install, run `systemctl stop selfhost`, `tar -czf selfhost-$(date +%F).tar.gz -C /var/lib/selfhost .` and `systemctl start selfhost`.
+For a systemd install, run `systemctl stop openhere`, `tar -czf openhere-$(date +%F).tar.gz -C /var/lib/openhere .` and `systemctl start openhere`.
 
 The archive includes `secret.key`. Whoever reads it can decrypt the stored secrets (see [Security](security.md#secrets-at-rest)). Encrypt the archive, or set `SECRET_KEY` from outside the data directory and store that value somewhere else.
 
-To back up while the server runs, copy the database with SQLite's own backup command (`sqlite3 selfhost.db ".backup selfhost-copy.db"`), never with `cp`, because the WAL file holds committed data. Then copy `sites/` afterwards. A version that a publish adds between the two steps is missing from the copied database and is then deleted as an orphan if you restore it, which loses only that publish. A version deleted in between is missing from the copied files, which is a problem only if you restore and want that version back.
+To back up while the server runs, copy the database with SQLite's own backup command (`sqlite3 openhere.db ".backup openhere-copy.db"`), never with `cp`, because the WAL file holds committed data. Then copy `sites/` afterwards. A version that a publish adds between the two steps is missing from the copied database and is then deleted as an orphan if you restore it, which loses only that publish. A version deleted in between is missing from the copied files, which is a problem only if you restore and want that version back.
 
 ### PostgreSQL
 
 ```sh
-docker exec selfhost-db pg_dump -U selfhost -Fc selfhost > selfhost-$(date +%F).dump
-docker run --rm -v selfhost-data:/data:ro -v "$PWD":/backup alpine \
-  tar -czf /backup/selfhost-data-$(date +%F).tar.gz -C /data .
+docker exec openhere-db pg_dump -U openhere -Fc openhere > openhere-$(date +%F).dump
+docker run --rm -v openhere-data:/data:ro -v "$PWD":/backup alpine \
+  tar -czf /backup/openhere-data-$(date +%F).tar.gz -C /data .
 ```
 
 Dump the database first and the data directory second. Site files in a finalized version never change, so a data copy taken after the dump contains every version the dump refers to, unless a version was deleted in between.
@@ -59,16 +59,16 @@ Keep a copy of `secret.key` or of your `SECRET_KEY` value apart from the data. W
 3. Start the server. It applies any migrations that the backup predates.
 
 ```sh
-docker volume create selfhost-data-restored
-docker run --rm -v selfhost-data-restored:/data -v "$PWD":/backup alpine \
-  tar -xzf /backup/selfhost-2026-01-01.tar.gz -C /data
-docker run --rm -v selfhost-data-restored:/data alpine chown -R 65532:65532 /data
+docker volume create openhere-data-restored
+docker run --rm -v openhere-data-restored:/data -v "$PWD":/backup alpine \
+  tar -xzf /backup/openhere-2026-01-01.tar.gz -C /data
+docker run --rm -v openhere-data-restored:/data alpine chown -R 65532:65532 /data
 ```
 
 For PostgreSQL, restore the dump into the database before you start the server:
 
 ```sh
-docker exec -i selfhost-db pg_restore -U selfhost -d selfhost --clean --if-exists < selfhost-2026-01-01.dump
+docker exec -i openhere-db pg_restore -U openhere -d openhere --clean --if-exists < openhere-2026-01-01.dump
 ```
 
 ## Upgrading

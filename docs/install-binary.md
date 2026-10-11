@@ -16,12 +16,12 @@ You need:
 The server embeds the dashboard at build time, so build the dashboard first:
 
 ```sh
-git clone <repository url> selfhost
-cd selfhost
+git clone https://github.com/zachlagden/openhere
+cd openhere
 corepack enable
 pnpm --dir web install --frozen-lockfile
 pnpm --dir web build
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=1.2.3" -o selfhost ./cmd/openhere
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=1.2.3" -o openhere ./cmd/openhere
 ```
 
 `-X main.version` sets the version that `GET /api/v1/instance` reports. It defaults to `dev`. The dashboard build writes to `internal/ui/bundle`, which is not committed. A binary built without it still runs, logs a warning and answers dashboard routes with a 503.
@@ -31,7 +31,7 @@ The binary has no command line flags. All configuration comes from environment v
 ## Try it
 
 ```sh
-./selfhost
+./openhere
 ```
 
 With no configuration the server listens on `:8080`, expects to be reached at `http://localhost:8080`, stores everything under `./data` and uses SQLite. It prints a JSON log line with a `setup_token` once while the database has no users. Open `http://localhost:8080`, enter the token, an email address and a password. Stop the server with Ctrl+C. It shuts down gracefully, waiting up to 15 seconds for requests and flushing buffered analytics.
@@ -41,42 +41,42 @@ With no configuration the server listens on `:8080`, expects to be reached at `h
 Create a user and a data directory, then install the binary:
 
 ```sh
-sudo useradd --system --home-dir /var/lib/selfhost --shell /usr/sbin/nologin selfhost
-sudo install -d -o selfhost -g selfhost -m 0750 /var/lib/selfhost
-sudo install -m 0755 selfhost /usr/local/bin/selfhost
+sudo useradd --system --home-dir /var/lib/openhere --shell /usr/sbin/nologin openhere
+sudo install -d -o openhere -g openhere -m 0750 /var/lib/openhere
+sudo install -m 0755 openhere /usr/local/bin/openhere
 ```
 
-Put the environment in a file that only root and the service can read, `/etc/selfhost/selfhost.env`:
+Put the environment in a file that only root and the service can read, `/etc/openhere/openhere.env`:
 
 ```sh
-DATA_DIR=/var/lib/selfhost
+DATA_DIR=/var/lib/openhere
 LISTEN_ADDR=127.0.0.1:8080
 PUBLIC_URL=https://sites.example.com
 TRUSTED_PROXIES=127.0.0.1
 ```
 
-Create the directory with `sudo install -d -m 0700 /etc/selfhost` and keep the file at mode `0600`, owned by root. systemd reads `EnvironmentFile` as root before it drops to the service user, so the service user needs no access to it.
+Create the directory with `sudo install -d -m 0700 /etc/openhere` and keep the file at mode `0600`, owned by root. systemd reads `EnvironmentFile` as root before it drops to the service user, so the service user needs no access to it.
 
-A systemd unit, `/etc/systemd/system/selfhost.service`:
+A systemd unit, `/etc/systemd/system/openhere.service`:
 
 ```ini
 [Unit]
-Description=selfhost static site hosting
+Description=OpenHere static site hosting
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=selfhost
-Group=selfhost
-EnvironmentFile=/etc/selfhost/selfhost.env
-ExecStart=/usr/local/bin/selfhost
+User=openhere
+Group=openhere
+EnvironmentFile=/etc/openhere/openhere.env
+ExecStart=/usr/local/bin/openhere
 Restart=on-failure
 TimeoutStopSec=30
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/selfhost
+ReadWritePaths=/var/lib/openhere
 
 [Install]
 WantedBy=multi-user.target
@@ -84,11 +84,11 @@ WantedBy=multi-user.target
 
 ```sh
 sudo systemctl daemon-reload
-sudo systemctl enable --now selfhost
-journalctl -u selfhost | grep setup_token
+sudo systemctl enable --now openhere
+journalctl -u openhere | grep setup_token
 ```
 
-For built-in HTTPS on ports 80 and 443 as a non-root user, add `AmbientCapabilities=CAP_NET_BIND_SERVICE` to the `[Service]` section, or run `setcap 'cap_net_bind_service=+ep' /usr/local/bin/selfhost`. Then set the `TLS_*` and `ACME_*` variables. See [Built-in HTTPS](built-in-https.md). Behind a proxy, keep `LISTEN_ADDR` on the loopback address and see [Reverse proxy](reverse-proxy.md).
+For built-in HTTPS on ports 80 and 443 as a non-root user, add `AmbientCapabilities=CAP_NET_BIND_SERVICE` to the `[Service]` section, or run `setcap 'cap_net_bind_service=+ep' /usr/local/bin/openhere`. Then set the `TLS_*` and `ACME_*` variables. See [Built-in HTTPS](built-in-https.md). Behind a proxy, keep `LISTEN_ADDR` on the loopback address and see [Reverse proxy](reverse-proxy.md).
 
 ## The data directory
 

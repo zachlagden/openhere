@@ -1,8 +1,8 @@
-# selfhost
+# OpenHere
 
 A self-hosted, open source alternative to [here.now](https://here.now): hosting for already built static sites, aimed at AI agents, with a dashboard and a REST API. It is built for one person or a small team running it on a VPS.
 
-"selfhost" is a placeholder name and will change. See [docs/rename-checklist.md](docs/rename-checklist.md).
+OpenHere is an independent open source project. It is not affiliated with, endorsed by or connected to here.now or its operator. It is a self-hosted alternative built from public documentation, and it shares no code with here.now.
 
 The project has not had a release yet. It is feature complete for its first version and is being prepared for a public release. See the [changelog](CHANGELOG.md).
 
@@ -26,9 +26,9 @@ It is not a public sign-up service. It has no billing and no public profiles. Th
 ## Quick start with Docker
 
 ```sh
-docker build -t selfhost .
-docker run -d --name selfhost -p 8080:8080 -v selfhost-data:/data selfhost
-docker logs selfhost
+docker build -t openhere .
+docker run -d --name openhere -p 8080:8080 -v openhere-data:/data openhere
+docker logs openhere
 ```
 
 The log shows a one-time setup token while the instance has no users:
@@ -58,7 +58,7 @@ See [Install from a binary](docs/install-binary.md) for a release build, a syste
 
 ## How an agent publishes
 
-An agent reads `~/.selfhost/credentials`, a JSON file with the instance URL and an API key, and sends the key as a bearer token. Create a key in the dashboard under Settings, API keys, or let the agent ask for an email code. See [Agents](docs/agents.md).
+An agent reads `~/.openhere/credentials`, a JSON file with the instance URL and an API key, and sends the key as a bearer token. Create a key in the dashboard under Settings, API keys, or let the agent ask for an email code. See [Agents](docs/agents.md).
 
 This example publishes the files in `./dist`. It needs `curl` and `jq`, and file names without spaces.
 
