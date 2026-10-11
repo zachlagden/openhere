@@ -8,7 +8,8 @@ import (
 )
 
 type Trust struct {
-	Prefixes []netip.Prefix
+	Prefixes       []netip.Prefix
+	ClientIPHeader string
 }
 
 func (p Trust) trusted(addr netip.Addr) bool {
@@ -41,6 +42,9 @@ func (p Trust) ClientIP(r *http.Request) netip.Addr {
 	if !p.trusted(peer) {
 		return peer
 	}
+	if addr, ok := p.headerClientIP(r); ok {
+		return addr
+	}
 	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(hops) - 1; i >= 0; i-- {
 		hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
@@ -53,6 +57,21 @@ func (p Trust) ClientIP(r *http.Request) netip.Addr {
 		}
 	}
 	return peer
+}
+
+func (p Trust) headerClientIP(r *http.Request) (netip.Addr, bool) {
+	if p.ClientIPHeader == "" {
+		return netip.Addr{}, false
+	}
+	values := r.Header.Values(p.ClientIPHeader)
+	if len(values) != 1 {
+		return netip.Addr{}, false
+	}
+	addr, err := netip.ParseAddr(values[0])
+	if err != nil || addr.Zone() != "" {
+		return netip.Addr{}, false
+	}
+	return addr.Unmap(), true
 }
 
 func (p Trust) IsHTTPS(r *http.Request) bool {
