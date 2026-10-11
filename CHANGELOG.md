@@ -4,6 +4,14 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- An installable agent skill in `skills/openhere`, for `npx skills add zachlagden/openhere --skill openhere -g`. It has a `SKILL.md`, a `publish.sh` script that uploads a built folder in parallel with retries and keeps `.openhere/state.json` so later runs update the same site with conflict detection, an `auth.sh` script for the email-code and API-key sign-in, a `status.sh` script that lists sites, and API and access references.
+
+### Changed
+
+- The dashboard's agent setup prompt now tells the agent to install the OpenHere skill, gives the instance URL and the sign-in route that fits the instance, and keeps the agent guide as a fallback for agents that cannot install skills.
+
 ## [0.1.0] - 2026-10-11
 
 First release.

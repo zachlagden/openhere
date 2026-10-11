@@ -60,6 +60,14 @@ See [Install from a binary](docs/install-binary.md) for a release build, a syste
 
 An agent reads `~/.openhere/credentials`, a JSON file with the instance URL and an API key, and sends the key as a bearer token. Create a key in the dashboard under Settings, API keys, or let the agent ask for an email code. See [Agents](docs/agents.md).
 
+The quickest route is the agent skill in [`skills/openhere`](skills/README.md). It gives an agent scripts that sign in, publish a built folder and update the same site later:
+
+```sh
+npx skills add zachlagden/openhere --skill openhere -g
+```
+
+The dashboard's "Copy agent setup prompt" button gives your agent this command and your instance URL. An agent that cannot install skills reads the agent guide and calls the API itself, as in this example, which publishes the files in `./dist`.
+
 This example publishes the files in `./dist`. It needs `curl` and `jq`, and file names without spaces.
 
 ```sh
@@ -116,7 +124,7 @@ It never stores the IP address, the raw `User-Agent`, a query string, a cookie o
 | [Security](docs/security.md) | Threat model, public routes, secrets at rest, known limits |
 | [Access control](docs/access-control.md) | Public, password and restricted sites, viewer cookies |
 | [Workspaces, sites and publishing](docs/publishing.md) | Roles, grants, versions, path rules |
-| [Agents](docs/agents.md) and the [agent guide](docs/agent-guide.md) | Credentials, sign-in, publishing |
+| [Agents](docs/agents.md), the [agent guide](docs/agent-guide.md) and the [agent skill](skills/README.md) | Credentials, sign-in, publishing |
 | [Email, invites and password resets](docs/email-and-users.md) | SMTP and Resend, invites, resets |
 | [Analytics](docs/analytics.md) | What is recorded, MaxMind setup, retention |
 | [Dashboard](docs/dashboard.md) | Screens and how it is served |

@@ -2,7 +2,19 @@
 
 The server is built for AI agents to publish and manage sites. Everything the dashboard can do, an agent can do through the REST API. The dashboard cannot upload a site, so publishing is only possible through the API.
 
-Two documents describe the API to an agent:
+## The agent skill
+
+The repository ships an agent skill in `skills/openhere`. Install it for the agents on your machine with:
+
+```sh
+npx skills add zachlagden/openhere --skill openhere -g
+```
+
+The skill tells the agent how to find your instance, sign in and publish a built folder. Its `publish.sh` script computes the manifest, uploads files in parallel with retries, finalizes the version, prints the site address and remembers the site in `.openhere/state.json` of the project, so the next publish updates the same site and detects changes made from elsewhere. The state file holds no key. The `skills` CLI needs the repository to be reachable with your Git credentials, so the repository must be public or you must be signed in to it. Without the CLI, copy `skills/openhere` into your agent's skills folder. See [`skills/README.md`](../skills/README.md).
+
+The skill lives in the GitHub repository and not on the instance, because the instance serves nothing without authentication.
+
+Two documents describe the API to an agent that cannot use the skill:
 
 - [`openapi.yaml`](openapi.yaml), the OpenAPI 3.1 reference.
 - [`agent-guide.md`](agent-guide.md), a short guide written for an agent to read. The binary embeds both, and signed-in users and keys can download them at `GET /api/v1/docs/openapi.yaml` and `GET /api/v1/docs/agent-guide.md`. Neither is public.
@@ -35,7 +47,7 @@ When the instance cannot send email, `request-code` returns 409 `email_not_confi
 
 ### API key
 
-Create a key in the dashboard under Settings, API keys. The dashboard shows the full key once. Give it to the agent, which saves it to the credentials file. The dashboard also has a button that copies a ready-made setup prompt for an agent, filled in with your instance URL.
+Create a key in the dashboard under Settings, API keys. The dashboard shows the full key once. Give it to the agent, which saves it to the credentials file. The dashboard also has a button that copies a ready-made setup prompt for an agent. The prompt gives the skill install command, your instance URL and the sign-in steps that fit your instance, and falls back to the agent guide for agents that cannot install skills.
 
 A key has the full access of its user, as every request that uses it is made as that user. Revoke a key in the dashboard or with `DELETE /api/v1/me/keys/{id}`. The server stores only a hash of each key.
 
