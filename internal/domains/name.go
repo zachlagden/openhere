@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ChallengeLabel = "_selfhost-challenge"
+	ChallengeLabel = "_openhere-challenge"
 
 	maxNameLength  = 253
 	maxLabelLength = 63

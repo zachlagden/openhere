@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ProbePath     = "/.well-known/selfhost-check/"
+	ProbePath     = "/.well-known/openhere-check/"
 	probeLifetime = 60 * time.Second
 )
 

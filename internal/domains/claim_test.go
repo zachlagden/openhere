@@ -23,7 +23,7 @@ func TestClaimReturnsAPendingDomainWithAChallenge(t *testing.T) {
 		if len(d.Token) < 32 {
 			t.Errorf("token has %d characters, want at least 32 (128 bits of hex)", len(d.Token))
 		}
-		if d.ChallengeName() != "_selfhost-challenge.www.example.org" {
+		if d.ChallengeName() != "_openhere-challenge.www.example.org" {
 			t.Errorf("challenge name = %s", d.ChallengeName())
 		}
 		other := e.claim(siteID, "www.example.net")

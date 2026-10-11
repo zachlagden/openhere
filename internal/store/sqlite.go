@@ -13,7 +13,7 @@ import (
 	"github.com/zachlagden/openhere/internal/fsperm"
 )
 
-const sqliteFileName = "selfhost.db"
+const sqliteFileName = "openhere.db"
 
 func openSQLite(ctx context.Context, dataDir string) (Store, error) {
 	if err := fsperm.EnsureDir(dataDir, nil); err != nil {

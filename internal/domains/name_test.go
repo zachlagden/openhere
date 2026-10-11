@@ -68,7 +68,7 @@ func TestNormaliseRejectsInvalidNames(t *testing.T) {
 		"leading hyphen":         "-a.example.com",
 		"trailing hyphen":        "a-.example.com",
 		"underscore":             "my_site.example.com",
-		"challenge label":        "_selfhost-challenge.example.com",
+		"challenge label":        "_openhere-challenge.example.com",
 		"space inside":           "my site.example.com",
 		"control character":      "a\x00.example.com",
 		"label too long":         long + ".example.com",

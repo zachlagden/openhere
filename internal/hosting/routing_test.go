@@ -170,7 +170,7 @@ func TestManagementHandlerNeverSeesSiteHosts(t *testing.T) {
 		e.publishSite("demo", demoSite)
 		e.enableSubdomains()
 
-		targets := []string{"/", "/api/v1/me", "/api/v1/setup", "/s/demo/", "/.well-known/selfhost-check/x"}
+		targets := []string{"/", "/api/v1/me", "/api/v1/setup", "/s/demo/", "/.well-known/openhere-check/x"}
 		for _, host := range []string{siteHost, "nobody.sites.example.com", "other.example.org", "localhost"} {
 			for _, target := range targets {
 				e.get(host, target, "Authorization", "Bearer sk_secret", "Cookie", "session=abc; __Host-session=abc")

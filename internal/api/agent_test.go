@@ -88,7 +88,7 @@ func TestAgentSignInGivesAKeyThatWorks(t *testing.T) {
 		rec := h.verifyAgentCode("sam@example.com", code, "build agent")
 		expectStatus(t, rec, http.StatusCreated)
 		created := decodeBody[agentKeyResponse](t, rec)
-		if !strings.HasPrefix(created.Key, "sk_") || created.APIKey.Label != "build agent" || created.CredentialsPath != "~/.selfhost/credentials" {
+		if !strings.HasPrefix(created.Key, "sk_") || created.APIKey.Label != "build agent" || created.CredentialsPath != "~/.openhere/credentials" {
 			t.Fatalf("created = %+v", created)
 		}
 		me := decodeBody[meResponse](t, h.do("GET", "/api/v1/me", nil, withBearer(created.Key)))

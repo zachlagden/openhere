@@ -35,7 +35,7 @@ func TestHandoffReturnsToACustomDomain(t *testing.T) {
 			t.Fatalf("handoff = %d, %s", rec.Code, rec.Body.String())
 		}
 		loc := locationPath(t, rec)
-		if loc.Scheme != "https" || loc.Host != customName || loc.Path != "/.well-known/selfhost-auth" || loc.Query().Get("return") != "/about" || loc.Query().Get("token") == "" {
+		if loc.Scheme != "https" || loc.Host != customName || loc.Path != "/.well-known/openhere-auth" || loc.Query().Get("return") != "/about" || loc.Query().Get("token") == "" {
 			t.Fatalf("Location = %q", rec.Header().Get("Location"))
 		}
 
@@ -113,7 +113,7 @@ func TestHandoffWithoutAHostStaysOnTheUsualAddress(t *testing.T) {
 		s.alex.setPrimary(verified.ID, true)
 		session := s.h.sessionFor("sam@example.com")
 		rec := s.h.do("GET", handoffURL("guarded", "/about"), nil, withCookie(session))
-		if loc := locationPath(t, rec); rec.Code != http.StatusSeeOther || loc.Host != testHost || loc.Path != "/s/guarded/.well-known/selfhost-auth" {
+		if loc := locationPath(t, rec); rec.Code != http.StatusSeeOther || loc.Host != testHost || loc.Path != "/s/guarded/.well-known/openhere-auth" {
 			t.Errorf("Location = %q", rec.Header().Get("Location"))
 		}
 	})
