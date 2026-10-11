@@ -62,7 +62,7 @@ async function domains(ctx) {
   await page.getByRole("button", { name: "Add domain" }).click();
   const card = page.getByTestId("domain-card");
   await card.waitFor();
-  await card.getByText("_selfhost-challenge.docs.example.org").waitFor();
+  await card.getByText("_openhere-challenge.docs.example.org").waitFor();
   await card.getByRole("button", { name: "Copy TXT record value" }).waitFor();
   await card.getByText("Waiting for DNS").waitFor();
   await shot("site-domains");

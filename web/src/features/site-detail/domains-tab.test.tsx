@@ -56,7 +56,7 @@ describe("domains tab", () => {
     const card = await screen.findByTestId("domain-card");
     expect(within(card).getByRole("heading", { name: "docs.example.org" })).toBeInTheDocument();
     expect(within(card).getByText("Waiting for DNS")).toBeInTheDocument();
-    expect(within(card).getByText("_selfhost-challenge.docs.example.org")).toBeInTheDocument();
+    expect(within(card).getByText("_openhere-challenge.docs.example.org")).toBeInTheDocument();
     expect(within(card).getByText("ab12cd34ef56")).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "Copy TXT record value" })).toBeInTheDocument();
     expect(within(card).getByText("sites.example.com")).toBeInTheDocument();
@@ -67,12 +67,12 @@ describe("domains tab", () => {
       domains: [makeDomain()],
       extra: {
         "POST /api/v1/sites/launch-page/domains/d1/verify": {
-          body: { domain: makeDomain({ lastCheckResult: "record_not_found" }), verified: false, message: "No TXT record was found at _selfhost-challenge.docs.example.org yet." },
+          body: { domain: makeDomain({ lastCheckResult: "record_not_found" }), verified: false, message: "No TXT record was found at _openhere-challenge.docs.example.org yet." },
         },
       },
     });
     await userEvent.click(await screen.findByRole("button", { name: "Check DNS now" }));
-    expect(await screen.findByText("No TXT record was found at _selfhost-challenge.docs.example.org yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No TXT record was found at _openhere-challenge.docs.example.org yet.")).toBeInTheDocument();
   });
 
   it("offers primary and re-check for a verified domain and hides the challenge", async () => {

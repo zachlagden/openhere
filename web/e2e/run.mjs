@@ -27,10 +27,10 @@ function loadPlaywright() {
 }
 
 function buildBinary() {
-  if (process.env.SELFHOST_BIN) {
-    return process.env.SELFHOST_BIN;
+  if (process.env.OPENHERE_BIN) {
+    return process.env.OPENHERE_BIN;
   }
-  const binary = path.join(tmpdir(), "selfhost-e2e-binary");
+  const binary = path.join(tmpdir(), "openhere-e2e-binary");
   execFileSync("go", ["build", "-o", binary, "./cmd/openhere"], { cwd: repo, stdio: "inherit" });
   return binary;
 }
@@ -82,7 +82,7 @@ async function main() {
   const { chromium } = loadPlaywright();
   mkdirSync(outDir, { recursive: true });
   const binary = buildBinary();
-  process.env.SELFHOST_BIN = binary;
+  process.env.OPENHERE_BIN = binary;
   const browser = await chromium.launch({ executablePath: chromePath, headless: true });
   const problems = [];
   try {
