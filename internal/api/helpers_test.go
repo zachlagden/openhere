@@ -96,6 +96,7 @@ type harnessOptions struct {
 	clientIPHeader string
 	public         config.PublicURL
 	wildcard       WildcardChecker
+	geo            GeoChecker
 	logToBuf       bool
 	noMailer       bool
 	liveMail       *liveMailOptions
@@ -196,7 +197,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	})
 	analyticsSvc := analytics.New(db, siteSvc, workspaceSvc, settingsSvc, analytics.Options{Now: clock.Now, Recorder: viewRecorder})
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, ClientIPHeader: opts.clientIPHeader, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3", Timeouts: opts.timeouts,
+		TrustedProxies: opts.proxies, ClientIPHeader: opts.clientIPHeader, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Geo: opts.geo, Version: "1.2.3", Timeouts: opts.timeouts,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc, Views: viewRecorder, Resolver: resolver})
 	shell, err := ui.New(fstest.MapFS{

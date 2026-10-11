@@ -42,6 +42,8 @@ func TestUpdaterDownloadsAndInstallsTheDatabase(t *testing.T) {
 	e.assertNoSecretLogged()
 }
 
+const rejectedKeyDetail = "MaxMind rejected the account ID or licence key. A key created in the last few minutes may not be active yet; wait a few minutes and check again."
+
 func TestUpdaterRejectsBadCredentials(t *testing.T) {
 	e := newUpdaterEnv(t, buildArchive(t, buildDatabase(t, "London")))
 	sealed, err := e.box.Seal("wrong-example-key")
@@ -51,7 +53,7 @@ func TestUpdaterRejectsBadCredentials(t *testing.T) {
 	e.state.cfg.Analytics.MaxMindLicenseKey = sealed
 	e.check()
 	last := e.state.last()
-	if last.Status != settings.GeoFailed || !strings.Contains(last.Detail, "401") || last.Updated {
+	if last.Status != settings.GeoFailed || last.Detail != rejectedKeyDetail || last.Updated {
 		t.Errorf("recorded state = %+v", last)
 	}
 	if e.lookup.Available() {

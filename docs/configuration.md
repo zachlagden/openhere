@@ -113,8 +113,8 @@ See [Email, invites and password resets](email-and-users.md).
 | `analytics.enabledByDefault` | true | boolean | Whether sites created from now on count page views. |
 | `analytics.retentionDays` | 395 | 0, or 30 to 3650 | Days of rolled-up analytics to keep. 0 keeps everything. |
 | `analytics.rawDays` | 31 | 14 to 365 | Days of individual events to keep once they are rolled up. |
-| `analytics.maxmindAccountId` | empty | Digits, up to 20 | MaxMind account ID. |
-| `analytics.maxmindLicenseKey` | write-only | Up to 1024 characters | MaxMind licence key. Reads return `analytics.maxmindLicenseKeySet`. |
+| `analytics.maxmindAccountId` | empty | Digits, up to 20 | MaxMind account ID. Saving it starts a GeoLite2 check. |
+| `analytics.maxmindLicenseKey` | write-only | Up to 1024 characters | MaxMind licence key. Reads return `analytics.maxmindLicenseKeySet`. Saving it starts a GeoLite2 check. |
 | `analytics.geoStatus` | `unconfigured` | read-only | Result of the last GeoLite2 download: `unconfigured`, `ok` or `failed`. |
 | `analytics.geoUpdatedAt` | null | read-only | When a database was last installed. |
 | `analytics.geoCheckedAt` | null | read-only | When the last download attempt ran. |

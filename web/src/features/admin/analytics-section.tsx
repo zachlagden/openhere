@@ -1,9 +1,13 @@
 import type { JSX } from "react";
+import { describeError, formatWait } from "@/api/errors";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/section";
 import { AnalyticsPanel } from "@/features/analytics/analytics-panel";
 import type { Settings } from "@/api/types";
 import { formatDateTime, formatRelativeTime } from "@/lib/format";
+import { useCheckGeoDatabase } from "@/queries/admin";
 import { SettingNumber, SettingSecret, SettingSwitch, SettingText } from "./setting-fields";
 import { SettingsForm } from "./settings-form";
 import { SettingsGate } from "./settings-gate";
@@ -48,6 +52,43 @@ function GeoStatus({ settings }: { settings: Settings }): JSX.Element {
   );
 }
 
+function checkFailureMessage(error: unknown): string {
+  const described = describeError(error);
+  if (described.kind === "rate_limited") {
+    const wait = described.retryAfter === null ? "" : ` Try again in ${formatWait(described.retryAfter)}.`;
+    return `The location database can be checked once a minute.${wait}`;
+  }
+  return described.message;
+}
+
+function GeoStatusSection({ settings }: { settings: Settings }): JSX.Element {
+  const check = useCheckGeoDatabase();
+  const keySaved = settings["analytics.maxmindLicenseKeySet"] === true;
+  return (
+    <Section
+      title="GeoLite2 status"
+      description={keySaved ? "The server checks every 5 minutes and downloads a new database each week. Saving a key or account ID checks at once. A new MaxMind key can take a few minutes to become active." : undefined}
+      actions={
+        keySaved ? (
+          <Button variant="secondary" disabled={check.isPending} onClick={() => check.mutate()}>
+            {check.isPending ? "Checking…" : "Check now"}
+          </Button>
+        ) : null
+      }
+    >
+      <GeoStatus settings={settings} />
+      <div aria-live="polite" className="empty:hidden">
+        {check.isSuccess ? (
+          <Alert tone={check.data.status === "failed" ? "warning" : "info"}>
+            {check.data.status === "failed" ? `The check failed. ${check.data.detail}` : "The check finished and the location database is working."}
+          </Alert>
+        ) : null}
+        {check.isError ? <Alert tone="error">{checkFailureMessage(check.error)}</Alert> : null}
+      </div>
+    </Section>
+  );
+}
+
 export function AnalyticsSection(): JSX.Element {
   return (
     <div className="flex max-w-5xl flex-col gap-6">
@@ -65,9 +106,7 @@ export function AnalyticsSection(): JSX.Element {
                 <SettingSecret name="analytics.maxmindLicenseKey" setFlag="analytics.maxmindLicenseKeySet" label="MaxMind licence key" />
               </SettingsForm>
             </Section>
-            <Section title="GeoLite2 status">
-              <GeoStatus settings={settings} />
-            </Section>
+            <GeoStatusSection settings={settings} />
           </div>
         )}
       </SettingsGate>

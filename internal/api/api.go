@@ -127,6 +127,7 @@ type Options struct {
 	Domains        *domains.Service
 	TLS            TLSReporter
 	Analytics      *analytics.Service
+	Geo            GeoChecker
 	Version        string
 	Timeouts       httptimeouts.Timeouts
 }
@@ -150,6 +151,7 @@ type Server struct {
 	domains    *domains.Service
 	tls        TLSReporter
 	analytics  *analytics.Service
+	geo        GeoChecker
 	version    string
 	now        func() time.Time
 	timeouts   httptimeouts.Timeouts
@@ -215,6 +217,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		domains:    opts.Domains,
 		tls:        opts.TLS,
 		analytics:  opts.Analytics,
+		geo:        opts.Geo,
 		version:    opts.Version,
 		now:        now,
 		timeouts:   opts.Timeouts.OrDefaults(),

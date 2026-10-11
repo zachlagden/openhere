@@ -48,14 +48,20 @@ func (u *Updater) get(ctx context.Context, address, account, key string) (*http.
 	return resp, nil
 }
 
+type plainReason string
+
+func (r plainReason) Error() string {
+	return string(r)
+}
+
 func statusProblem(code int) error {
 	switch code {
 	case http.StatusUnauthorized:
-		return errors.New("MaxMind rejected the account ID or licence key (HTTP 401)")
+		return plainReason("MaxMind rejected the account ID or licence key. A key created in the last few minutes may not be active yet; wait a few minutes and check again.")
 	case http.StatusForbidden:
-		return errors.New("MaxMind does not allow this account to download GeoLite2-City (HTTP 403)")
+		return plainReason("MaxMind does not allow this account to download GeoLite2-City (HTTP 403). Check that the account has accepted the GeoLite2 terms.")
 	case http.StatusTooManyRequests:
-		return errors.New("MaxMind's download limit was reached (HTTP 429)")
+		return plainReason("MaxMind's download limit for this account was reached (HTTP 429). Wait a while and check again.")
 	default:
 		return fmt.Errorf("MaxMind returned HTTP %d", code)
 	}

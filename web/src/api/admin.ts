@@ -1,6 +1,6 @@
 import { request } from "./client";
 import { segment } from "./paths";
-import type { AdminUser, EmailTestResult, HostingStatus, ResetLink, Settings, SettingsPatch, UpdateSettingsEnvelope, WildcardCheckResult } from "./types";
+import type { AdminUser, EmailTestResult, GeoCheckResult, HostingStatus, ResetLink, Settings, SettingsPatch, UpdateSettingsEnvelope, WildcardCheckResult } from "./types";
 
 interface Signal {
   signal?: AbortSignal;
@@ -21,6 +21,10 @@ export async function getHostingStatus({ signal }: Signal = {}): Promise<Hosting
 
 export async function checkWildcard(): Promise<WildcardCheckResult> {
   return request<WildcardCheckResult>("/admin/hosting/check", { method: "POST" });
+}
+
+export async function checkGeoDatabase(): Promise<GeoCheckResult> {
+  return request<GeoCheckResult>("/admin/analytics/geo/check", { method: "POST" });
 }
 
 export async function sendTestEmail(): Promise<EmailTestResult> {

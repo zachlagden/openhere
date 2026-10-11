@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +24,8 @@ const (
 	editionID      = "GeoLite2-City"
 	refreshAfter   = 7 * 24 * time.Hour
 	retryAfter     = 6 * time.Hour
+	restartRetry   = 5 * time.Minute
+	forceFloor     = time.Minute
 	downloadWindow = 15 * time.Minute
 )
 
@@ -51,12 +54,25 @@ type Updater struct {
 
 	mu          sync.Mutex
 	fingerprint string
+
+	forceMu    sync.Mutex
+	lastForced time.Time
+	nudges     chan struct{}
+}
+
+type TooSoonError struct {
+	RetryAfter time.Duration
+}
+
+func (e *TooSoonError) Error() string {
+	seconds := int(math.Ceil(e.RetryAfter.Seconds()))
+	return fmt.Sprintf("a check was started less than a minute ago, try again in %d seconds", seconds)
 }
 
 func NewUpdater(state State, box *secrets.Box, lookup *Lookup, opts UpdaterOptions) *Updater {
 	u := &Updater{
 		state: state, box: box, lookup: lookup, dir: opts.Dir, base: strings.TrimRight(opts.BaseURL, "/"),
-		client: opts.HTTPClient, now: opts.Now, logger: opts.Logger,
+		client: opts.HTTPClient, now: opts.Now, logger: opts.Logger, nudges: make(chan struct{}, 1),
 	}
 	if u.base == "" {
 		u.base = DefaultBaseURL
@@ -96,8 +112,59 @@ func (u *Updater) Run(ctx context.Context, interval time.Duration) {
 			return
 		case <-ticker.C:
 			u.logCheck(ctx)
+		case <-u.nudges:
+			u.runNudged(ctx)
 		}
 	}
+}
+
+func (u *Updater) Nudge() {
+	select {
+	case u.nudges <- struct{}{}:
+	default:
+	}
+}
+
+func (u *Updater) runNudged(ctx context.Context) {
+	for {
+		err := u.ForceCheck(ctx)
+		var soon *TooSoonError
+		if !errors.As(err, &soon) {
+			if err != nil {
+				u.logger.Error("check the GeoLite2 database", "error", err)
+			}
+			return
+		}
+		timer := time.NewTimer(soon.RetryAfter)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		select {
+		case <-u.nudges:
+		default:
+		}
+	}
+}
+
+func (u *Updater) ForceCheck(ctx context.Context) error {
+	if err := u.reserveForce(); err != nil {
+		return err
+	}
+	return u.check(ctx, true)
+}
+
+func (u *Updater) reserveForce() error {
+	u.forceMu.Lock()
+	defer u.forceMu.Unlock()
+	now := u.now()
+	if wait := forceFloor - now.Sub(u.lastForced); !u.lastForced.IsZero() && wait > 0 {
+		return &TooSoonError{RetryAfter: wait}
+	}
+	u.lastForced = now
+	return nil
 }
 
 func (u *Updater) logCheck(ctx context.Context) {
@@ -107,6 +174,10 @@ func (u *Updater) logCheck(ctx context.Context) {
 }
 
 func (u *Updater) Check(ctx context.Context) error {
+	return u.check(ctx, false)
+}
+
+func (u *Updater) check(ctx context.Context, forced bool) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	cfg, err := u.state.Get(ctx)
@@ -120,7 +191,7 @@ func (u *Updater) Check(ctx context.Context) error {
 	if account == "" || key == "" {
 		return u.recordUnconfigured(ctx, cfg)
 	}
-	if !u.due(cfg, account+":"+key) {
+	if !u.due(cfg, account+":"+key, forced) {
 		return nil
 	}
 	return u.refresh(ctx, account, key)
@@ -146,7 +217,7 @@ func (u *Updater) recordUnconfigured(ctx context.Context, cfg settings.Settings)
 	return u.state.RecordGeo(ctx, settings.GeoState{Status: settings.GeoUnconfigured})
 }
 
-func (u *Updater) due(cfg settings.Settings, fingerprint string) bool {
+func (u *Updater) due(cfg settings.Settings, fingerprint string, forced bool) bool {
 	now := u.now()
 	if u.hasFile() {
 		updated, err := time.Parse(time.RFC3339, cfg.Analytics.GeoUpdatedAt)
@@ -154,15 +225,17 @@ func (u *Updater) due(cfg settings.Settings, fingerprint string) bool {
 			return false
 		}
 	}
-	if cfg.Analytics.GeoStatus != settings.GeoFailed {
+	if cfg.Analytics.GeoStatus != settings.GeoFailed || forced {
 		return true
 	}
 	checked, err := time.Parse(time.RFC3339, cfg.Analytics.GeoCheckedAt)
 	if err != nil {
 		return true
 	}
-	sameCredentials := u.fingerprint == "" || u.fingerprint == fingerprint
-	return !sameCredentials || now.Sub(checked) >= retryAfter
+	if u.fingerprint == "" {
+		return now.Sub(checked) >= restartRetry
+	}
+	return u.fingerprint != fingerprint || now.Sub(checked) >= retryAfter
 }
 
 func (u *Updater) hasFile() bool {

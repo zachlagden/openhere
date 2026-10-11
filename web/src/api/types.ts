@@ -45,4 +45,5 @@ export type AdminUser = Schemas["AdminUser"];
 export type ResetLink = Schemas["ResetLink"];
 export type WildcardCheckResult = Schemas["WildcardCheckResult"];
 export type EmailTestResult = Schemas["EmailTestResult"];
+export type GeoCheckResult = Schemas["GeoCheckResult"];
 export type AnalyticsQuery = { from?: string; to?: string; interval?: "day" | "hour"; top?: number };

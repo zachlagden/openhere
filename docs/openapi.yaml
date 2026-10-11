@@ -2014,6 +2014,42 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "404":
           $ref: "#/components/responses/NotFound"
+  /admin/analytics/geo/check:
+    post:
+      tags: [Analytics]
+      operationId: checkGeoDatabase
+      summary: Check the GeoLite2 location database now
+      description: |
+        Root user only. Other users get 404 `not_found`. Runs one check of the MaxMind GeoLite2 City database
+        and answers when it ends, after at most 15 minutes. The check skips the wait that follows a failed
+        download, but it still downloads nothing while the installed file is less than 7 days old. The route
+        allows one check per 60 seconds for the whole server and answers 429 `rate_limited` with `retry_after`
+        before that. Without a saved account ID and licence key it returns 409 `geo_not_configured`.
+
+        A failed download is a normal 200 response with `status` set to `failed` and a plain-language `detail`.
+        The detail never contains the licence key or the raw reply of MaxMind. A key created in the last few
+        minutes can be rejected until MaxMind activates it.
+      responses:
+        "200":
+          description: The outcome of the check.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoCheckResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: No MaxMind account ID or licence key is saved (`geo_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/settings:
     get:
       tags: [Admin]
@@ -4058,6 +4094,25 @@ components:
         expiresAt:
           type: string
           format: date-time
+    GeoCheckResult:
+      type: object
+      required: [status, checkedAt, updatedAt, detail]
+      properties:
+        status:
+          type: string
+          enum: [ok, failed, unconfigured]
+          description: The outcome of the latest check. `unconfigured` means no account ID and key are saved.
+        checkedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the server last checked the database.
+        updatedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the server last installed a GeoLite2 database. Null before the first download.
+        detail:
+          type: string
+          description: Why the check failed, or a note about the download. Empty when there is nothing to add. Never contains the key.
     WildcardCheckResult:
       type: object
       required: [wildcard, settings]

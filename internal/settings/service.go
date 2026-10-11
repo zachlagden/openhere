@@ -27,6 +27,27 @@ type Service struct {
 	mu         sync.Mutex
 	cached     *Settings
 	generation uint64
+	onMaxMind  func()
+}
+
+func (s *Service) OnMaxMindSaved(notify func()) {
+	s.mu.Lock()
+	s.onMaxMind = notify
+	s.mu.Unlock()
+}
+
+func (s *Service) notifyMaxMindSaved(changes map[string]string) {
+	_, account := changes[KeyMaxMindAccountID]
+	_, licence := changes[KeyMaxMindLicenseKey]
+	if !account && !licence {
+		return
+	}
+	s.mu.Lock()
+	notify := s.onMaxMind
+	s.mu.Unlock()
+	if notify != nil {
+		notify()
+	}
 }
 
 func New(db store.Store, opts Options) *Service {
@@ -152,6 +173,7 @@ func (s *Service) Apply(ctx context.Context, patch map[string]json.RawMessage) (
 	if err != nil {
 		return Outcome{}, err
 	}
+	s.notifyMaxMindSaved(changes)
 	updated, err := s.Get(ctx)
 	if err != nil {
 		return Outcome{}, err

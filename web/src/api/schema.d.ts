@@ -1212,6 +1212,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/analytics/geo/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check the GeoLite2 location database now
+         * @description Root user only. Other users get 404 `not_found`. Runs one check of the MaxMind GeoLite2 City database
+         *     and answers when it ends, after at most 15 minutes. The check skips the wait that follows a failed
+         *     download, but it still downloads nothing while the installed file is less than 7 days old. The route
+         *     allows one check per 60 seconds for the whole server and answers 429 `rate_limited` with `retry_after`
+         *     before that. Without a saved account ID and licence key it returns 409 `geo_not_configured`.
+         *
+         *     A failed download is a normal 200 response with `status` set to `failed` and a plain-language `detail`.
+         *     The detail never contains the licence key or the raw reply of MaxMind. A key created in the last few
+         *     minutes can be rejected until MaxMind activates it.
+         */
+        post: operations["checkGeoDatabase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/settings": {
         parameters: {
             query?: never;
@@ -2363,6 +2391,25 @@ export interface components {
             link: string;
             /** Format: date-time */
             expiresAt: string;
+        };
+        GeoCheckResult: {
+            /**
+             * @description The outcome of the latest check. `unconfigured` means no account ID and key are saved.
+             * @enum {string}
+             */
+            status: "ok" | "failed" | "unconfigured";
+            /**
+             * Format: date-time
+             * @description When the server last checked the database.
+             */
+            checkedAt: string | null;
+            /**
+             * Format: date-time
+             * @description When the server last installed a GeoLite2 database. Null before the first download.
+             */
+            updatedAt: string | null;
+            /** @description Why the check failed, or a note about the download. Empty when there is nothing to add. Never contains the key. */
+            detail: string;
         };
         WildcardCheckResult: {
             wildcard: {
@@ -4602,6 +4649,39 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    checkGeoDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome of the check. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeoCheckResult"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CsrfRejected"];
+            404: components["responses"]["NotFound"];
+            /** @description No MaxMind account ID or licence key is saved (`geo_not_configured`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
         };
     };
     getSettings: {
