@@ -1,3 +1,5 @@
+import { SKILL_INSTALL_COMMAND, SKILL_NAME } from "@/brand";
+
 export interface SetupPromptInput {
   instanceUrl: string;
   emailAvailable: boolean;
@@ -9,41 +11,24 @@ function trimUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-function authenticationSteps(input: SetupPromptInput, base: string): string[] {
+function signInLine(input: SetupPromptInput, base: string): string {
   if (input.emailAvailable) {
-    return [
-      `   - Ask me to approve you: POST ${base}/api/v1/auth/agent/request-code with {"email": "${input.userEmail}"}.`,
-      "   - I will give you the 8-digit code from my email.",
-      `   - POST ${base}/api/v1/auth/agent/verify-code with {"email": "${input.userEmail}", "code": "<code>", "label": "<your agent name>"}. The response holds an API key once.`,
-      `   - Save {"url": "${base}", "key": "<key>"} to ${input.credentialsPath} (directory mode 0700, file mode 0600).`,
-    ];
+    return `3. Sign in with an email code. My account email is ${input.userEmail}. Request the code, ask me for the 8-digit code from my inbox, then verify it. The key is saved to ${input.credentialsPath}.`;
   }
-  return [
-    `   - This instance cannot send email. Ask me for an API key. I create one in the dashboard at ${base}/settings/api-keys.`,
-    `   - Save {"url": "${base}", "key": "<key>"} to ${input.credentialsPath} (directory mode 0700, file mode 0600).`,
-  ];
+  return `3. This instance cannot send email. Ask me to create an API key at ${base}/settings/api-keys (Settings, API keys) and give it to you. Save it to ${input.credentialsPath}.`;
 }
 
 export function buildSetupPrompt(input: SetupPromptInput): string {
   const base = trimUrl(input.instanceUrl);
   const lines = [
-    `You can publish static sites for me to my self-hosted hosting service at ${base}.`,
+    `Publish static sites for me to my self-hosted OpenHere instance.`,
     "",
-    "1. Authenticate.",
-    `   - First read ${input.credentialsPath}. If it exists, use its "url" and "key" and send the key as "Authorization: Bearer <key>".`,
-    "   - If it does not exist, get a key:",
-    ...authenticationSteps(input, base),
-    "   - Never print, log or commit the key.",
+    `1. Install the ${SKILL_NAME} skill: ${SKILL_INSTALL_COMMAND}`,
+    `2. My instance URL is ${base}. Pass it to the skill's scripts as --instance.`,
+    signInLine(input, base),
+    `4. If you cannot install skills, sign in the same way, then read the agent guide at ${base}/api/v1/docs/agent-guide.md (it needs the key) and publish with the API as it describes.`,
     "",
-    "2. Read the agent guide, which needs the key:",
-    `   GET ${base}/api/v1/docs/agent-guide.md`,
-    "",
-    "3. To publish a built folder:",
-    `   - POST ${base}/api/v1/publish with every file's path, size, SHA-256 and content type (use PUT /api/v1/publish/{slug} for an existing site).`,
-    "   - PUT each file's bytes to the upload URL the response lists.",
-    "   - POST the finalize URL, then tell me the site address from the response.",
-    "",
-    "Publish only folders that are already built. Ask me before you overwrite an existing site.",
+    "Never print, log or commit the key. Publish only folders that are already built, and ask me before you overwrite an existing site.",
   ];
   return lines.join("\n");
 }

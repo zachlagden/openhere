@@ -91,7 +91,9 @@ async function copyPrompt(page, baseUrl) {
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   check(prompt.includes(`${baseUrl}/api/v1/docs/agent-guide.md`), "the prompt names the agent guide URL");
   check(prompt.includes(`${baseUrl}/settings/api-keys`), "without email the prompt points to the API keys settings");
-  check(!prompt.includes("request-code"), "without email the prompt skips the email code flow");
+  check(!prompt.includes("Sign in with an email code"), "without email the prompt skips the email code flow");
+  check(prompt.includes("npx skills add zachlagden/openhere --skill openhere -g"), "the prompt names the skill install command");
+  check(prompt.includes(`My instance URL is ${baseUrl}.`), "the prompt names the instance URL");
 }
 
 export async function fullFlow(page, server, shot) {
