@@ -38,7 +38,7 @@ func TestPublicSitesStayEmbeddableAndShared(t *testing.T) {
 		if h.Get("Content-Security-Policy") != "" || h.Get("X-Frame-Options") != "" {
 			t.Errorf("a public site refuses framing: %v", h)
 		}
-		if h.Get("Cache-Control") != CacheHTML {
+		if h.Get("Cache-Control") != CacheFile {
 			t.Errorf("Cache-Control = %q", h.Get("Cache-Control"))
 		}
 		if got := e.get(managementHost, "/s/demo/").Header().Get("Content-Security-Policy"); got != wantSandbox {

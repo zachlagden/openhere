@@ -39,7 +39,7 @@ func TestRightPasswordSetsACookieAndOpensTheSite(t *testing.T) {
 		}
 		asset := e.withCookie(siteHost, "/_next/static/chunk-1.js", cookie)
 		expectBody(t, asset, 200, "console.log(1)")
-		if asset.Header().Get("Cache-Control") != "private, max-age=3600, must-revalidate" {
+		if asset.Header().Get("Cache-Control") != "private, no-cache" {
 			t.Errorf("asset Cache-Control = %q", asset.Header().Get("Cache-Control"))
 		}
 		missing := e.withCookie(siteHost, "/nope", cookie)

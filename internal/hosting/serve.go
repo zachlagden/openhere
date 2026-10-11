@@ -105,7 +105,7 @@ func (s siteServer) respondWithFile(w http.ResponseWriter, r *http.Request, resp
 	contentType := contentTypeFor(rec)
 	h := w.Header()
 	h.Set("Content-Type", contentType)
-	h.Set("Cache-Control", cacheControlFor(contentType, resp.private))
+	h.Set("Cache-Control", cacheControlFor(contentType, rec.Path, resp.private))
 	s.timeouts.ExtendDownload(w, info.Size())
 	recorded := &statusRecorder{ResponseWriter: w}
 	if resp.status == http.StatusOK {
@@ -125,19 +125,6 @@ func writeStatusWithBody(w http.ResponseWriter, r *http.Request, file *os.File, 
 	}
 	if _, err := io.Copy(w, file); err != nil {
 		slog.Debug("write response body", "error", err)
-	}
-}
-
-func cacheControlFor(contentType string, private bool) string {
-	switch {
-	case private && isHTML(contentType):
-		return cachePrivateHTML
-	case private:
-		return cachePrivateAsset
-	case isHTML(contentType):
-		return CacheHTML
-	default:
-		return CacheAsset
 	}
 }
 

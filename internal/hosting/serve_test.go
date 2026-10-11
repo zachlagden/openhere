@@ -196,10 +196,10 @@ func TestContentTypesAndCaching(t *testing.T) {
 
 		cases := []struct{ target, contentType, cacheControl string }{
 			{"/", "text/html; charset=utf-8", "no-cache"},
-			{"/stored.bin", "application/x-custom", CacheAsset},
-			{"/mystery", "application/octet-stream", CacheAsset},
-			{"/logo.svg", "image/svg+xml", CacheAsset},
-			{"/app.js", "text/javascript; charset=utf-8", CacheAsset},
+			{"/stored.bin", "application/x-custom", CacheFile},
+			{"/mystery", "application/octet-stream", CacheFile},
+			{"/logo.svg", "image/svg+xml", CacheFile},
+			{"/app.js", "text/javascript; charset=utf-8", CacheFile},
 		}
 		for _, tc := range cases {
 			rec := e.site(tc.target)
