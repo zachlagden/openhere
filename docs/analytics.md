@@ -61,7 +61,26 @@ Location lookups use the free GeoLite2 City database from MaxMind. To switch the
 1. Create a free GeoLite2 account at MaxMind and generate a licence key in the account portal.
 2. Set `analytics.maxmindAccountId` (the numeric account ID) and `analytics.maxmindLicenseKey`, in the dashboard under Admin, Analytics or with `PATCH /api/v1/admin/settings`.
 
-Within five minutes the server downloads `GeoLite2-City` from `download.maxmind.com` over HTTPS, checks its SHA-256 checksum when MaxMind provides one, and installs it as `DATA_DIR/geo/GeoLite2-City.mmdb` through an atomic rename, so a failed or partial download never replaces a working file. It refreshes the database at most once a week, and retries a failed download after 6 hours or at once when you change the credentials. The lookup picks up a new file without a restart. `analytics.geoStatus`, `analytics.geoUpdatedAt`, `analytics.geoCheckedAt` and `analytics.geoDetail` show the state to the root user. The licence key is never logged or returned. Without credentials the location fields stay empty and reports show `locationAvailable: false`.
+Within five minutes the server downloads `GeoLite2-City` from `download.maxmind.com` over HTTPS, checks its SHA-256 checksum when MaxMind provides one, and installs it as `DATA_DIR/geo/GeoLite2-City.mmdb` through an atomic rename, so a failed or partial download never replaces a working file. The lookup picks up a new file without a restart. `analytics.geoStatus`, `analytics.geoUpdatedAt`, `analytics.geoCheckedAt` and `analytics.geoDetail` show the state to the root user. The licence key is never logged or returned. Without credentials the location fields stay empty and reports show `locationAvailable: false`.
+
+### When the server checks
+
+The server looks at the database every 5 minutes and downloads only when one of these holds:
+
+- No database file exists yet, or the file is older than 7 days. A file younger than 7 days is never downloaded again, whatever triggered the check.
+- The last download failed, and either 6 hours have passed, the credentials differ from the ones that failed, or the server has restarted since and the failure is older than 5 minutes.
+- You saved `analytics.maxmindAccountId` or `analytics.maxmindLicenseKey`, even with the same value. The save starts a check within a few seconds and skips the wait after a failure.
+- You pressed Check now in the dashboard, or called `POST /api/v1/admin/analytics/geo/check`. This also skips the wait after a failure.
+
+The server starts at most one check at a time. It starts at most one forced check (a save, the button or the route) every 60 seconds, to stay inside MaxMind's daily download limit. The route answers 429 `rate_limited` with `retry_after` inside that minute. A save inside the minute waits for the minute to pass and then checks.
+
+A new licence key can take a few minutes to become active at MaxMind. A check made too early fails with "MaxMind rejected the account ID or licence key". Wait a few minutes and press Check now.
+
+### Check the database now
+
+Under Admin, Analytics, the GeoLite2 status shows a Check now button once a licence key is saved. The button runs one check, waits for the result and shows it next to the status. A failed check shows its reason, for example the MaxMind rejection above.
+
+`POST /api/v1/admin/analytics/geo/check` does the same for the root user. It answers when the check ends, after at most 15 minutes, with `status` (`ok`, `failed` or `unconfigured`), `checkedAt`, `updatedAt` and a plain-language `detail`. It returns 409 `geo_not_configured` when no account ID or key is saved, and 404 to every other user. The detail never holds the licence key or the raw reply of MaxMind.
 
 ### MaxMind licence and attribution
 

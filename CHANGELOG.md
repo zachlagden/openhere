@@ -8,6 +8,7 @@ The first release has not been cut. This section describes what the software doe
 
 ### Added
 
+- Saving MaxMind credentials checks the GeoLite2 database within seconds, a restart retries a failure older than 5 minutes, and the root user can run a check from the dashboard (Check now) or with `POST /api/v1/admin/analytics/geo/check`, at most once a minute. A failed download no longer waits 6 hours after you fix the cause, and a rejected new key now says it may not be active yet.
 - `CLIENT_IP_HEADER` setting. Behind Cloudflare and a proxy that overwrites `X-Forwarded-For`, it names the header (for example `CF-Connecting-IP`) that carries the real client address. The server reads it only from `TRUSTED_PROXIES` peers, so rate limits, login lockouts, gate limits, analytics visitor hashes and location lookups key on the client and not on a Cloudflare edge address.
 - A single Go binary that serves a REST API, a web dashboard and the hosted sites. It runs on SQLite by default and on PostgreSQL when `DATABASE_URL` is set. Migrations are embedded and run on start.
 - First-run setup: the server logs a one-time setup token while the database has no users, and the first user becomes the root user.
