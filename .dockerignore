@@ -16,6 +16,6 @@ web/coverage
 web/e2e/output
 internal/ui/bundle/*
 !internal/ui/bundle/.gitkeep
-selfhost
+openhere
 bin
 coverage.out
