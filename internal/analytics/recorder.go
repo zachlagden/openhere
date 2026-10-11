@@ -244,7 +244,43 @@ func (r *Recorder) insert(ctx context.Context, events []Event) {
 	if err == nil {
 		return
 	}
+	if store.IsForeignKeyViolation(err) {
+		r.insertBySite(ctx, events)
+		return
+	}
 	r.logger.Warn("insert analytics batch failed, retrying one row at a time", "rows", len(events), "error", err)
+	r.insertOneByOne(ctx, events)
+}
+
+func (r *Recorder) insertBySite(ctx context.Context, events []Event) {
+	groups := make(map[string][]Event)
+	var order []string
+	for _, event := range events {
+		if _, seen := groups[event.SiteID]; !seen {
+			order = append(order, event.SiteID)
+		}
+		groups[event.SiteID] = append(groups[event.SiteID], event)
+	}
+	gone := 0
+	for _, siteID := range order {
+		group := groups[siteID]
+		err := insertEvents(ctx, r.db, group)
+		switch {
+		case err == nil:
+		case store.IsForeignKeyViolation(err):
+			gone += len(group)
+			r.dropped.Add(int64(len(group)))
+		default:
+			r.logger.Warn("insert analytics events for one site failed, retrying one row at a time", "rows", len(group), "error", err)
+			r.insertOneByOne(ctx, group)
+		}
+	}
+	if gone > 0 {
+		r.logger.Debug("dropped analytics events for sites that no longer exist", "events", gone)
+	}
+}
+
+func (r *Recorder) insertOneByOne(ctx context.Context, events []Event) {
 	for _, event := range events {
 		if err := insertEvents(ctx, r.db, []Event{event}); err != nil {
 			r.dropped.Add(1)

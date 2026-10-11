@@ -221,3 +221,46 @@ func TestIsUniqueViolation(t *testing.T) {
 		})
 	}
 }
+
+func TestIsForeignKeyViolation(t *testing.T) {
+	for _, target := range testTargets() {
+		t.Run(target.name, func(t *testing.T) {
+			s := openMigrated(t, target)
+			ctx := context.Background()
+			const insert = "INSERT INTO analytics_events (site_id, occurred_at, day, hour, path, status_class, referrer_host, country, city, browser, os, device) " +
+				"VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
+			stamp := time.Now().UTC()
+			_, err := s.ExecContext(ctx, insert, "site-that-does-not-exist", stamp, "2026-03-10", 12, "/", "2xx", "", "", "", "", "", "desktop")
+			if err == nil {
+				t.Fatal("expected a foreign key error")
+			}
+			if !IsForeignKeyViolation(err) {
+				t.Errorf("IsForeignKeyViolation(%v) = false, want true", err)
+			}
+			if IsUniqueViolation(err) {
+				t.Error("IsUniqueViolation reported a foreign key error")
+			}
+			if IsForeignKeyViolation(errors.New("other")) {
+				t.Error("IsForeignKeyViolation reported a plain error")
+			}
+			uniqueErr := duplicateSetting(t, s)
+			if IsForeignKeyViolation(uniqueErr) {
+				t.Error("IsForeignKeyViolation reported a unique violation")
+			}
+		})
+	}
+}
+
+func duplicateSetting(t *testing.T, s Store) error {
+	t.Helper()
+	const insert = "INSERT INTO instance_settings (key, value, updated_at) VALUES ($1, $2, $3)"
+	stamp := time.Now().UTC()
+	if _, err := s.ExecContext(context.Background(), insert, "dup", "a", stamp); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.ExecContext(context.Background(), insert, "dup", "b", stamp)
+	if err == nil {
+		t.Fatal("expected a duplicate key error")
+	}
+	return err
+}
