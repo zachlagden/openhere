@@ -50,7 +50,7 @@ Both runs must pass. Keep SQL portable between the two databases: use `$1`, `$2`
 
 ### Dashboard end-to-end tests
 
-`pnpm --dir web e2e` builds the server, starts it on a temporary data directory and drives it in Chrome through setup, publishing and every screen, at desktop and phone widths in light and dark. It needs `playwright-core` on `NODE_PATH` (for example from a global pnpm install) and Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`). Set `SELFHOST_BIN` to use a prebuilt binary. Screenshots go to `web/e2e/output`, which Git ignores.
+`pnpm --dir web e2e` builds the server, starts it on a temporary data directory and drives it in Chrome through setup, publishing and every screen, at desktop and phone widths in light and dark. It needs `playwright-core` on `NODE_PATH` (for example from a global pnpm install) and Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`). Set `OPENHERE_BIN` to use a prebuilt binary. Screenshots go to `web/e2e/output`, which Git ignores.
 
 ### Certificate tests
 
