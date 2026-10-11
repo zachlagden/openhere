@@ -4,7 +4,7 @@
 
 Report security problems privately. Do not open a public issue or pull request for one.
 
-Send the report to [SECURITY CONTACT: Zach to fill].
+Send the report to zach@zachlagden.uk.
 
 Include what you found, the version or commit, the steps to reproduce it and the effect you expect it to have. If you found it on a running instance, say which settings were involved (hosting mode, access mode, proxy setup) and leave out real credentials and personal data.
 
