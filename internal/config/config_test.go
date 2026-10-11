@@ -99,18 +99,24 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		env  map[string]string
 		want string
 	}{
-		"listen address without port": {map[string]string{"LISTEN_ADDR": "localhost"}, "LISTEN_ADDR"},
-		"unknown log level":           {map[string]string{"LOG_LEVEL": "loud"}, "LOG_LEVEL"},
-		"non postgres database url":   {map[string]string{"DATABASE_URL": "mysql://db.example.com/app"}, "DATABASE_URL"},
-		"database url without host":   {map[string]string{"DATABASE_URL": "postgres:///app"}, "DATABASE_URL"},
-		"sentry dsn not a url":        {map[string]string{"SENTRY_DSN": "not-a-dsn"}, "SENTRY_DSN"},
-		"key prefix with symbols":     {map[string]string{"API_KEY_PREFIX": "sk-"}, "API_KEY_PREFIX"},
-		"key prefix too long":         {map[string]string{"API_KEY_PREFIX": "abcdefghijklmnopq"}, "API_KEY_PREFIX"},
-		"trusted proxy not an ip":     {map[string]string{"TRUSTED_PROXIES": "10.0.0.1, proxy"}, "TRUSTED_PROXIES"},
-		"argon2 concurrency zero":     {map[string]string{"ARGON2_CONCURRENCY": "0"}, "ARGON2_CONCURRENCY"},
-		"argon2 concurrency too high": {map[string]string{"ARGON2_CONCURRENCY": "17"}, "ARGON2_CONCURRENCY"},
-		"argon2 concurrency text":     {map[string]string{"ARGON2_CONCURRENCY": "many"}, "ARGON2_CONCURRENCY"},
-		"trusted proxy bad cidr":      {map[string]string{"TRUSTED_PROXIES": "10.0.0.0/40"}, "TRUSTED_PROXIES"},
+		"listen address without port":      {map[string]string{"LISTEN_ADDR": "localhost"}, "LISTEN_ADDR"},
+		"unknown log level":                {map[string]string{"LOG_LEVEL": "loud"}, "LOG_LEVEL"},
+		"non postgres database url":        {map[string]string{"DATABASE_URL": "mysql://db.example.com/app"}, "DATABASE_URL"},
+		"database url without host":        {map[string]string{"DATABASE_URL": "postgres:///app"}, "DATABASE_URL"},
+		"sentry dsn not a url":             {map[string]string{"SENTRY_DSN": "not-a-dsn"}, "SENTRY_DSN"},
+		"key prefix with symbols":          {map[string]string{"API_KEY_PREFIX": "sk-"}, "API_KEY_PREFIX"},
+		"key prefix too long":              {map[string]string{"API_KEY_PREFIX": "abcdefghijklmnopq"}, "API_KEY_PREFIX"},
+		"trusted proxy not an ip":          {map[string]string{"TRUSTED_PROXIES": "10.0.0.1, proxy"}, "TRUSTED_PROXIES"},
+		"argon2 concurrency zero":          {map[string]string{"ARGON2_CONCURRENCY": "0"}, "ARGON2_CONCURRENCY"},
+		"argon2 concurrency too high":      {map[string]string{"ARGON2_CONCURRENCY": "17"}, "ARGON2_CONCURRENCY"},
+		"argon2 concurrency text":          {map[string]string{"ARGON2_CONCURRENCY": "many"}, "ARGON2_CONCURRENCY"},
+		"client ip header with space":      {map[string]string{"CLIENT_IP_HEADER": "CF Connecting IP"}, "CLIENT_IP_HEADER"},
+		"client ip header with colon":      {map[string]string{"CLIENT_IP_HEADER": "CF-Connecting-IP:"}, "CLIENT_IP_HEADER"},
+		"client ip header list":            {map[string]string{"CLIENT_IP_HEADER": "CF-Connecting-IP, X-Real-IP"}, "CLIENT_IP_HEADER"},
+		"client ip header forwarded for":   {map[string]string{"CLIENT_IP_HEADER": "x-forwarded-for"}, "CLIENT_IP_HEADER"},
+		"client ip header forwarded":       {map[string]string{"CLIENT_IP_HEADER": "Forwarded"}, "CLIENT_IP_HEADER"},
+		"client ip header forwarded proto": {map[string]string{"CLIENT_IP_HEADER": "X-Forwarded-Proto"}, "CLIENT_IP_HEADER"},
+		"trusted proxy bad cidr":           {map[string]string{"TRUSTED_PROXIES": "10.0.0.0/40"}, "TRUSTED_PROXIES"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -333,5 +339,30 @@ func TestArgon2Concurrency(t *testing.T) {
 	cfg, err = Load(lookupFrom(map[string]string{"ARGON2_CONCURRENCY": "16"}))
 	if err != nil || cfg.Argon2Concurrency != 16 {
 		t.Fatalf("override = %d, %v; want 16", cfg.Argon2Concurrency, err)
+	}
+}
+
+func TestLoadClientIPHeader(t *testing.T) {
+	cfg, err := Load(lookupFrom(nil))
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.ClientIPHeader != "" {
+		t.Errorf("client ip header = %q, want none", cfg.ClientIPHeader)
+	}
+	cases := map[string]string{
+		"cf-connecting-ip":    "Cf-Connecting-Ip",
+		"  CF-Connecting-IP ": "Cf-Connecting-Ip",
+		"X-Real-IP":           "X-Real-Ip",
+		"   ":                 "",
+	}
+	for raw, want := range cases {
+		cfg, err := Load(lookupFrom(map[string]string{"CLIENT_IP_HEADER": raw}))
+		if err != nil {
+			t.Fatalf("Load(%q) returned error: %v", raw, err)
+		}
+		if cfg.ClientIPHeader != want {
+			t.Errorf("client ip header for %q = %q, want %q", raw, cfg.ClientIPHeader, want)
+		}
 	}
 }
