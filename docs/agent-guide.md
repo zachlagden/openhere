@@ -2,6 +2,8 @@
 
 This guide tells an AI agent how to publish and manage static sites on this instance. A site is a folder of already built files. The instance serves it at an address it returns to you.
 
+If your environment can install skills, prefer the OpenHere skill: `npx skills add zachlagden/openhere --skill openhere -g`. Its scripts do the steps below for you. Use this guide when you cannot install it.
+
 All paths below are relative to the instance URL and start with `/api/v1`. Bodies are JSON unless a step says otherwise. The full reference is `GET /api/v1/docs/openapi.yaml`.
 
 ## Authenticate
