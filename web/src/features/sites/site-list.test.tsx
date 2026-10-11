@@ -12,7 +12,7 @@ afterEach(() => {
 
 const baseRoutes = {
   "GET /api/v1/workspaces/personal/folders": { body: { folders: [] } },
-  "GET /api/v1/instance": { body: { publicUrl: "https://sites.example.com", emailAvailable: false, agentCredentialsPath: "~/.selfhost/credentials" } },
+  "GET /api/v1/instance": { body: { publicUrl: "https://sites.example.com", emailAvailable: false, agentCredentialsPath: "~/.openhere/credentials" } },
   "GET /api/v1/me": { body: { user: { email: "alex@example.com" } } },
 };
 

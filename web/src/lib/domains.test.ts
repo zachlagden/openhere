@@ -6,7 +6,7 @@ const domain: Domain = {
   id: "d1",
   domain: "docs.example.org",
   status: "pending_verification",
-  challenge: { recordType: "TXT", name: "_selfhost-challenge.docs.example.org", value: "ab12cd34" },
+  challenge: { recordType: "TXT", name: "_openhere-challenge.docs.example.org", value: "ab12cd34" },
   target: { recordType: "CNAME", value: "sites.example.com", note: "Use an ALIAS record on an apex domain." },
   isPrimary: false,
   verifiedAt: null,
@@ -30,7 +30,7 @@ describe("domain display helpers", () => {
   });
 
   it("builds the TXT challenge and the pointing record", () => {
-    expect(challengeRecord(domain)).toMatchObject({ type: "TXT", name: "_selfhost-challenge.docs.example.org", value: "ab12cd34" });
+    expect(challengeRecord(domain)).toMatchObject({ type: "TXT", name: "_openhere-challenge.docs.example.org", value: "ab12cd34" });
     expect(targetRecord(domain)).toMatchObject({ type: "CNAME", name: "docs.example.org", value: "sites.example.com" });
   });
 

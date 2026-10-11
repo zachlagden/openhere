@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/otp"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/otp"
 )
 
 func (s *Service) Verify(ctx context.Context, email, code, label string) (string, auth.APIKey, error) {

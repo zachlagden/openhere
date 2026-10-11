@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (e *env) primaries(siteID string) []string {

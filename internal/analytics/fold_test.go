@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func storedPathCounts(t *testing.T, db store.Store) map[string]int {

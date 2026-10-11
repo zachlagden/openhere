@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/httptimeouts"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/httptimeouts"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type fakeDomains struct {
@@ -400,7 +400,7 @@ func TestRedirectRejectsOddHosts(t *testing.T) {
 func TestPlainHTTPServerNeverServesContent(t *testing.T) {
 	env := newManagerEnv(t)
 	handler := env.manager.HTTPServer(":80").Handler
-	for _, target := range []string{"/", "/api/v1/me", "/health", "/.well-known/selfhost-check/abc", "/.well-known/selfhost-auth", "/s/launch/index.html"} {
+	for _, target := range []string{"/", "/api/v1/me", "/health", "/.well-known/openhere-check/abc", "/.well-known/openhere-auth", "/s/launch/index.html"} {
 		req := httptest.NewRequestWithContext(t.Context(), "GET", target, nil)
 		req.Host = "admin.example.com"
 		rec := httptest.NewRecorder()

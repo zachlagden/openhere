@@ -806,7 +806,7 @@ export interface paths {
          *     interactive path works only for users who already have a session in the browser.
          *
          *     With a session cookie or API key and read access to the site, the response is a 303 redirect to the site
-         *     host. For a `restricted` site that is `{site url}.well-known/selfhost-auth?token=...&return=...`, where the
+         *     host. For a `restricted` site that is `{site url}.well-known/openhere-auth?token=...&return=...`, where the
          *     token works once, for 60 seconds, for this site only. The site host exchanges it for a viewer cookie and
          *     redirects to `return`. For a `public` or `password` site there is nothing to exchange, so the redirect goes
          *     straight to `{site url}` plus `return`. Calls are limited to 30 per minute per user.
@@ -1374,7 +1374,7 @@ export interface paths {
         /**
          * Check that wildcard subdomains reach this server
          * @description Root user only. Other users get 404 `not_found`. Picks a random label, resolves `{label}.{baseDomain}`
-         *     through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}`
+         *     through DNS, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/openhere-check/{token}`
          *     and succeeds only if the server itself answers with the HMAC of the one-time token (the key stays in the process). The check never follows
          *     redirects, reads at most 256 bytes and gives up after 10 seconds. It stores the outcome in the read-only
          *     `hosting.wildcard*` settings. A failed check never switches subdomain mode off by itself, and a manual
@@ -1382,7 +1382,7 @@ export interface paths {
          *     6 hours, retries every 15 minutes while it fails, and switches subdomain mode off after 3 consecutive
          *     failed startup or scheduled checks when path mode is on. Rate limited to 6 calls per minute per user.
          *
-         *     A failed check is a normal 200 response with `status` set to `failed`. The `.well-known/selfhost-check/`
+         *     A failed check is a normal 200 response with `status` set to `failed`. The `.well-known/openhere-check/`
          *     route on site hosts is the only unauthenticated route this feature adds. It answers only while a check
          *     is running, once per token, and returns the generic 404 otherwise.
          */
@@ -1435,9 +1435,9 @@ export interface components {
              * @enum {string}
              */
             whoCanInvite: "root" | "workspaceAdmins";
-            /** @example .selfhost */
+            /** @example .openhere */
             agentCredentialsDir: string;
-            /** @example ~/.selfhost/credentials */
+            /** @example ~/.openhere/credentials */
             agentCredentialsPath: string;
         };
         SetupStatus: {
@@ -1640,7 +1640,7 @@ export interface components {
             challenge: {
                 /** @enum {string} */
                 recordType: "TXT";
-                /** @description Always `_selfhost-challenge.` followed by the domain. */
+                /** @description Always `_openhere-challenge.` followed by the domain. */
                 name: string;
                 /** @description A random token of 192 bits in hex. It is not a secret, but nobody can guess it. */
                 value: string;
@@ -2269,7 +2269,7 @@ export interface components {
             apiKey: components["schemas"]["ApiKey"];
             /**
              * @description Where agents store the key, as JSON with the instance URL and the key. The file mode is 0600.
-             * @example ~/.selfhost/credentials
+             * @example ~/.openhere/credentials
              */
             credentialsPath: string;
         };

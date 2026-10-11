@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/invites"
-	"github.com/zachlagden/selfhost/internal/proxy"
+	"github.com/zachlagden/openhere/internal/invites"
+	"github.com/zachlagden/openhere/internal/proxy"
 )
 
 type inviteWorkspace struct {

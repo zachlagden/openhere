@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/ids"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/ids"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func nullable(value string) sql.NullString {

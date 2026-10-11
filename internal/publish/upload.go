@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zachlagden/selfhost/internal/sitefiles"
-	"github.com/zachlagden/selfhost/internal/sitepath"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/sitefiles"
+	"github.com/zachlagden/openhere/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 func (s *Service) Upload(ctx context.Context, userID, siteRef, versionID, filePath string, body io.Reader) (FileSpec, error) {

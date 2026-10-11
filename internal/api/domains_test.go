@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 const customName = "www.example.org"
@@ -19,7 +19,7 @@ func TestDomainLifecycle(t *testing.T) {
 		if added.Domain != customName || added.Status != "pending_verification" || added.IsPrimary || added.VerifiedAt != nil || added.LastCheckedAt != nil || added.LastCheckResult != nil {
 			t.Fatalf("added = %+v", added)
 		}
-		if added.Challenge.RecordType != "TXT" || added.Challenge.Name != "_selfhost-challenge."+customName || len(added.Challenge.Value) < 32 {
+		if added.Challenge.RecordType != "TXT" || added.Challenge.Name != "_openhere-challenge."+customName || len(added.Challenge.Value) < 32 {
 			t.Errorf("challenge = %+v", added.Challenge)
 		}
 		if added.Target.RecordType != "CNAME" || added.Target.Value != testHost || !strings.Contains(added.Target.Note, "A and AAAA") {
@@ -36,7 +36,7 @@ func TestDomainLifecycle(t *testing.T) {
 
 		missing := s.alex.verifyDomain("guarded", added.ID)
 		if missing.Verified || missing.Domain.Status != "pending_verification" || missing.Domain.LastCheckResult == nil || *missing.Domain.LastCheckResult != "record_not_found" ||
-			!strings.Contains(missing.Message, "_selfhost-challenge.www.example.org") {
+			!strings.Contains(missing.Message, "_openhere-challenge.www.example.org") {
 			t.Errorf("verify without a record = %+v", missing)
 		}
 		s.h.dns.publish(added.Challenge.Name, "wrong")

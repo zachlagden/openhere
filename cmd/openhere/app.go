@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/api"
-	"github.com/zachlagden/selfhost/internal/certs"
-	"github.com/zachlagden/selfhost/internal/config"
-	"github.com/zachlagden/selfhost/internal/domains"
-	"github.com/zachlagden/selfhost/internal/httptimeouts"
-	"github.com/zachlagden/selfhost/internal/secrets"
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/ui"
+	"github.com/zachlagden/openhere/internal/api"
+	"github.com/zachlagden/openhere/internal/certs"
+	"github.com/zachlagden/openhere/internal/config"
+	"github.com/zachlagden/openhere/internal/domains"
+	"github.com/zachlagden/openhere/internal/httptimeouts"
+	"github.com/zachlagden/openhere/internal/secrets"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/ui"
 )
 
 func newDashboard(logger *slog.Logger) (*ui.Shell, error) {

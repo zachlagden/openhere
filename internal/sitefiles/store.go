@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/zachlagden/selfhost/internal/fsperm"
+	"github.com/zachlagden/openhere/internal/fsperm"
 )
 
 const (

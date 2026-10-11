@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/slug"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/slug"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func TestCheckSlug(t *testing.T) {

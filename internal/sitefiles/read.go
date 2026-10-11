@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/sitepath"
 )
 
 type Expected struct {

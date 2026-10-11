@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/validate"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/validate"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 func (s *Service) authorize(ctx context.Context, actor auth.User, workspaceRef string) (workspaces.Workspace, error) {

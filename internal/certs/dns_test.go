@@ -10,8 +10,8 @@ import (
 	"github.com/caddyserver/certmagic"
 	"github.com/libdns/libdns"
 
-	"github.com/zachlagden/selfhost/internal/secrets"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/secrets"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type recordingProvider struct {

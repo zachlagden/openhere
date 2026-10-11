@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/internal/access"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/internal/access"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 var secretContent = []string{"home", "about", "docs index", "custom missing", "console.log", "deep"}
@@ -238,7 +238,7 @@ func TestOnlyReadMethodsReachGatedContent(t *testing.T) {
 				t.Errorf("%s /about = %d", method, rec.Code)
 			}
 		}
-		if rec := e.postForm(siteHost, "/.well-known/selfhost-gate/other", nil, ""); rec.Code != http.StatusUnauthorized {
+		if rec := e.postForm(siteHost, "/.well-known/openhere-gate/other", nil, ""); rec.Code != http.StatusUnauthorized {
 			t.Errorf("POST to an unknown gate path = %d, want the gate page", rec.Code)
 		}
 	})

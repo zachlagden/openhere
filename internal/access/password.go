@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/openhere/internal/auth"
 )
 
 const timingEqualiserPassword = "timing-equaliser-not-a-real-password"

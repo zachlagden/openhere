@@ -220,7 +220,7 @@ func TestLoadSecretKey(t *testing.T) {
 }
 
 func TestAgentCredentialsPath(t *testing.T) {
-	if got := AgentCredentialsPath(); got != "~/.selfhost/credentials" {
+	if got := AgentCredentialsPath(); got != "~/.openhere/credentials" {
 		t.Errorf("AgentCredentialsPath = %q", got)
 	}
 }

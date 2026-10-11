@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/sites"
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/sites"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 func siteInput(userID, workspace, slug string) sites.CreateInput {

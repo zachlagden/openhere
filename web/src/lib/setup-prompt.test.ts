@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSetupPrompt } from "./setup-prompt";
 
-const base = { instanceUrl: "https://sites.example.com/", credentialsPath: "~/.selfhost/credentials", userEmail: "alex@example.com" };
+const base = { instanceUrl: "https://sites.example.com/", credentialsPath: "~/.openhere/credentials", userEmail: "alex@example.com" };
 
 describe("buildSetupPrompt", () => {
   it("uses the email code flow when email is available", () => {
@@ -21,7 +21,7 @@ describe("buildSetupPrompt", () => {
   it("names the guide, the credentials file and the publish calls", () => {
     const prompt = buildSetupPrompt({ ...base, emailAvailable: true });
     expect(prompt).toContain("GET https://sites.example.com/api/v1/docs/agent-guide.md");
-    expect(prompt).toContain("~/.selfhost/credentials");
+    expect(prompt).toContain("~/.openhere/credentials");
     expect(prompt).toContain("POST https://sites.example.com/api/v1/publish");
     expect(prompt).not.toContain("com//api");
   });

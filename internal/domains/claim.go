@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/ids"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/ids"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) Claim(ctx context.Context, siteID, raw string) (Domain, error) {

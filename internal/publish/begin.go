@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/ids"
-	"github.com/zachlagden/selfhost/internal/sites"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/ids"
+	"github.com/zachlagden/openhere/internal/sites"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 type BeginInput struct {

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 func (s *Service) List(ctx context.Context, userID string) ([]Access, error) {

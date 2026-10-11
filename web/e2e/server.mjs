@@ -17,7 +17,7 @@ async function freePort() {
 }
 
 export async function startServer(binary) {
-  const dataDir = await mkdtemp(path.join(tmpdir(), "selfhost-e2e-"));
+  const dataDir = await mkdtemp(path.join(tmpdir(), "openhere-e2e-"));
   const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(binary, [], {

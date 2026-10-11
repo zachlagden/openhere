@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zachlagden/selfhost/internal/sitepath"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 func (s *Service) List(ctx context.Context, userID, siteRef string) ([]Version, error) {

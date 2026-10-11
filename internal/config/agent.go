@@ -1,7 +1,7 @@
 package config
 
 const (
-	AgentCredentialsDir  = ".selfhost"
+	AgentCredentialsDir  = ".openhere"
 	AgentCredentialsFile = "credentials"
 )
 

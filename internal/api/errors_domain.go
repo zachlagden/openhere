@@ -4,16 +4,16 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/agentcode"
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/domains"
-	"github.com/zachlagden/selfhost/internal/invites"
-	"github.com/zachlagden/selfhost/internal/passwordreset"
-	"github.com/zachlagden/selfhost/internal/policy"
-	"github.com/zachlagden/selfhost/internal/settings"
-	"github.com/zachlagden/selfhost/internal/sites"
-	"github.com/zachlagden/selfhost/internal/validate"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/agentcode"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/domains"
+	"github.com/zachlagden/openhere/internal/invites"
+	"github.com/zachlagden/openhere/internal/passwordreset"
+	"github.com/zachlagden/openhere/internal/policy"
+	"github.com/zachlagden/openhere/internal/settings"
+	"github.com/zachlagden/openhere/internal/sites"
+	"github.com/zachlagden/openhere/internal/validate"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 type domainFailure struct {

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const notRolledUp = `NOT EXISTS (SELECT 1 FROM analytics_daily d WHERE d.site_id = e.site_id AND d.day = e.day AND d.dimension = 'events')`

@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/mail"
+	"github.com/zachlagden/openhere/internal/mail"
 )
 
 const sendTimeout = 30 * time.Second

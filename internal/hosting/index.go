@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/sitepath"
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/sitepath"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 type fileRecord struct {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 func TestUpdaterDownloadsAndInstallsTheDatabase(t *testing.T) {

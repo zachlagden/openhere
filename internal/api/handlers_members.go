@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 type addMemberRequest struct {

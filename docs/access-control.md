@@ -40,7 +40,7 @@ Every response for a gated site, gate pages included, carries `Content-Security-
 
 ## Routes the gate adds
 
-On a site host, and under `/s/<slug>/` in path mode, a gated site answers four paths that need no credentials: `GET /.well-known/selfhost-auth` (exchanges a sign-in token) and `POST /.well-known/selfhost-gate/unlock`, `/code` and `/verify` (the gate forms). They exist only while the site is gated. On a public site they behave like any other path, and a site's own file at that path is shadowed only while the site is gated. The gate counters live in process memory, like the other rate limits.
+On a site host, and under `/s/<slug>/` in path mode, a gated site answers four paths that need no credentials: `GET /.well-known/openhere-auth` (exchanges a sign-in token) and `POST /.well-known/openhere-gate/unlock`, `/code` and `/verify` (the gate forms). They exist only while the site is gated. On a public site they behave like any other path, and a site's own file at that path is shadowed only while the site is gated. The gate counters live in process memory, like the other rate limits.
 
 ## Trade-off: the gate page shows that a site exists
 

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/hashlimit"
-	"github.com/zachlagden/selfhost/internal/secrets"
+	"github.com/zachlagden/openhere/internal/hashlimit"
+	"github.com/zachlagden/openhere/internal/secrets"
 )
 
 const (

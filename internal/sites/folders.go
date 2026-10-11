@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/ids"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/validate"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/ids"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/validate"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 const folderColumns = "id, workspace_id, name, created_at, updated_at"

@@ -68,8 +68,8 @@ export const instanceInfo: Instance = {
   hostingModes: { subdomain: false, path: true, customDomains: true },
   maxDomainsPerSite: 3,
   whoCanInvite: "root",
-  agentCredentialsDir: ".selfhost",
-  agentCredentialsPath: "~/.selfhost/credentials",
+  agentCredentialsDir: ".openhere",
+  agentCredentialsPath: "~/.openhere/credentials",
 };
 
 export function makeDomain(overrides: Partial<Domain> = {}): Domain {
@@ -77,7 +77,7 @@ export function makeDomain(overrides: Partial<Domain> = {}): Domain {
     id: "d1",
     domain: "docs.example.org",
     status: "pending_verification",
-    challenge: { recordType: "TXT", name: "_selfhost-challenge.docs.example.org", value: "ab12cd34ef56" },
+    challenge: { recordType: "TXT", name: "_openhere-challenge.docs.example.org", value: "ab12cd34ef56" },
     target: { recordType: "CNAME", value: "sites.example.com", note: "Use an ALIAS or flattened CNAME record on an apex domain." },
     isPrimary: false,
     verifiedAt: null,

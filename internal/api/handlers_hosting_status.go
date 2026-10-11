@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/zachlagden/selfhost/internal/certs"
-	"github.com/zachlagden/selfhost/internal/hosting"
+	"github.com/zachlagden/openhere/internal/certs"
+	"github.com/zachlagden/openhere/internal/hosting"
 )
 
 func (s *Server) handleHostingStatus(w http.ResponseWriter, r *http.Request) {

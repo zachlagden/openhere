@@ -9,7 +9,7 @@ import (
 
 	"github.com/mholt/acmez/v3"
 
-	"github.com/zachlagden/selfhost/internal/httptimeouts"
+	"github.com/zachlagden/openhere/internal/httptimeouts"
 )
 
 const (

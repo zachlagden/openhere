@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/auth"
+	"github.com/zachlagden/openhere/internal/auth"
 )
 
 type userResponse struct {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 func (s *Service) List(ctx context.Context, actor auth.User) ([]Invite, error) {

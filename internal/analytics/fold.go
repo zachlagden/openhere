@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (r *Recorder) foldPaths(ctx context.Context, events []Event) []Event {

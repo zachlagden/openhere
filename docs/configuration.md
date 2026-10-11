@@ -12,7 +12,7 @@ An empty value counts as unset. The server refuses to start, and names every pro
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | Address of the HTTP listener, as `host:port` or `:port`. Ignored when `TLS_ENABLED` is true. |
 | `DATA_DIR` | `./data` (`/data` in the Docker image) | Directory for the SQLite file, published site files, upload temporaries, the GeoLite2 database, certificates and the generated `secret.key`. Keep it on a persistent volume. See [Upgrading and backups](upgrading-and-backups.md) for the layout. |
-| `DATABASE_URL` | unset | `postgres://` or `postgresql://` URL with a host. When unset, the server uses SQLite at `DATA_DIR/selfhost.db`. |
+| `DATABASE_URL` | unset | `postgres://` or `postgresql://` URL with a host. When unset, the server uses SQLite at `DATA_DIR/openhere.db`. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. Logs are JSON on standard output. |
 | `SENTRY_DSN` | unset | Sends errors to Sentry or a compatible service such as GlitchTip. Nothing is sent when unset. |
 | `API_KEY_PREFIX` | `sk_` | Constant prefix of new API keys, 1 to 16 letters, digits or underscores. Changing it makes the server reject every existing key, because it checks the prefix before it looks a key up. |

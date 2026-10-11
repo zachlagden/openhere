@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) ListUsers(ctx context.Context) ([]User, error) {

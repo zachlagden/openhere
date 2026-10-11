@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) HashNewPassword(ctx context.Context, password string) (string, error) {

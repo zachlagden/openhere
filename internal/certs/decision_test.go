@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/domains"
-	"github.com/zachlagden/selfhost/internal/ratelimit"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/domains"
+	"github.com/zachlagden/openhere/internal/ratelimit"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type fakeSettings struct {

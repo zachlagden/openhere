@@ -3,8 +3,8 @@ package sites
 import (
 	"strings"
 
-	"github.com/zachlagden/selfhost/internal/slug"
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/slug"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 const punycodePrefix = "xn--"

@@ -1,4 +1,4 @@
-module github.com/zachlagden/selfhost
+module github.com/zachlagden/openhere
 
 go 1.26.9
 

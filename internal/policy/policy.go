@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/auth"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/auth"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 var ErrSharedCreationRestricted = errors.New("only the root user can create shared workspaces on this instance")

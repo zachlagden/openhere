@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 func (s *Service) SharedByRef(ctx context.Context, ref string) (Workspace, error) {

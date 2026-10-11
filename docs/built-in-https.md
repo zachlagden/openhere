@@ -22,17 +22,17 @@ Setting `TLS_ENABLED` accepts the certificate authority's terms of service on yo
 Start with the staging CA, confirm that the dashboard loads over HTTPS, then remove `ACME_CA`:
 
 ```sh
-docker run -d --name selfhost \
+docker run -d --name openhere \
   -p 80:80 -p 443:443 \
-  -v selfhost-data:/data \
+  -v openhere-data:/data \
   -e TLS_ENABLED=true \
   -e PUBLIC_URL=https://sites.example.com \
   -e ACME_EMAIL=alex@example.com \
   -e ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory \
-  selfhost
+  openhere
 ```
 
-The default `TLS_STORAGE` lives inside the `/data` volume, so the certificates survive a restart. Binding ports 80 and 443 needs no extra setup in Docker. When you run the binary directly as a non-root user, grant it the capability with `setcap 'cap_net_bind_service=+ep' ./selfhost` or choose higher ports and forward to them.
+The default `TLS_STORAGE` lives inside the `/data` volume, so the certificates survive a restart. Binding ports 80 and 443 needs no extra setup in Docker. When you run the binary directly as a non-root user, grant it the capability with `setcap 'cap_net_bind_service=+ep' ./openhere` or choose higher ports and forward to them.
 
 ## Which names get a certificate
 

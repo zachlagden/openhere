@@ -7,11 +7,11 @@ import (
 
 	"golang.org/x/net/idna"
 
-	"github.com/zachlagden/selfhost/internal/validate"
+	"github.com/zachlagden/openhere/internal/validate"
 )
 
 const (
-	ChallengeLabel = "_selfhost-challenge"
+	ChallengeLabel = "_openhere-challenge"
 
 	maxNameLength  = 253
 	maxLabelLength = 63

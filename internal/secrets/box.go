@@ -70,7 +70,7 @@ func (b *Box) Open(sealed string) (string, error) {
 
 func (b *Box) Sign(purpose, message string) []byte {
 	derive := hmac.New(sha256.New, b.key)
-	derive.Write([]byte("selfhost-derive|" + purpose))
+	derive.Write([]byte("openhere-derive|" + purpose))
 	mac := hmac.New(sha256.New, derive.Sum(nil))
 	mac.Write([]byte(message))
 	return mac.Sum(nil)

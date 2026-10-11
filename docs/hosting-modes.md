@@ -89,7 +89,7 @@ Responses support `Range`, `If-None-Match` and `If-Modified-Since`. The `ETag` i
 
 ## Wildcard check
 
-Subdomain mode needs wildcard DNS, which the server cannot see from inside. The check proves it: the server picks a random label, resolves `{label}.{baseDomain}`, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/selfhost-check/{token}` and passes only when the server itself answers. The answer is an HMAC of the one-time token under a secret that never leaves the process, so another server that receives the request cannot fake it. It does not follow redirects, reads at most 256 bytes and gives up after 10 seconds. A pass proves DNS, the wildcard certificate (for HTTPS) and the proxy routing in one step.
+Subdomain mode needs wildcard DNS, which the server cannot see from inside. The check proves it: the server picks a random label, resolves `{label}.{baseDomain}`, then requests `{PUBLIC_URL scheme}://{label}.{baseDomain}/.well-known/openhere-check/{token}` and passes only when the server itself answers. The answer is an HMAC of the one-time token under a secret that never leaves the process, so another server that receives the request cannot fake it. It does not follow redirects, reads at most 256 bytes and gives up after 10 seconds. A pass proves DNS, the wildcard certificate (for HTTPS) and the proxy routing in one step.
 
 The token route is the one unauthenticated path this feature adds. It exists only on site hosts, only while a check is running, accepts each token once for 60 seconds and returns the plain 404 otherwise.
 
@@ -106,7 +106,7 @@ A site can have several custom domains, such as `docs.example.org`. Each domain 
 ### Adding a domain
 
 1. `POST /api/v1/sites/{slug}/domains` with `{"domain": "docs.example.org"}`. The server lower-cases the name, removes a trailing dot and converts international names to punycode. It refuses IP addresses, wildcards, ports, `localhost`, reserved top-level domains (`.local`, `.internal`, `.test` and similar), single-label names, the host of `PUBLIC_URL`, the base domain and every name under it.
-2. The response is a `pending_verification` domain with a `challenge`: a TXT record to create at `_selfhost-challenge.docs.example.org`, whose value is a random 192-bit token. It also has a `target` hint: a CNAME to the host of `PUBLIC_URL`.
+2. The response is a `pending_verification` domain with a `challenge`: a TXT record to create at `_openhere-challenge.docs.example.org`, whose value is a random 192-bit token. It also has a `target` hint: a CNAME to the host of `PUBLIC_URL`.
 3. Create the TXT record at your DNS provider, then call `POST /api/v1/sites/{slug}/domains/{id}/verify`. The server resolves the TXT records and marks the domain verified when one matches the token. The response says in plain language why a check failed (no record yet, a record with another value, or a lookup that failed or timed out). DNS changes can take a while to spread, so repeat the call. It is limited to 20 per minute per user.
 4. Optionally make it the primary domain with `PATCH /api/v1/sites/{slug}/domains/{id}` and `{"isPrimary": true}`. Setting a new primary clears the old one in the same step.
 

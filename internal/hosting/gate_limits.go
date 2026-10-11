@@ -3,7 +3,7 @@ package hosting
 import (
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/ratelimit"
+	"github.com/zachlagden/openhere/internal/ratelimit"
 )
 
 type GateLimits struct {

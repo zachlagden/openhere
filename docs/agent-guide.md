@@ -6,7 +6,7 @@ All paths below are relative to the instance URL and start with `/api/v1`. Bodie
 
 ## Authenticate
 
-Read `~/.selfhost/credentials` first. It is a JSON file with the instance URL and an API key:
+Read `~/.openhere/credentials` first. It is a JSON file with the instance URL and an API key:
 
 ```json
 {"url": "https://sites.example.com", "key": "sk_..."}
@@ -23,13 +23,13 @@ Use this when the instance can send email.
 1. `POST /api/v1/auth/agent/request-code` with `{"email": "<the user's email>"}`. The response is the same for every address.
 2. Ask the user for the 8-digit code that arrives in their inbox. A code lasts 10 minutes and works once.
 3. `POST /api/v1/auth/agent/verify-code` with `{"email": "...", "code": "12345678", "label": "<your agent name>"}`. The response holds the key once.
-4. Save `{"url": "<instance URL>", "key": "<key>"}` to `~/.selfhost/credentials`. Create the directory with mode 0700 and the file with mode 0600.
+4. Save `{"url": "<instance URL>", "key": "<key>"}` to `~/.openhere/credentials`. Create the directory with mode 0700 and the file with mode 0600.
 
 If `request-code` returns 409 `email_not_configured`, the instance cannot send email. Use an API key instead.
 
 ### API key
 
-Ask the user to create a key in the dashboard under Settings, API keys, and to paste it to you. Save it to `~/.selfhost/credentials` as shown above.
+Ask the user to create a key in the dashboard under Settings, API keys, and to paste it to you. Save it to `~/.openhere/credentials` as shown above.
 
 A key has the full access of its user. Never print it, log it or commit it.
 

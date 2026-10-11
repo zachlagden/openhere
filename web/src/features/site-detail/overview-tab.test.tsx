@@ -45,7 +45,7 @@ describe("site detail overview", () => {
     expect(await screen.findByRole("heading", { name: "Launch page", level: 1 })).toBeInTheDocument();
     expect(await screen.findByText(/3 files, 2 KB/)).toBeInTheDocument();
     expect(screen.getByText("The subdomain address for this site is switched off.")).toBeInTheDocument();
-    expect(document.title).toBe("Launch page | selfhost");
+    expect(document.title).toBe("Launch page | OpenHere");
   });
 
   it("shows the same not-found page as the API for an unknown site", async () => {

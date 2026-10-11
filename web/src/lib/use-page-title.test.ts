@@ -4,14 +4,14 @@ import { pageTitle, usePageTitle } from "./use-page-title";
 
 describe("pageTitle", () => {
   it("joins named parts before the product name and skips empty ones", () => {
-    expect(pageTitle(["Launch page", undefined, "Access"])).toBe("Launch page | Access | selfhost");
-    expect(pageTitle([])).toBe("selfhost");
+    expect(pageTitle(["Launch page", undefined, "Access"])).toBe("Launch page | Access | OpenHere");
+    expect(pageTitle([])).toBe("OpenHere");
   });
 });
 
 describe("usePageTitle", () => {
   it("sets the document title", () => {
     renderHook(() => usePageTitle("Settings"));
-    expect(document.title).toBe("Settings | selfhost");
+    expect(document.title).toBe("Settings | OpenHere");
   });
 });

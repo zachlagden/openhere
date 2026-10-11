@@ -1,5 +1,5 @@
 const BASE_PATH = "/api/v1";
-const REQUESTED_WITH = "selfhost-dashboard";
+const REQUESTED_WITH = "openhere";
 
 export type QueryValue = string | number | boolean | null | undefined;
 export type QueryParams = Record<string, QueryValue>;

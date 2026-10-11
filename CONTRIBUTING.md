@@ -7,11 +7,11 @@ Thank you for helping. This project is a self-hosted static site host for one pe
 You need the Go version named in `go.mod`, Node 22 with pnpm (`corepack enable` provides the pinned version), and Docker for the PostgreSQL tests and the image build.
 
 ```sh
-git clone <repository url> selfhost
-cd selfhost
+git clone https://github.com/zachlagden/openhere
+cd openhere
 pnpm --dir web install --frozen-lockfile
 pnpm --dir web build
-go build -o /tmp/selfhost ./cmd/selfhost
+go build -o /tmp/openhere ./cmd/openhere
 ```
 
 Build the dashboard before the server, because the server embeds the output of `pnpm --dir web build` from `internal/ui/bundle`. For dashboard development, run the server, then run `pnpm --dir web dev`, which proxies `/api` to `127.0.0.1:8080`.
@@ -29,7 +29,7 @@ pnpm --dir web lint
 pnpm --dir web typecheck
 pnpm --dir web test
 pnpm --dir web build
-docker build -t selfhost:dev .
+docker build -t openhere:dev .
 ```
 
 `gofmt -l .` must print nothing. Install golangci-lint from its documentation, or run it with `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run`.
@@ -39,18 +39,18 @@ docker build -t selfhost:dev .
 `go test` runs the database tests on SQLite. Set `TEST_DATABASE_URL` to run them on PostgreSQL as well. The store tests drop the tables they create, so point the variable at a throwaway database. The auth and API tests create a schema of their own per test and drop it afterwards.
 
 ```sh
-docker run -d --rm --name selfhost-test-pg -p 5432:5432 \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=selfhost_test \
+docker run -d --rm --name openhere-test-pg -p 5432:5432 \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=openhere_test \
   postgres:17-alpine
-TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/selfhost_test go test -race ./...
-docker stop selfhost-test-pg
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/openhere_test go test -race ./...
+docker stop openhere-test-pg
 ```
 
 Both runs must pass. Keep SQL portable between the two databases: use `$1`, `$2` placeholders, no JSONB, arrays or LISTEN/NOTIFY.
 
 ### Dashboard end-to-end tests
 
-`pnpm --dir web e2e` builds the server, starts it on a temporary data directory and drives it in Chrome through setup, publishing and every screen, at desktop and phone widths in light and dark. It needs `playwright-core` on `NODE_PATH` (for example from a global pnpm install) and Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`). Set `SELFHOST_BIN` to use a prebuilt binary. Screenshots go to `web/e2e/output`, which Git ignores.
+`pnpm --dir web e2e` builds the server, starts it on a temporary data directory and drives it in Chrome through setup, publishing and every screen, at desktop and phone widths in light and dark. It needs `playwright-core` on `NODE_PATH` (for example from a global pnpm install) and Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`). Set `OPENHERE_BIN` to use a prebuilt binary. Screenshots go to `web/e2e/output`, which Git ignores.
 
 ### Certificate tests
 
@@ -108,6 +108,6 @@ The release workflow pins every action to a commit SHA. When you update one, loo
 | `docker/login-action` | v4.6.0 |
 | `docker/build-push-action` | v7.4.0 |
 
-## Renaming the project
+## The project name
 
-The name `selfhost` is a placeholder. [docs/rename-checklist.md](docs/rename-checklist.md) lists every place it appears. Do not spread the name into new identifiers, paths or strings.
+The name is defined in the constants listed in `CLAUDE.md`. Take it from those constants and do not spread new string literals of it through the code.

@@ -9,7 +9,7 @@ import (
 	"github.com/libdns/cloudflare"
 	"github.com/libdns/libdns"
 
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 var (

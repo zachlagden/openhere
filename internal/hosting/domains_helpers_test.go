@@ -5,7 +5,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/openhere/internal/domains"
 )
 
 type fakeDNS struct {

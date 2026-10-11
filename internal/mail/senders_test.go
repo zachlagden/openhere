@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/mail/smtptest"
-	"github.com/zachlagden/selfhost/internal/settings"
+	"github.com/zachlagden/openhere/internal/mail/smtptest"
+	"github.com/zachlagden/openhere/internal/settings"
 )
 
 type staticSource struct {

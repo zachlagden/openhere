@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/docs"
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/store/storetest"
+	"github.com/zachlagden/openhere/docs"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/store/storetest"
 )
 
 func TestInstanceDescribesTheServerToSignedInUsers(t *testing.T) {
@@ -22,8 +22,8 @@ func TestInstanceDescribesTheServerToSignedInUsers(t *testing.T) {
 			HostingModes:         instanceModesResponse{Subdomain: false, Path: true, CustomDomains: true},
 			MaxDomainsPerSite:    10,
 			WhoCanInvite:         "root",
-			AgentCredentialsDir:  ".selfhost",
-			AgentCredentialsPath: "~/.selfhost/credentials",
+			AgentCredentialsDir:  ".openhere",
+			AgentCredentialsPath: "~/.openhere/credentials",
 		}
 		if got != want {
 			t.Errorf("instance = %+v, want %+v", got, want)
@@ -79,7 +79,7 @@ func TestDocsServeTheEmbeddedFiles(t *testing.T) {
 		if got := guide.Header().Get("Content-Type"); got != "text/markdown; charset=utf-8" {
 			t.Errorf("guide Content-Type = %q", got)
 		}
-		if guide.Body.String() != string(docs.AgentGuide) || !strings.Contains(guide.Body.String(), "~/.selfhost/credentials") {
+		if guide.Body.String() != string(docs.AgentGuide) || !strings.Contains(guide.Body.String(), "~/.openhere/credentials") {
 			t.Error("the guide body differs from the embedded file")
 		}
 		if guide.Header().Get("X-Content-Type-Options") != "nosniff" {

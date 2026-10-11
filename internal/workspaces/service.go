@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 type Options struct {

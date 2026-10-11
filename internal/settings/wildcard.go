@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/zachlagden/selfhost/internal/store"
+	"github.com/zachlagden/openhere/internal/store"
 )
 
 const AutoDisableAfterFailures = 3

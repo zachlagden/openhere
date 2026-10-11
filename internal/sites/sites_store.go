@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachlagden/selfhost/internal/store"
-	"github.com/zachlagden/selfhost/internal/workspaces"
+	"github.com/zachlagden/openhere/internal/store"
+	"github.com/zachlagden/openhere/internal/workspaces"
 )
 
 const siteColumns = "s.id, s.workspace_id, w.slug, s.folder_id, s.slug, s.display_name, s.description, s.created_by, s.created_at, s.updated_at, s.current_version_id, s.spa_mode, s.access_mode, s.analytics_enabled"

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachlagden/selfhost/docs"
-	"github.com/zachlagden/selfhost/internal/domains"
+	"github.com/zachlagden/openhere/docs"
+	"github.com/zachlagden/openhere/internal/domains"
 )
 
 var (
