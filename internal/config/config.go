@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"regexp"
@@ -33,6 +34,7 @@ type Config struct {
 
 	APIKeyPrefix   string
 	TrustedProxies []netip.Prefix
+	ClientIPHeader string
 	PublicURL      PublicURL
 	SecretKey      []byte
 	TLS            TLS
@@ -68,6 +70,10 @@ func Load(lookup Lookup) (Config, error) {
 	proxies, err := parseTrustedProxies(values.get("TRUSTED_PROXIES", ""))
 	problems = appendIf(problems, err)
 	cfg.TrustedProxies = proxies
+
+	header, err := parseClientIPHeader(values.get("CLIENT_IP_HEADER", ""))
+	problems = appendIf(problems, err)
+	cfg.ClientIPHeader = header
 
 	rawPublicURL := values.get("PUBLIC_URL", "")
 	public, err := parsePublicURL(rawPublicURL, cfg.ListenAddr)
@@ -201,6 +207,36 @@ func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
 		prefixes = append(prefixes, prefix)
 	}
 	return prefixes, errors.Join(problems...)
+}
+
+func parseClientIPHeader(raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	for _, c := range []byte(raw) {
+		if !isHeaderTokenChar(c) {
+			return "", fmt.Errorf("CLIENT_IP_HEADER %q must be a single HTTP header name", raw)
+		}
+	}
+	name := http.CanonicalHeaderKey(raw)
+	if _, reserved := reservedClientIPHeaders[name]; reserved {
+		return "", fmt.Errorf("CLIENT_IP_HEADER %q is handled through TRUSTED_PROXIES and cannot be used here", raw)
+	}
+	return name, nil
+}
+
+var reservedClientIPHeaders = map[string]struct{}{
+	"X-Forwarded-For":   {},
+	"X-Forwarded-Proto": {},
+	"Forwarded":         {},
+}
+
+func isHeaderTokenChar(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		return true
+	}
+	return strings.IndexByte("!#$%&'*+-.^_`|~", c) >= 0
 }
 
 func parseProxyEntry(entry string) (netip.Prefix, error) {

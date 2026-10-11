@@ -114,6 +114,7 @@ func (l Limits) withDefaults() Limits {
 
 type Options struct {
 	TrustedProxies []netip.Prefix
+	ClientIPHeader string
 	Limits         Limits
 	Now            func() time.Time
 	Logger         *slog.Logger
@@ -203,7 +204,7 @@ func New(svc *auth.Service, ws *workspaces.Service, siteSvc *sites.Service, publ
 		settings:   settingsSvc,
 		access:     accessSvc,
 		gate:       gate,
-		proxies:    proxy.Trust{Prefixes: opts.TrustedProxies},
+		proxies:    proxy.Trust{Prefixes: opts.TrustedProxies, ClientIPHeader: opts.ClientIPHeader},
 		logger:     logger,
 		public:     opts.Public,
 		wildcard:   opts.Wildcard,

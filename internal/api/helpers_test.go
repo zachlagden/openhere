@@ -90,16 +90,17 @@ type harness struct {
 }
 
 type harnessOptions struct {
-	configured bool
-	limits     *Limits
-	proxies    []netip.Prefix
-	public     config.PublicURL
-	wildcard   WildcardChecker
-	logToBuf   bool
-	noMailer   bool
-	liveMail   *liveMailOptions
-	tls        TLSReporter
-	timeouts   httptimeouts.Timeouts
+	configured     bool
+	limits         *Limits
+	proxies        []netip.Prefix
+	clientIPHeader string
+	public         config.PublicURL
+	wildcard       WildcardChecker
+	logToBuf       bool
+	noMailer       bool
+	liveMail       *liveMailOptions
+	tls            TLSReporter
+	timeouts       httptimeouts.Timeouts
 }
 
 type liveMailOptions struct {
@@ -195,7 +196,7 @@ func newHarness(t *testing.T, db store.Store, opts harnessOptions) *harness {
 	})
 	analyticsSvc := analytics.New(db, siteSvc, workspaceSvc, settingsSvc, analytics.Options{Now: clock.Now, Recorder: viewRecorder})
 	server := New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, Options{
-		TrustedProxies: opts.proxies, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3", Timeouts: opts.timeouts,
+		TrustedProxies: opts.proxies, ClientIPHeader: opts.clientIPHeader, Limits: limits, Now: clock.Now, Logger: logger, Public: public, Wildcard: opts.wildcard, Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc, TLS: opts.tls, Analytics: analyticsSvc, Version: "1.2.3", Timeouts: opts.timeouts,
 	})
 	routed := hosting.New(server.Handler(), settingsSvc, db, files, hosting.Options{Public: public, Logger: logger, Access: accessSvc, Domains: domainSvc, Views: viewRecorder, Resolver: resolver})
 	shell, err := ui.New(fstest.MapFS{

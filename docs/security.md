@@ -62,7 +62,7 @@ Publishing is limited by quota instead of rate. A site may hold 3 pending versio
 
 Authenticated API calls outside this table, such as publishing and listing, have no rate limit. Put a limit on the proxy if you need one.
 
-The server tracks up to 50,000 limit keys at a time. When that many are in use, it first drops expired ones, then the 5% with the oldest windows. A flood of unique keys can therefore reset the oldest counters but never a newer one. The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. An IPv6 client counts by its /64 prefix.
+The server tracks up to 50,000 limit keys at a time. When that many are in use, it first drops expired ones, then the 5% with the oldest windows. A flood of unique keys can therefore reset the oldest counters but never a newer one. The client address for these limits comes from `X-Forwarded-For` only when the connection comes from a `TRUSTED_PROXIES` address. Without that setting, every client behind a proxy looks like the proxy and shares one limit. When `CLIENT_IP_HEADER` is set, the address comes from that header instead, again only from a `TRUSTED_PROXIES` connection, and only when the header holds exactly one IP address. Otherwise the server falls back to `X-Forwarded-For`. The header is only as reliable as the proxy that sets it. Cloudflare's `Cf-Connecting-Ip` is trustworthy only if the origin accepts connections from Cloudflare alone, so restrict the origin as [Reverse proxy](reverse-proxy.md#cloudflare-in-front-of-traefik-or-coolify) describes. An IPv6 client counts by its /64 prefix.
 
 ## Connection timeouts
 

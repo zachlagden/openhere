@@ -160,7 +160,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	analyticsSvc := analytics.New(db, siteSvc, workspaceSvc, settingsSvc, analytics.Options{Recorder: recorder, Location: locator})
 	geoUpdater := geo.NewUpdater(settingsSvc, box, locator, geo.UpdaterOptions{Dir: geoDir, Logger: logger})
 	server := api.New(svc, workspaceSvc, siteSvc, publishSvc, settingsSvc, accessSvc, gate, api.Options{
-		TrustedProxies: cfg.TrustedProxies, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
+		TrustedProxies: cfg.TrustedProxies, ClientIPHeader: cfg.ClientIPHeader, Logger: logger, Public: cfg.PublicURL, Wildcard: checker,
 		Mailer: mailer, Invites: invitesSvc, PasswordReset: resetSvc, AgentCodes: agentSvc, Domains: domainSvc,
 		TLS: tlsReporter(certManager), Analytics: analyticsSvc, Version: version, Timeouts: timeouts,
 	})
@@ -171,7 +171,7 @@ func buildApp(ctx context.Context, cfg config.Config, db store.Store, logger *sl
 	router := hosting.New(dashboard.Wrap(server.Handler()), settingsSvc, db, files,
 		hosting.Options{
 			Public: cfg.PublicURL, Probes: probes, Resolver: resolver, Logger: logger, Access: accessSvc,
-			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder, Timeouts: timeouts,
+			Proxies: proxy.Trust{Prefixes: cfg.TrustedProxies, ClientIPHeader: cfg.ClientIPHeader}, Domains: domainSvc, HSTS: cfg.TLS.Enabled, Views: recorder, Timeouts: timeouts,
 		})
 
 	stop := startBackground(ctx, svc, checker, geoUpdater,

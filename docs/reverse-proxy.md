@@ -2,7 +2,7 @@
 
 You can let the server terminate HTTPS itself (see [Built-in HTTPS](built-in-https.md)) or put a reverse proxy in front of it. This document covers the proxy case. Leave `TLS_ENABLED` unset: the proxy owns TLS, and the server listens on plain HTTP at `LISTEN_ADDR`.
 
-Statements about the server come from its code and tests. Statements about Traefik, Caddy and Coolify come from their official documentation, fetched when this page was written, and the ones marked **unverified** come from no source I could check. Test your own setup before you rely on it.
+Statements about the server come from its code and tests. Statements about Traefik, Caddy, Coolify and Cloudflare come from their official documentation, fetched when this page was written, and the ones marked **unverified** come from no source I could check. Test your own setup before you rely on it.
 
 ## What the server needs
 
@@ -52,6 +52,30 @@ Coolify runs Traefik. Per its documentation, it generates a Traefik route from e
 - Set `TRUSTED_PROXIES` to the range of the Docker network that Coolify's proxy uses. Use the Docker network's actual range and not a wide private range, because other containers on a wider range could forge addresses.
 - A wildcard certificate for subdomain mode needs a DNS challenge. Coolify's overview page does not describe how to configure one for an application, so **unverified**: follow Coolify's own wildcard-certificate guide. Whether one application can list a wildcard host and several custom domains in its domain field is **unverified** here as well.
 - If wildcard certificates are a problem on your Coolify setup, path mode needs only the dashboard host.
+
+## Cloudflare in front of Traefik or Coolify
+
+**Symptom.** Cloudflare proxies the host and Traefik (Coolify's proxy) sits in front of the server. Every request reaches the server with `X-Forwarded-For` set to a Cloudflare edge address, because Traefik replaces the header with the address it received the connection from. The real client appears only in `Cf-Connecting-Ip`. The server then keys rate limits, login lockouts, gate limits, analytics visitor hashes and location lookups on Cloudflare edge addresses. One attacker spreads across several limiter keys, and unrelated visitors share keys.
+
+**Fix.** Set both of these:
+
+```
+TRUSTED_PROXIES=172.18.0.0/16
+CLIENT_IP_HEADER=CF-Connecting-IP
+```
+
+Use your own proxy range in place of the example. `CLIENT_IP_HEADER` names one request header that carries the client address. The server reads it only when the connection comes from a `TRUSTED_PROXIES` address, and it ignores the header from every other peer. The header must hold exactly one value that is a bare IP address. A port, a list, a hostname, an IPv6 zone, a second header line or an empty value makes the server fall back to `X-Forwarded-For` for that request. `CLIENT_IP_HEADER` cannot name `X-Forwarded-For`, `X-Forwarded-Proto` or `Forwarded`. Leave it unset to keep the `X-Forwarded-For` behaviour described above. `X-Forwarded-Proto` handling does not change.
+
+**Security note.** The server trusts the header only from `TRUSTED_PROXIES`, but that does not make the value reliable. Cloudflare sets `Cf-Connecting-Ip` on traffic from its edge to your origin. A client that reaches Traefik without passing through Cloudflare can send any `Cf-Connecting-Ip` it likes, and Traefik will pass it on. That client could then pick its own rate limit key and evade lockouts. So make the origin accept connections only from Cloudflare:
+
+- Restrict ports 80 and 443 on the firewall, or at the proxy, to the ranges Cloudflare publishes at [cloudflare.com/ips](https://www.cloudflare.com/ips/). Cloudflare's [IP address documentation](https://developers.cloudflare.com/fundamentals/concepts/cloudflare-ip-addresses/) recommends blocking traffic that does not come from those ranges, because anyone who finds the origin address can otherwise reach the server directly. It says the ranges change rarely and describes an API for keeping a configuration up to date.
+- Optionally add [Authenticated Origin Pulls](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/). Cloudflare describes it as an extra check that requests to the origin come from the Cloudflare network. The global form confirms only that a request came from Cloudflare's network, not from your account. The per-zone and per-hostname forms use your own certificate and are stricter.
+
+An alternative is to configure Traefik's `forwardedHeaders.trustedIPs` on the entry point with Cloudflare's ranges. Traefik then keeps the `X-Forwarded-For` and `X-Forwarded-Proto` values that arrive from those addresses, and Cloudflare appends the client address to `X-Forwarded-For`. This is a global proxy change: it applies to every router on that entry point and every application behind it, and in Coolify it means editing the proxy configuration. The server then also needs Cloudflare's ranges in `TRUSTED_PROXIES`, because it takes the right-most `X-Forwarded-For` entry that is not a trusted proxy. That makes a wide range trusted, so it needs the same firewall restriction. This page does not cover the details of the Traefik configuration.
+
+## Cloudflare Rocket Loader
+
+Rocket Loader defers a page's JavaScript until after rendering. It rewrites script tags and injects an inline script. The dashboard's strict Content-Security-Policy blocks that inline script, so the dashboard fails to load. Turn Rocket Loader off for the dashboard host, either with a Configuration Rule scoped to the hostname or with the zone setting under Speed, Optimization. Cloudflare's [Rocket Loader page](https://developers.cloudflare.com/speed/optimization/content/rocket-loader/) says to disable it and retest when scripts misbehave, and that a domain with a Content-Security-Policy must update its headers to support it. The page does not describe Configuration Rules, so check the rule options in your dashboard.
 
 ## Caddy
 
