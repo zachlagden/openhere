@@ -333,3 +333,75 @@ describe("analytics", () => {
     expect(await screen.findByText(/could not record since it started/)).toBeInTheDocument();
   });
 });
+
+describe("location database check", () => {
+  const withKey = { "analytics.maxmindAccountId": "123456", "analytics.maxmindLicenseKeySet": true, "analytics.geoStatus": "failed" as const, "analytics.geoDetail": "MaxMind rejected the account ID or licence key." };
+  const instanceReport = { body: { from: "2026-03-01", to: "2026-03-03", interval: "day", totals: { views: 0, uniques: 0, botViews: 0 }, series: [], paths: [], referrers: [], countries: [], cities: [], browsers: [], operatingSystems: [], devices: [], statuses: [], locationAvailable: false, droppedEvents: 0, generatedAt: "2026-03-03T12:00:00Z" } };
+
+  it("hides the button until a licence key is saved", async () => {
+    setup("/admin/analytics", { routes: { "GET /api/v1/admin/analytics": instanceReport } });
+    expect(await screen.findByText("GeoLite2 database")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check now" })).not.toBeInTheDocument();
+  });
+
+  it("disables the button while the check runs, then reports success and refreshes the status", async () => {
+    let current = makeSettings(withKey);
+    const fetchMock = setup("/admin/analytics", {
+      settings: current,
+      routes: {
+        "GET /api/v1/admin/analytics": instanceReport,
+        "POST /api/v1/admin/analytics/geo/check": () => {
+          current = makeSettings({ ...withKey, "analytics.geoStatus": "ok", "analytics.geoDetail": "" });
+          return { body: { status: "ok", checkedAt: "2026-03-03T12:00:00Z", updatedAt: "2026-03-03T12:00:00Z", detail: "" } };
+        },
+        "GET /api/v1/admin/settings": () => ({ body: { settings: current } }),
+      },
+    });
+    const original = fetchMock.getMockImplementation();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/geo/check")) {
+        await gate;
+      }
+      return original?.(input, init) as Promise<Response>;
+    });
+    expect(await screen.findByText("Last download failed")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Check now" }));
+    expect(await screen.findByRole("button", { name: "Checking…" })).toBeDisabled();
+    release();
+    expect(await screen.findByText("The check finished and the location database is working.")).toBeInTheDocument();
+    expect(await screen.findByText("Working")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check now" })).toBeEnabled();
+  });
+
+  it("reports a failed check with the reason from the server", async () => {
+    setup("/admin/analytics", {
+      settings: makeSettings(withKey),
+      routes: {
+        "GET /api/v1/admin/analytics": instanceReport,
+        "POST /api/v1/admin/analytics/geo/check": {
+          body: { status: "failed", checkedAt: "2026-03-03T12:00:00Z", updatedAt: null, detail: "MaxMind rejected the account ID or licence key. A key created in the last few minutes may not be active yet; wait a few minutes and check again." },
+        },
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Check now" }));
+    expect(await screen.findByText(/The check failed\. MaxMind rejected the account ID or licence key\. A key created in the last few minutes/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check now" })).toBeEnabled();
+  });
+
+  it("states the one-a-minute limit when the server answers 429", async () => {
+    setup("/admin/analytics", {
+      settings: makeSettings(withKey),
+      routes: {
+        "GET /api/v1/admin/analytics": instanceReport,
+        "POST /api/v1/admin/analytics/geo/check": apiError(429, "rate_limited", "Too many attempts.", { retry_after: 42 }),
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Check now" }));
+    expect(await screen.findByText("The location database can be checked once a minute. Try again in 42 seconds.")).toBeInTheDocument();
+  });
+});
+

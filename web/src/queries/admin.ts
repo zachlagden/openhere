@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from "@tanstack/react-query";
 import * as api from "@/api/admin";
-import type { AdminUser, EmailTestResult, HostingStatus, ResetLink, Settings, SettingsPatch, UpdateSettingsEnvelope, WildcardCheckResult } from "@/api/types";
+import type { AdminUser, EmailTestResult, GeoCheckResult, HostingStatus, ResetLink, Settings, SettingsPatch, UpdateSettingsEnvelope, WildcardCheckResult } from "@/api/types";
 import { queryKeys } from "./keys";
 
 export function useHostingStatus(enabled = true): UseQueryResult<HostingStatus> {
@@ -40,6 +40,19 @@ export function useCheckWildcard(): UseMutationResult<WildcardCheckResult, Error
     onSuccess: async (result) => {
       client.setQueryData(queryKeys.adminSettings, result.settings);
       await client.invalidateQueries({ queryKey: queryKeys.hostingStatus });
+    },
+  });
+}
+
+export function useCheckGeoDatabase(): UseMutationResult<GeoCheckResult, Error, void> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.checkGeoDatabase,
+    onSettled: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.adminSettings }),
+        client.invalidateQueries({ queryKey: queryKeys.analytics }),
+      ]);
     },
   });
 }
