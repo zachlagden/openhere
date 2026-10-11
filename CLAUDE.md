@@ -2,7 +2,7 @@
 
 Self-hosted, open source alternative to here.now: hosting for built static sites, agent-first, with a dashboard and a REST API. Built for one person or a small team on a VPS.
 
-The name "selfhost" is a placeholder and will change. Keep it in as few places as possible: the `go.mod` module path, `cmd/selfhost`, the README and docs title, the Docker image and binary name, and the agent credentials directory in `internal/config/agent.go`. Do not spread it into other identifiers, paths or strings.
+The name "selfhost" is a placeholder and will change. Keep it in as few places as possible: the `go.mod` module path, `cmd/openhere`, the README and docs title, the Docker image and binary name, and the agent credentials directory in `internal/config/agent.go`. Do not spread it into other identifiers, paths or strings.
 
 ## Stack
 
@@ -45,7 +45,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - A finalized version directory never changes. Upload and finalize take a per-version lock, so a file cannot land after finalize.
 - Return stored files only as `application/octet-stream` with `Content-Disposition: attachment` from the API. Only `hosting` serves them with their real type.
 - Add an instance setting by adding a field to `settings.Settings` and one entry to `definitions` in `internal/settings/definitions.go`, then document it in `docs/openapi.yaml` and `docs/configuration.md`.
-- Add maintenance work by passing an `auth.MaintenanceTask` to `RunMaintenance` in `cmd/selfhost`.
+- Add maintenance work by passing an `auth.MaintenanceTask` to `RunMaintenance` in `cmd/openhere`.
 
 ## Hosting
 
@@ -65,7 +65,7 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 - Domain names pass `domains.Normalise` before they reach SQL or a comparison. Compare and store only the normalised form.
 - A domain serves only while `site_domains.verified_at` is set. The router asks `domains.Service.Lookup`, which answers from a cache that every claim, verification, primary change, delete, maintenance run and `OnSiteChange` call invalidates. Never query `site_domains` from `hosting` directly.
 - Verification reads TXT records at `_selfhost-challenge.<domain>` (the `domains.ChallengeLabel` constant) through the injected `domains.TXTResolver`. Do not require A, AAAA or CNAME records to point at the instance. Only a successful lookup without the token or a not-found answer counts as a miss. A timeout or resolver error never does.
-- `domains.Service.Maintain` runs from the maintenance loop in `cmd/selfhost`. It releases unverified claims older than 7 days and re-checks each verified domain once a day. Three consecutive misses clear `verified_at` and the primary flag.
+- `domains.Service.Maintain` runs from the maintenance loop in `cmd/openhere`. It releases unverified claims older than 7 days and re-checks each verified domain once a day. Three consecutive misses clear `verified_at` and the primary flag.
 - Claims and primary changes lock the site row with `UPDATE sites SET id = id WHERE id = $1` inside the transaction, so the per-site limit and the one-primary rule hold on PostgreSQL. `primary_site_id` is unique, which makes a second primary fail at the database.
 - The handoff `host` parameter is accepted only through `domains.Service.ServesSite`, which requires a verified domain of that same site and `hosting.customDomainsEnabled`. Build custom domain URLs only with `hosting.CustomDomainURL`.
 - Domain routes sit under `/api/v1/sites/{slug}/domains` and add no unauthenticated route. Viewing needs read on the site and every change needs write.
@@ -140,8 +140,8 @@ The name "selfhost" is a placeholder and will change. Keep it in as few places a
 ## Commands
 
 ```sh
-go build ./cmd/selfhost
-go run ./cmd/selfhost
+go build ./cmd/openhere
+go run ./cmd/openhere
 gofmt -l .
 go vet ./...
 golangci-lint run

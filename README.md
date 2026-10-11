@@ -51,7 +51,7 @@ You need the Go version in `go.mod`, and Node 22 with pnpm to build the dashboar
 corepack enable
 pnpm --dir web install --frozen-lockfile
 pnpm --dir web build
-go run ./cmd/selfhost
+go run ./cmd/openhere
 ```
 
 See [Install from a binary](docs/install-binary.md) for a release build, a systemd unit and backups.

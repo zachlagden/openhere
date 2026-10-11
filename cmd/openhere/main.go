@@ -56,7 +56,7 @@ var version = "dev"
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "selfhost:", err)
+		fmt.Fprintln(os.Stderr, "openhere:", err)
 		os.Exit(1)
 	}
 }

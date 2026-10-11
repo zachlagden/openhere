@@ -21,7 +21,7 @@ cd selfhost
 corepack enable
 pnpm --dir web install --frozen-lockfile
 pnpm --dir web build
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=1.2.3" -o selfhost ./cmd/selfhost
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=1.2.3" -o selfhost ./cmd/openhere
 ```
 
 `-X main.version` sets the version that `GET /api/v1/instance` reports. It defaults to `dev`. The dashboard build writes to `internal/ui/bundle`, which is not committed. A binary built without it still runs, logs a warning and answers dashboard routes with a 503.

@@ -1,5 +1,5 @@
 /selfhost
-/cmd/selfhost/selfhost
+/cmd/openhere/selfhost
 /bin/
 /data/
 *.db

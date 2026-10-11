@@ -15,7 +15,7 @@ COPY --from=web /src/internal/ui/bundle ./internal/ui/bundle
 ARG VERSION=dev
 ARG TARGETOS
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/selfhost ./cmd/selfhost
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/selfhost ./cmd/openhere
 RUN mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot

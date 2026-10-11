@@ -11,7 +11,7 @@ git clone <repository url> selfhost
 cd selfhost
 pnpm --dir web install --frozen-lockfile
 pnpm --dir web build
-go build -o /tmp/selfhost ./cmd/selfhost
+go build -o /tmp/selfhost ./cmd/openhere
 ```
 
 Build the dashboard before the server, because the server embeds the output of `pnpm --dir web build` from `internal/ui/bundle`. For dashboard development, run the server, then run `pnpm --dir web dev`, which proxies `/api` to `127.0.0.1:8080`.

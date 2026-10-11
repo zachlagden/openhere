@@ -31,7 +31,7 @@ function buildBinary() {
     return process.env.SELFHOST_BIN;
   }
   const binary = path.join(tmpdir(), "selfhost-e2e-binary");
-  execFileSync("go", ["build", "-o", binary, "./cmd/selfhost"], { cwd: repo, stdio: "inherit" });
+  execFileSync("go", ["build", "-o", binary, "./cmd/openhere"], { cwd: repo, stdio: "inherit" });
   return binary;
 }
 
