@@ -2,15 +2,22 @@ import { describeError } from "@/api/errors";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import { buildSetupPrompt } from "@/lib/setup-prompt";
+import { useCopyStatus, type CopyStatus } from "@/lib/use-copy-status";
 import { useInstance } from "@/queries/instance";
 import { useMe } from "@/queries/session";
 
-export function useCopySetupPrompt(): () => Promise<void> {
+interface CopySetupPrompt {
+  status: CopyStatus;
+  copy: () => void;
+}
+
+export function useCopySetupPrompt(): CopySetupPrompt {
   const instance = useInstance();
   const me = useMe();
   const toast = useToast();
+  const { status, run } = useCopyStatus();
 
-  return async () => {
+  function copy(): void {
     if (!instance.data || !me.data) {
       toast.error(instance.error ? describeError(instance.error).message : "The server details are still loading. Try again in a moment.");
       return;
@@ -21,10 +28,8 @@ export function useCopySetupPrompt(): () => Promise<void> {
       credentialsPath: instance.data.agentCredentialsPath,
       userEmail: me.data.email,
     });
-    if (await copyText(prompt)) {
-      toast.success("Agent setup prompt copied. Paste it into your agent.");
-    } else {
-      toast.error("Could not copy to the clipboard. Allow clipboard access and try again.");
-    }
-  };
+    void run(() => copyText(prompt));
+  }
+
+  return { status, copy };
 }

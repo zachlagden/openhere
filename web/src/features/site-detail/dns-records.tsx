@@ -1,12 +1,12 @@
 import type { JSX } from "react";
-import { CopyButton } from "@/components/ui/copy-field";
+import { CopyButton } from "@/components/ui/copy-button";
 import type { DnsRecordRow } from "@/lib/domains";
 
 function CopyCell({ label, value, mono = true }: { label: string; value: string; mono?: boolean }): JSX.Element {
   return (
     <div className="flex min-w-0 items-center gap-1">
       <span className={mono ? "min-w-0 break-all font-mono text-[0.8125rem]" : "min-w-0 break-all"}>{value}</span>
-      <CopyButton value={value} label={`Copy ${label}`} done={`${label} copied.`} />
+      <CopyButton value={value} label={`Copy ${label}`} />
     </div>
   );
 }

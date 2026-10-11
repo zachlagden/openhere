@@ -4,6 +4,7 @@ import { describeError } from "@/api/errors";
 import type { Workspace } from "@/api/types";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { CopyLabelButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pluralise } from "@/lib/format";
@@ -38,7 +39,7 @@ function SiteListSkeleton(): JSX.Element {
 export function SiteList({ workspace, params, workspaces, isRoot, onClearFilters }: SiteListProps): JSX.Element {
   const sites = useSites({ workspace, folder: params.folder, q: params.q });
   const folderNames = useFolderNames(workspaces);
-  const copyPrompt = useCopySetupPrompt();
+  const setupPrompt = useCopySetupPrompt();
   const workspaceNames = useMemo(() => new Map(workspaces.map((item) => [item.id, item.name])), [workspaces]);
   const now = useNow();
 
@@ -78,9 +79,7 @@ export function SiteList({ workspace, params, workspaces, isRoot, onClearFilters
         icon={<Sprout />}
         title="No sites yet"
         actions={
-          <Button variant="primary" onClick={() => void copyPrompt()}>
-            Copy agent setup prompt
-          </Button>
+          <CopyLabelButton variant="primary" label="Copy agent setup prompt" status={setupPrompt.status} onCopy={setupPrompt.copy} />
         }
       >
         <p>Your agent publishes sites through the API, and they appear here. Copy the setup prompt and paste it into your agent to begin.</p>

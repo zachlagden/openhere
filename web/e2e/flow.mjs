@@ -86,7 +86,8 @@ async function searchAndMove(page, shot) {
 
 async function copyPrompt(page, baseUrl) {
   await page.getByRole("button", { name: "Copy agent setup prompt" }).click();
-  await page.getByText("Agent setup prompt copied.").waitFor();
+  await page.getByRole("button", { name: "Copied" }).waitFor();
+  check((await page.getByText("Agent setup prompt copied.").count()) === 0, "copying the prompt shows no toast");
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   check(prompt.includes(`${baseUrl}/api/v1/docs/agent-guide.md`), "the prompt names the agent guide URL");
   check(prompt.includes(`${baseUrl}/settings/api-keys`), "without email the prompt points to the API keys settings");
