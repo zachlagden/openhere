@@ -33,6 +33,8 @@ An empty value counts as unset. The server refuses to start, and names every pro
 
 The server answers a request as the dashboard and API only when its `Host` header equals the host of `PUBLIC_URL`. A request to the same server by another name, such as its IP address, is treated as a request to an unknown site host. Browse to the address you put in `PUBLIC_URL`.
 
+`GET /api/v1/instance` reports `version`, which is not an environment variable. The build sets it: the Docker image takes it from the `VERSION` build argument and a binary from `-ldflags "-X main.version=..."`. Both report `dev` unless you set it. See [Install with Docker](install-docker.md#the-image) for how to pass it, including a build-time variable in Coolify. The release workflow sets it for published images and binaries.
+
 `TEST_DATABASE_URL` is read by the test suite only. The server ignores it.
 
 ## Instance settings

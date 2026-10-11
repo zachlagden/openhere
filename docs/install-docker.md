@@ -19,7 +19,7 @@ Build the image from a clone of the repository:
 docker build -t openhere .
 ```
 
-Pass `--build-arg VERSION=1.2.3` to set the version that `GET /api/v1/instance` reports. It defaults to `dev`. For another architecture, use buildx: `docker buildx build --platform linux/arm64 -t openhere .`.
+`GET /api/v1/instance` reports `version` from the `VERSION` build argument, which is `dev` unless you set it. Pass `--build-arg VERSION=1.2.3` to `docker build`. On Coolify, add a build-time variable named `VERSION` under the application's environment variables (the Dockerfile declares `ARG VERSION`, and Coolify's documentation describes how it passes build-time variables to a build). The release workflow sets it to the release version for the images and binaries it publishes. For another architecture, use buildx: `docker buildx build --platform linux/arm64 -t openhere .`.
 
 Tagged releases publish a multi-architecture image (linux/amd64 and linux/arm64) to GitHub Container Registry under `ghcr.io/zachlagden/openhere`, tagged with the exact version, the minor version and `latest`. No release exists yet, so build from source until one does.
 
