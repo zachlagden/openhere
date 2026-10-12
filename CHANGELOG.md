@@ -10,6 +10,7 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ### Changed
 
+- The README is rewritten with a header, badges, a feature table, screenshots in `docs/screenshots`, install routes for Docker, release binaries and source, an agent section, troubleshooting and the project icon in `assets/icon.svg`. The install guides now describe the published release and image.
 - The dashboard's agent setup prompt now tells the agent to install the OpenHere skill, gives the instance URL and the sign-in route that fits the instance, and keeps the agent guide as a fallback for agents that cannot install skills.
 
 ## [0.1.0] - 2026-10-11
