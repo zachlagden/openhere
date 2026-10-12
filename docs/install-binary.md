@@ -4,7 +4,7 @@ The server is one static Go binary with the dashboard embedded. It needs no runt
 
 ## Get a binary
 
-Tagged releases attach archives for linux/amd64, linux/arm64, darwin/amd64 and darwin/arm64, with a `SHA256SUMS` file. No release exists yet, so build from source until one does. After a release, verify a download with `sha256sum -c SHA256SUMS`.
+Tagged releases attach archives named `openhere_<version>_<os>_<arch>.tar.gz` for linux/amd64, linux/arm64, darwin/amd64 and darwin/arm64, with a `SHA256SUMS` file. Download the archive and `SHA256SUMS` from the [releases page](https://github.com/zachlagden/openhere/releases), then verify with `sha256sum -c --ignore-missing SHA256SUMS`. Each archive holds the `openhere` binary, `LICENSE` and `README.md` in a folder of the same name.
 
 ## Build from source
 
