@@ -19,3 +19,5 @@ coverage.out
 node_modules/
 /web/coverage/
 /web/e2e/output/
+
+/IDEA.md
