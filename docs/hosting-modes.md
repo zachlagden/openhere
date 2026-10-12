@@ -91,17 +91,28 @@ Responses support `Range`, `If-None-Match` and `If-Modified-Since`. The `ETag` i
 
 Version directories never change, but a file keeps the same URL across versions, so a long cache lifetime would show visitors old files after a republish. The server therefore sends `Cache-Control: no-cache` with every site file, HTML and assets alike. A browser or CDN may store the file but must ask the server before it reuses the copy. It sends `If-None-Match` with the `ETag`, and the server answers 304 with no body while the file is unchanged. A republish is visible at once, and an unchanged file costs one small request. The server sends no `must-revalidate` and no `max-age` for these files. `no-cache` also keeps Cloudflare from caching the files at its edge, so `Range` requests and `If-None-Match` reach the server instead of a cached copy.
 
-One kind of file gets a long lifetime. When a path lies under a directory named `_next`, `assets`, `static` or `build`, and a name after that directory has a hash token, the response sends `Cache-Control: public, max-age=31536000, immutable`. A name is a directory name or a file name without its extension. A hash token is 8 to 64 letters and digits, with at least one of each, set off from the rest of the name by `.`, `-` or `_`. These paths match:
+One kind of file gets a long lifetime. When a path lies under a directory named `_next`, `assets`, `static` or `build`, and a name after that directory has a hash token, the response sends `Cache-Control: private, max-age=31536000, immutable`. A name is a directory name or a file name without its extension. A hash token is 8 to 64 letters and digits, with at least one of each, set off from the rest of the name by `.`, `-` or `_`. These paths match:
 
 - `_next/static/chunks/main-app-a1b2c3d4e5f6a7b8.js`
 - `assets/index-Bv3HVboL.js`
 - `static/js/main.8a1b2c3d.js`
 
-These do not, and stay `no-cache`: `assets/app.css`, `assets/logo.png`, `static/photo-2024.jpg`, `main.8a1b2c3d.js` (no matching directory) and a hashed `.html` file. The rule needs a digit, so a bundler hash made of letters only, such as the Vite name `index-Bv-HVboL.js`, also stays `no-cache`. That costs a 304 and never serves a stale file. Hashes with `-` or `_` inside them do not match either. Files of a gated site send `private, no-cache`.
+These do not, and stay `no-cache`: `assets/app.css`, `assets/logo.png`, `static/photo-2024.jpg`, `main.8a1b2c3d.js` (no matching directory) and a hashed `.html` file. The rule needs a digit, so a bundler hash made of letters only, such as the Vite name `index-Bv-HVboL.js`, also stays `no-cache`. That costs a 304 and never serves a stale file. Hashes with `-` or `_` inside them do not match either. Files of a gated site send `private, no-cache`. No site response sends `public` or `s-maxage`.
 
-A file that does not match revalidates on every use. To make it cacheable for a year, give it a content-hashed name under one of those directories.
+A file that does not match revalidates on every use. To make it cacheable by a browser for a year, give it a content-hashed name under one of those directories.
 
-Behind a CDN, a cache rule for your hashed paths gives them a long edge lifetime without touching the rest of the site. Write the rule against the path prefixes your build uses, such as `/assets/` or `/_next/static/`, and keep ordinary files out of it. [Reverse proxy](reverse-proxy.md#cloudflare-and-site-files) lists what Cloudflare does with these headers.
+Hashed files are marked `private` on purpose. A browser keeps its own copy for the full year, because that copy belongs to the visitor. A CDN or proxy does not store the file, so each request reaches the server and the server checks the site's access mode before it sends anything. A copy stored by a shared cache would outlive an access change, and the cache would keep serving it after the site became password protected or restricted.
+
+### CDN cache rules for hashed files
+
+If you want a CDN to cache hashed files for a public site, add a cache rule for your hashed paths, such as `/assets/` or `/_next/static/`, and keep ordinary files out of it. Understand the consequence first. A CDN cache rule that overrides origin headers keeps answering from its own copy and never asks the server, so it serves the file even after the site becomes password protected or restricted. Purge the CDN cache for the site, or for its whole path, every time a site changes from public to password or restricted. [Reverse proxy](reverse-proxy.md#cloudflare-and-site-files) lists what Cloudflare does with these headers.
+
+### After you make a public site private
+
+1. Purge the CDN cache for the site's hostname, or for its `/s/<slug>/` path in path mode.
+2. Remember that a browser which already loaded the files keeps its own copies until they expire. The server cannot remove them.
+
+Versions before 0.1.1 sent `public, max-age=31536000, immutable` for hashed files, so a CDN may still hold copies stored before you upgraded. Purge the CDN cache once after upgrading.
 
 ## Wildcard check
 

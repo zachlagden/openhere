@@ -108,6 +108,7 @@ The server stores coarse values derived from each request, a keyed daily visitor
 - The server has no built-in two-factor authentication and no audit log.
 - The bot filter for analytics is a short list of name fragments.
 - A path-mode site runs with the dashboard's origin as its parent, protected only by the sandbox policy.
+- The server cannot remove a copy that a CDN or a browser already holds. Hashed files are `private`, so shared caches do not store them, but a CDN cache rule that overrides origin headers can keep serving a file after its site becomes password protected or restricted. Purge the CDN cache whenever a site stops being public. Browsers that already loaded a file keep their own copy. See [After you make a public site private](hosting-modes.md#after-you-make-a-public-site-private).
 - The gate page of a gated site reveals that the slug exists.
 - Built-in HTTPS accepts the certificate authority's terms of service on your behalf.
 - A gated site in path mode sets its viewer cookie with `SameSite=None`, because the sandboxed page has an opaque origin. A page on another site that a signed-in viewer visits can therefore load that site's gated scripts and styles with the viewer's cookie attached. Use subdomain or custom domain mode for gated sites that hold anything private.
