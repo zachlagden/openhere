@@ -7,7 +7,7 @@ import (
 
 const (
 	CacheFile      = "no-cache"
-	CacheImmutable = "public, max-age=31536000, immutable"
+	CacheImmutable = "private, max-age=31536000, immutable"
 
 	minHashLength = 8
 	maxHashLength = 64

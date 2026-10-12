@@ -8,9 +8,15 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 - An installable agent skill in `skills/openhere`, for `npx skills add zachlagden/openhere --skill openhere -g`. It has a `SKILL.md`, a `publish.sh` script that uploads a built folder in parallel with retries and keeps `.openhere/state.json` so later runs update the same site with conflict detection, an `auth.sh` script for the email-code and API-key sign-in, a `status.sh` script that lists sites, and API and access references.
 
+### Security
+
+- Content-hashed site files are no longer stored by shared caches. Earlier versions sent them with `Cache-Control: public, max-age=31536000, immutable`, so a CDN could keep serving a file for up to a year after its site became password protected or restricted. They now send `private, max-age=31536000, immutable`. Operators behind a CDN should purge its cache once after upgrading, and whenever a site changes from public to password or restricted. See [Hosting modes](docs/hosting-modes.md#caching).
+
 ### Changed
 
+- The note on the sign-in screens, "OpenHere is open source and runs on your own server.", links to the project repository.
 - The README is rewritten with a header, badges, a feature table, screenshots in `docs/screenshots`, install routes for Docker, release binaries and source, an agent section, troubleshooting and the project icon in `assets/icon.svg`. The install guides now describe the published release and image.
+- Content-hashed site files send `Cache-Control: private, max-age=31536000, immutable` in place of `public, max-age=31536000, immutable`. Browsers still keep them for a year.
 - The dashboard's agent setup prompt now tells the agent to install the OpenHere skill, gives the instance URL and the sign-in route that fits the instance, and keeps the agent guide as a fallback for agents that cannot install skills.
 
 ## [0.1.0] - 2026-10-11
