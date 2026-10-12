@@ -136,15 +136,15 @@ The project ships a `Dockerfile` and no Docker Compose file, by design. A compos
 
 ### From a release binary
 
-Each release attaches archives for linux/amd64, linux/arm64, darwin/amd64 and darwin/arm64, plus a `SHA256SUMS` file. The release workflow builds them from the tag. Replace `0.1.0` with the version you want, and `linux_amd64` with your platform.
+Each release attaches archives for linux/amd64, linux/arm64, darwin/amd64 and darwin/arm64, plus a `SHA256SUMS` file. The release workflow builds them from the tag. Replace `0.1.1` with the version you want, and `linux_amd64` with your platform.
 
 ```sh
 mkdir openhere-download && cd openhere-download
-curl -fLO https://github.com/zachlagden/openhere/releases/download/v0.1.0/openhere_0.1.0_linux_amd64.tar.gz
-curl -fLO https://github.com/zachlagden/openhere/releases/download/v0.1.0/SHA256SUMS
+curl -fLO https://github.com/zachlagden/openhere/releases/download/v0.1.1/openhere_0.1.1_linux_amd64.tar.gz
+curl -fLO https://github.com/zachlagden/openhere/releases/download/v0.1.1/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
-tar -xzf openhere_0.1.0_linux_amd64.tar.gz
-./openhere_0.1.0_linux_amd64/openhere
+tar -xzf openhere_0.1.1_linux_amd64.tar.gz
+./openhere_0.1.1_linux_amd64/openhere
 ```
 
 On macOS, compare the output of `shasum -a 256 <archive>` with its line in `SHA256SUMS`. The binary has no flags. Configuration comes from environment variables. With none set, it listens on `:8080`, expects `http://localhost:8080`, stores everything in `./data` and uses SQLite. The first start logs the setup token as above. Stop it with Ctrl+C.

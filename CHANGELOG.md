@@ -4,6 +4,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-12
+
 ### Added
 
 - An installable agent skill in `skills/openhere`, for `npx skills add zachlagden/openhere --skill openhere -g`. It has a `SKILL.md`, a `publish.sh` script that uploads a built folder in parallel with retries and keeps `.openhere/state.json` so later runs update the same site with conflict detection, an `auth.sh` script for the email-code and API-key sign-in, a `status.sh` script that lists sites, and API and access references.
@@ -73,5 +75,6 @@ First release.
 - The Docker build context leaves out `.env` files, data directories, databases, keys and certificates.
 - New sites cannot use more infrastructure names such as `mta-sts`, `autodiscover` and `vpn`, or a slug that starts with `xn--`.
 
-[Unreleased]: https://github.com/zachlagden/openhere/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/zachlagden/openhere/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/zachlagden/openhere/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zachlagden/openhere/releases/tag/v0.1.0
