@@ -36,6 +36,15 @@ async function fillAndSubmit(): Promise<void> {
 }
 
 describe("LoginPage", () => {
+  it("links the open source note to the repository", async () => {
+    mockApi(signedOut);
+    renderLogin();
+    const link = await screen.findByRole("link", { name: "OpenHere is open source and runs on your own server." });
+    expect(link).toHaveAttribute("href", "https://github.com/zachlagden/openhere");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("signs in and follows the next parameter", async () => {
     const fetchMock = mockApi({ ...signedOut, "POST /api/v1/auth/login": { body: { user: alex } } });
     renderLogin("/login?next=%2Fdocs");

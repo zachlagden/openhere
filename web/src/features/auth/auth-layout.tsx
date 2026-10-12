@@ -1,5 +1,5 @@
 import type { JSX, ReactNode } from "react";
-import { BRAND_NAME } from "@/brand";
+import { BRAND_NAME, REPOSITORY_URL } from "@/brand";
 import { Logo } from "@/layout/logo";
 import { ThemeToggle } from "@/layout/theme-toggle";
 import { usePageTitle } from "@/lib/use-page-title";
@@ -26,7 +26,11 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
             <div className="mt-1 text-ok">live at sites.example.com/s/quiet-meadow-k3p7/</div>
           </div>
         </div>
-        <p className="text-xs text-muted">{BRAND_NAME} is open source and runs on your own server.</p>
+        <p className="text-xs text-muted">
+          <a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer" className="underline-offset-4 hover:text-foreground hover:underline">
+            {BRAND_NAME} is open source and runs on your own server.
+          </a>
+        </p>
       </aside>
       <main className="flex min-w-0 flex-col px-4 py-6 sm:px-10">
         <div className="flex items-center justify-between lg:justify-end">
